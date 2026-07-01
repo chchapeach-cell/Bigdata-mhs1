@@ -14,6 +14,7 @@ interface SchoolDetailViewProps {
   onBack: () => void;
   userProfile: UserProfile | null;
   onRefreshData: () => Promise<void>;
+  isDarkMode?: boolean;
 }
 
 export default function SchoolDetailView({
@@ -21,11 +22,19 @@ export default function SchoolDetailView({
   studentData,
   onBack,
   userProfile,
-  onRefreshData
+  onRefreshData,
+  isDarkMode = false
 }: SchoolDetailViewProps) {
   const isSuperAdmin = userProfile?.role === 'super_admin';
   const isSchoolAdmin = userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id;
   const canEdit = isSuperAdmin || isSchoolAdmin;
+
+  // กำหนดสไตล์กราฟตามโหมดมืด/สว่าง เพื่อความคมชัดในการอ่าน
+  const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipBg = isDarkMode ? '#1e1518' : '#FFF9F5';
+  const tooltipBorder = isDarkMode ? '#FFD3B6' : '#33272A';
+  const tooltipText = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipShadow = isDarkMode ? '4px 4px 0px #FFD3B6' : '4px 4px 0px #33272A';
 
   // โหมดแก้ไข
   const [isEditing, setIsEditing] = useState(false);
@@ -562,7 +571,7 @@ export default function SchoolDetailView({
                                   const val = Number(e.target.value);
                                   setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
                                 }}
-                                className="w-10 rounded border border-[#33272A]/20 bg-white p-0.5 text-center text-[10px] font-bold text-[#33272A]"
+                                className="w-10 rounded border border-[#33272A]/20 bg-white dark:bg-[#1e1518] p-0.5 text-center text-[10px] font-bold text-[#33272A] dark:text-[#FFF9F5]"
                               />
                               <span className="text-[10px]">คน</span>
                               <button
@@ -679,21 +688,21 @@ export default function SchoolDetailView({
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -30, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="name" stroke="#33272A" />
-                  <YAxis stroke="#33272A" />
+                  <XAxis dataKey="name" stroke={chartStroke} />
+                  <YAxis stroke={chartStroke} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
-                      border: '2px solid #33272A',
-                      backgroundColor: '#FFF9F5',
-                      color: '#33272A',
-                      boxShadow: '4px 4px 0px #33272A',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
                     }}
-                    itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                    itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
                   />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '5px', fontWeight: 'bold' }} />
-                  <Bar dataKey="ชาย" fill="#A0E7E5" stackId="a" stroke="#33272A" strokeWidth={2} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="หญิง" fill="#FF8BA7" stackId="a" stroke="#33272A" strokeWidth={2} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="ชาย" fill="#A0E7E5" stackId="a" stroke={chartStroke} strokeWidth={2} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="หญิง" fill="#FF8BA7" stackId="a" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -705,16 +714,16 @@ export default function SchoolDetailView({
 
           {/* สถิติรวดเร็ว */}
           <div className="mt-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 grid grid-cols-3 gap-2 text-center text-xs font-black">
-            <div className="bg-[#A0E7E5]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A]">
-              <span className="block text-[10px] text-[#33272A]/60">ชายทั้งหมด</span>
+            <div className="bg-[#A0E7E5]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">ชายทั้งหมด</span>
               <span className="text-sm font-black">{studentData?.totalMale || 0} คน</span>
             </div>
-            <div className="bg-[#FF8BA7]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A]">
-              <span className="block text-[10px] text-[#33272A]/60">หญิงทั้งหมด</span>
+            <div className="bg-[#FF8BA7]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">หญิงทั้งหมด</span>
               <span className="text-sm font-black">{studentData?.totalFemale || 0} คน</span>
             </div>
-            <div className="bg-[#FFD3B6]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A]">
-              <span className="block text-[10px] text-[#33272A]/60">นักเรียนรวม</span>
+            <div className="bg-[#FFD3B6]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">นักเรียนรวม</span>
               <span className="text-sm font-black">{studentData?.totalStudents || 0} คน</span>
             </div>
           </div>

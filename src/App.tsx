@@ -139,6 +139,24 @@ export default function App() {
         studentsList.push({ ...doc.data(), id: doc.id } as StudentData);
       });
 
+      if (schoolsList.length === 0) {
+        // Fallback to initial preset data if database is empty or connection fails
+        const { parseInitialData } = await import('./utils/initialData');
+        const initial = parseInitialData('2568');
+        setSchools(initial.schools);
+        setStudentData(initial.students);
+        
+        const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
+        if (years.length > 0) {
+          years.sort((a, b) => b.localeCompare(a));
+          setAvailableYears(years);
+          if (!years.includes(academicYear)) {
+            setAcademicYear(years[0]);
+          }
+        }
+        return;
+      }
+
       let finalStudentsList = studentsList;
 
       setSchools(schoolsList);
@@ -212,6 +230,7 @@ export default function App() {
                 onBack={() => setSelectedSchoolId(null)}
                 userProfile={userProfile}
                 onRefreshData={fetchAllData}
+                isDarkMode={isDarkMode}
               />
             ) : (
               <>
@@ -223,6 +242,7 @@ export default function App() {
                     setAcademicYear={setAcademicYear}
                     availableYears={availableYears}
                     onSelectSchool={(id) => setSelectedSchoolId(id)}
+                    isDarkMode={isDarkMode}
                   />
                 )}
 

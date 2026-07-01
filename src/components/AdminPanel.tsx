@@ -834,6 +834,20 @@ export default function AdminPanel({
       {/* แผงเมนู (เฉพาะ Super Admin) */}
       {isSuperAdmin && (
         <div className="space-y-4">
+          {/* ข้อมูลการเชื่อมต่อฐานข้อมูล MHS1-DMC */}
+          <div className="bg-[#A0E7E5]/25 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-wrap gap-2 items-center justify-between text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span>ระบบเชื่อมต่อสำเร็จ: <span className="text-emerald-600 dark:text-emerald-400">ฐานข้อมูลพร้อมใช้งานในเครือข่าย MHS1-DMC</span></span>
+            </div>
+            <div className="font-bold text-[10px] text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+              Project ID: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">mhs1-dmc</span> | Database: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">ai-studio-mhs1bigdata-b097cba8...</span>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setAdminTab('upload')}
@@ -970,7 +984,7 @@ export default function AdminPanel({
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
                           <thead>
-                            <tr className="border-b border-[#33272A] text-[#33272A]/70 font-bold">
+                            <tr className="border-b border-[#33272A] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">
                               {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
                                 <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
                               ))}
@@ -1012,7 +1026,7 @@ export default function AdminPanel({
                   <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์ ({pendingUsers.length})
                 </h3>
                 {isLoadingUsers ? (
-                  <div className="flex justify-center p-8 text-[#33272A] text-xs font-black gap-1.5 items-center">
+                  <div className="flex justify-center p-8 text-[#33272A] dark:text-[#FFF9F5] text-xs font-black gap-1.5 items-center">
                     <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
                   </div>
                 ) : pendingUsers.length > 0 ? (
@@ -1101,7 +1115,7 @@ export default function AdminPanel({
                       ))}
                       {approvedUsers.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-[#33272A]/50 font-bold">ไม่มีข้อมูลผู้ใช้งาน</td>
+                          <td colSpan={5} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่มีข้อมูลผู้ใช้งาน</td>
                         </tr>
                       )}
                     </tbody>
@@ -1162,7 +1176,7 @@ export default function AdminPanel({
                     })}
                     {downloadLogs.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-8 text-center text-[#33272A]/50 font-bold">ไม่มีประวัติการดาวน์โหลด</td>
+                        <td colSpan={4} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่มีประวัติการดาวน์โหลด</td>
                       </tr>
                     )}
                   </tbody>

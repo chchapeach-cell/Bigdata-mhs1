@@ -12,6 +12,7 @@ interface DashboardViewProps {
   setAcademicYear: (year: string) => void;
   availableYears: string[];
   onSelectSchool?: (id: string) => void;
+  isDarkMode?: boolean;
 }
 
 const COLORS = ['#A0E7E5', '#FF8BA7', '#FFD3B6', '#FFAAA5', '#60A5FA', '#A78BFA'];
@@ -22,10 +23,18 @@ export default function DashboardView({
   academicYear,
   setAcademicYear,
   availableYears,
-  onSelectSchool
+  onSelectSchool,
+  isDarkMode = false
 }: DashboardViewProps) {
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
+
+  // กำหนดสไตล์กราฟตามโหมดมืด/สว่าง เพื่อความคมชัดในการอ่าน
+  const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipBg = isDarkMode ? '#1e1518' : '#FFF9F5';
+  const tooltipBorder = isDarkMode ? '#FFD3B6' : '#33272A';
+  const tooltipText = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipShadow = isDarkMode ? '4px 4px 0px #FFD3B6' : '4px 4px 0px #33272A';
 
   // สถานะพิกัดและการซูมของแผนที่ PigeonMap
   const [mapCenter, setMapCenter] = useState<[number, number]>([19.3021, 97.9654]);
@@ -319,21 +328,21 @@ export default function DashboardView({
               <BarChart data={gradeChartData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                 <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                <XAxis dataKey="name" stroke="#33272A" />
-                <YAxis stroke="#33272A" type="number" domain={[0, 'auto']} allowDecimals={false} />
+                <XAxis dataKey="name" stroke={chartStroke} />
+                <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{
                     borderRadius: '16px',
-                    border: '2px solid #33272A',
-                    backgroundColor: '#FFF9F5',
-                    color: '#33272A',
-                    boxShadow: '4px 4px 0px #33272A',
+                    border: `2px solid ${tooltipBorder}`,
+                    backgroundColor: tooltipBg,
+                    color: tooltipText,
+                    boxShadow: tooltipShadow,
                   }}
-                  itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: tooltipText }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontWeight: 'bold' }} />
-                <Bar dataKey="ชาย" fill="#A0E7E5" stroke="#33272A" strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
-                <Bar dataKey="หญิง" fill="#FF8BA7" stroke="#33272A" strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
+                <Bar dataKey="ชาย" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
+                <Bar dataKey="หญิง" fill="#FF8BA7" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -370,7 +379,7 @@ export default function DashboardView({
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-2">
               <span className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase">รวมทั้งหมด</span>
               <span className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalSchools}</span>
-              <span className="text-[10px] font-black text-[#33272A]/60">แห่ง</span>
+              <span className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60">แห่ง</span>
             </div>
           </div>
           {/* ข้อมูลคำอธิบายวงกลม */}
@@ -461,23 +470,24 @@ export default function DashboardView({
                 <LineChart data={yearlyStudentsData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="year" stroke="#33272A" />
-                  <YAxis stroke="#33272A" type="number" domain={[0, 'auto']} allowDecimals={false} />
+                  <XAxis dataKey="year" stroke={chartStroke} />
+                  <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
-                      border: '2px solid #33272A',
-                      backgroundColor: '#FFF9F5',
-                      color: '#33272A',
-                      boxShadow: '4px 4px 0px #33272A',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
                     }}
+                    itemStyle={{ color: tooltipText }}
                   />
                   <Line 
                     type="monotone" 
                     dataKey="นักเรียนรวม" 
                     stroke="#FF8BA7" 
                     strokeWidth={4} 
-                    dot={{ stroke: '#33272A', strokeWidth: 2, r: 6, fill: '#A0E7E5' }}
+                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 6, fill: '#A0E7E5' }}
                     activeDot={{ r: 8 }}
                   />
                 </LineChart>
