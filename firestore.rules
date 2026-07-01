@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- HELPER FUNCTIONS ---
+
+    // Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if the user is a Super Admin
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ch.chapeach@gmail.com' ||
+        request.auth.token.email == 'tamrri@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
+      );
+    }
+
+    // Check if the user is an approved School Admin for a specific school
+    function isApprovedSchoolAdmin(schoolId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'school_admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId;
+    }
+
+    // Sanitize string validations
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- RULES FOR COLLECTIONS ---
+
+    // 1. Schools Collection
+    match /schools/{schoolId} {
+      // Anyone (including guests) can read/list school details
+      allow read: if true;
+
+      // Only Super Admin can create or delete schools
+      allow create, delete: if isSuperAdmin();
+
+      // Super Admin or approved School Admin for this specific school can update school details
+      allow update: if isSuperAdmin() || isApprovedSchoolAdmin(schoolId);
+    }
+
+    // 2. Students Collection (Statistics)
+    match /students/{studentDocId} {
+      // Anyone (including guests) can read/list student statistics to view the charts and dashboard
+      allow read: if true;
+
+      // Only Super Admin can write (create/update/delete) student records
+      allow write: if isSuperAdmin();
+    }
+
+    // 3. Users Collection (Admin profiles)
+    match /users/{userId} {
+      // Anyone can read profile details to check authorization status and match school associations
+      allow read: if true;
+
+      // Anyone can submit their registration request
+      // But they cannot self-assign super_admin role unless they have a pre-approved email
+      allow create: if incoming().role != 'super_admin' ||
+                       incoming().email == 'ch.chapeach@gmail.com' ||
+                       incoming().email == 'tamrri@gmail.com';
+
+      // Super Admin can update any user (for approving/rejecting accounts).
+      // Normal users can update their own non-sensitive profile info, but NOT their role or status.
+      allow update: if isSuperAdmin() || (
+        isSignedIn() &&
+        userId == request.auth.uid &&
+        incoming().role == existing().role &&
+        incoming().status == existing().status
+      );
+
+      // Only Super Admin can delete a user profile
+      allow delete: if isSuperAdmin();
+    }
+
+    // 4. Download Logs Collection
+    match /download_logs/{logId} {
+      // Anyone can create a log entry when they download data
+      allow create: if true;
+
+      // Only Super Admin can read or manage download logs
+      allow read, update, delete: if isSuperAdmin();
+    }
+
+    // 5. System Settings Collection
+    match /settings/{settingId} {
+      // Anyone can read system settings to verify registration limits
+      allow read: if true;
+
+      // Only Super Admin can write/update system configurations
+      allow write: if isSuperAdmin();
+    }
+  }
+}

@@ -1,0 +1,986 @@
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { School, StudentData, UserProfile } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database } from 'lucide-react';
+import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { db, OperationType, handleFirestoreError } from '../firebase';
+import * as XLSX from 'xlsx';
+
+interface AdminPanelProps {
+  userProfile: UserProfile;
+  schools: School[];
+  studentData: StudentData[];
+  onRefreshData: () => Promise<void>;
+  isUsingLocalFallback?: boolean;
+  onForceMigrate?: () => Promise<void>;
+}
+
+export default function AdminPanel({
+  userProfile,
+  schools,
+  studentData,
+  onRefreshData,
+  isUsingLocalFallback = false,
+  onForceMigrate
+}: AdminPanelProps) {
+  const isSuperAdmin = userProfile.role === 'super_admin';
+
+  // เลือกโรงเรียนที่ต้องการแก้ไข (สำหรับ Super Admin สามารถเลือกได้ทั้งหมด ส่วน School Admin จะถูกล็อกไว้ที่โรงเรียนตนเอง)
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
+    isSuperAdmin ? (schools[0]?.id || '') : (userProfile.schoolId || '')
+  );
+
+  // State สำหรับการแก้ไขข้อมูลโรงเรียน (School Admin / Super Admin)
+  const mySchool = schools.find(s => s.id === selectedSchoolId);
+  const [editSchoolName, setEditSchoolName] = useState('');
+  const [editAmphoe, setEditAmphoe] = useState('');
+  const [editNetworkGroup, setEditNetworkGroup] = useState('');
+  const [editInternet, setEditInternet] = useState<School['internetType']>('none');
+  const [editElectricity, setEditElectricity] = useState(true);
+  const [editStaffCount, setEditStaffCount] = useState(5);
+  const [editDirectorPhone, setEditDirectorPhone] = useState('');
+  const [editSchoolPhone, setEditSchoolPhone] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editMajorsStr, setEditMajorsStr] = useState('');
+  const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
+  const [newMajorName, setNewMajorName] = useState('');
+  const [newMajorCount, setNewMajorCount] = useState<number>(1);
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editError, setEditError] = useState('');
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  // เอฟเฟ็กต์สำหรับอัปเดตค่าฟอร์มเมื่อเปลี่ยนโรงเรียนที่ต้องการแก้ไข
+  useEffect(() => {
+    const targetSchool = schools.find(s => s.id === selectedSchoolId);
+    if (targetSchool) {
+      setEditSchoolName(targetSchool.name || '');
+      setEditAmphoe(targetSchool.amphoe || '');
+      setEditNetworkGroup(targetSchool.networkGroup || '');
+      setEditInternet(targetSchool.internetType || 'none');
+      setEditElectricity(targetSchool.electricity !== undefined ? targetSchool.electricity : true);
+      setEditStaffCount(targetSchool.staffCount !== undefined ? targetSchool.staffCount : 5);
+      setEditDirectorPhone(targetSchool.directorPhone || '');
+      setEditSchoolPhone(targetSchool.schoolPhone || '');
+      setEditImageUrl(targetSchool.imageUrl || '');
+      setEditMajorsStr(targetSchool.majorSubjects ? targetSchool.majorSubjects.join(', ') : '');
+      
+      // อัปเดตวิชาเอกพร้อมจำนวนครู
+      if (targetSchool.majorSubjectsWithStaff && targetSchool.majorSubjectsWithStaff.length > 0) {
+        setEditMajorsWithStaff(targetSchool.majorSubjectsWithStaff);
+      } else if (targetSchool.majorSubjects && targetSchool.majorSubjects.length > 0) {
+        setEditMajorsWithStaff(targetSchool.majorSubjects.map(m => ({ name: m, teachersCount: 1 })));
+      } else {
+        setEditMajorsWithStaff([]);
+      }
+    }
+  }, [selectedSchoolId, schools]);
+
+  // เอฟเฟ็กต์สำหรับกรณีที่โรงเรียนโหลดมาทีหลัง และเลือกโรงเรียนแรกเริ่มต้น (สำหรับ Super Admin)
+  useEffect(() => {
+    if (isSuperAdmin && !selectedSchoolId && schools.length > 0) {
+      setSelectedSchoolId(schools[0].id);
+    }
+  }, [isSuperAdmin, schools, selectedSchoolId]);
+
+  // State สำหรับ Super Admin
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [uploadYear, setUploadYear] = useState('2568');
+  const [uploadError, setUploadError] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewData, setPreviewData] = useState<any[]>([]);
+
+  // นโยบายจำกัด 1 แอดมินต่อโรงเรียน
+  const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+
+  // โหลดข้อมูลนโยบายสิทธิ์การรับสมัครจาก Firestore (เฉพาะ Super Admin)
+  const loadSystemSettings = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
+      if (configSnap.exists()) {
+        const data = configSnap.data();
+        if (data.restrictOneAdminPerSchool !== undefined) {
+          setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load system settings:', e);
+    }
+  };
+
+  // บันทึกและสลับสถานะนโยบาย (เฉพาะ Super Admin)
+  const handleToggleRestriction = async (newValue: boolean) => {
+    if (!isSuperAdmin) return;
+    setIsSavingSettings(true);
+    setSettingsSuccess('');
+    try {
+      await setDoc(doc(db, 'settings', 'system_config'), {
+        restrictOneAdminPerSchool: newValue,
+        updatedAt: new Date()
+      }, { merge: true });
+      setRestrictOneAdminPerSchool(newValue);
+      setSettingsSuccess('อัปเดตนโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียนเรียบร้อยแล้ว!');
+      setTimeout(() => setSettingsSuccess(''), 4000);
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+      alert('เกิดข้อผิดพลาดในการบันทึกนโยบายผู้สมัคร');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // โหลดรายชื่อผู้รออนุมัติสิทธิ์ (เฉพาะ Super Admin)
+  const loadPendingUsers = async () => {
+    if (!isSuperAdmin) return;
+    setIsLoadingUsers(true);
+    try {
+      const q = query(collection(db, 'users'), where('status', '==', 'pending'));
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.LIST, 'users');
+        throw e;
+      }
+      const list: UserProfile[] = [];
+      querySnapshot.forEach(doc => {
+        list.push({ ...doc.data(), uid: doc.id } as UserProfile);
+      });
+      setPendingUsers(list);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      loadPendingUsers();
+      loadSystemSettings();
+    }
+  }, [isSuperAdmin]);
+
+  // ฟังก์ชันอนุมัติสิทธิ์ / ปฏิเสธสิทธิ์ผู้สมัครแอดมินโรงเรียน
+  const handleUserStatusUpdate = async (uid: string, status: 'approved' | 'rejected') => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      try {
+        await updateDoc(userRef, { status });
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `users/${uid}`);
+        throw e;
+      }
+      setPendingUsers(prev => prev.filter(u => u.uid !== uid));
+      alert(`อัปเดตสถานะของผู้สมัครเรียบร้อยแล้วเป็น: ${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}`);
+    } catch (error) {
+      console.error(error);
+      alert('เกิดข้อผิดพลาดในการอัปเดตสิทธิ์ผู้ใช้');
+    }
+  };
+
+  // บันทึกการแก้ไขข้อมูลสถานศึกษาของ School Admin หรือ Super Admin
+  const handleSaveSchoolInfo = async (e: FormEvent) => {
+    e.preventDefault();
+    const targetId = isSuperAdmin ? selectedSchoolId : userProfile.schoolId;
+    if (!targetId) {
+      setEditError('ไม่พบรหัสโรงเรียนที่ต้องการแก้ไข');
+      return;
+    }
+
+    setIsSavingSchool(true);
+    setEditSuccess('');
+    setEditError('');
+
+    try {
+      const schoolRef = doc(db, 'schools', targetId);
+      
+      // ดึงรายชื่อวิชาเอกจากทั้งส่วนคั่นจุลภาคและจากลิสต์ที่มีจำนวนครู
+      const textMajors = editMajorsStr.split(',').map(m => m.trim()).filter(m => m !== '');
+      const listMajors = editMajorsWithStaff.map(m => m.name);
+      
+      // รวมวิชาเอกทั้งหมดเข้าด้วยกันแบบ Unique
+      const combinedMajors = Array.from(new Set([...textMajors, ...listMajors]));
+      
+      // สร้างรายการ วิชาเอกพร้อมจำนวนครู
+      // ตัวใดที่มีอยู่ในลิสต์ ก็ใช้จำนวนครูเดิม ตัวที่กรอกใหม่ทางข้อความแต่ยังไม่มีในลิสต์ ให้ตั้งจำนวนครูเริ่มต้นเป็น 1 คน
+      const updatedMajorsWithStaff = combinedMajors.map(name => {
+        const found = editMajorsWithStaff.find(m => m.name === name);
+        return {
+          name,
+          teachersCount: found ? found.teachersCount : 1
+        };
+      });
+
+      const updatedFields = {
+        name: editSchoolName,
+        amphoe: editAmphoe,
+        networkGroup: editNetworkGroup,
+        internetType: editInternet,
+        electricity: editElectricity,
+        staffCount: Number(editStaffCount),
+        directorPhone: editDirectorPhone,
+        schoolPhone: editSchoolPhone,
+        imageUrl: editImageUrl,
+        majorSubjects: combinedMajors,
+        majorSubjectsWithStaff: updatedMajorsWithStaff
+      };
+
+      try {
+        await updateDoc(schoolRef, updatedFields);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `schools/${targetId}`);
+        throw e;
+      }
+      setEditSuccess('บันทึกข้อมูลพื้นฐานโรงเรียน อำเภอ เครือข่าย และวิชาเอกพร้อมจำนวนครูเรียบร้อยแล้ว!');
+      await onRefreshData();
+    } catch (error) {
+      console.error(error);
+      setEditError('ไม่สามารถอัปเดตข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsSavingSchool(false);
+    }
+  };
+
+  // ฟังก์ชันช่วยอ่านไฟล์และตรวจจับการเข้ารหัสอักขระ (UTF-8 และ TIS-620 / Windows-874 สำหรับภาษาไทย)
+  const parseFileWithEncoding = (file: File): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const arrayBuffer = evt.target?.result as ArrayBuffer;
+          const isCsv = file.name.toLowerCase().endsWith('.csv');
+          
+          let workbook;
+          if (isCsv) {
+            // ลองดีโค้ดแบบ UTF-8 ก่อน (จะโยนความผิดพลาดหากพบบล็อกไบต์ที่ไม่ถูกต้อง)
+            let decodedText = '';
+            try {
+              const decoderUtf8 = new TextDecoder('utf-8', { fatal: true });
+              decodedText = decoderUtf8.decode(arrayBuffer);
+            } catch (e) {
+              // หากเกิดความผิดพลาด แสดงว่าเป็น TIS-620 / Windows-874
+              const decoderTis620 = new TextDecoder('windows-874');
+              decodedText = decoderTis620.decode(arrayBuffer);
+            }
+            workbook = XLSX.read(decodedText, { type: 'string' });
+          } else {
+            // สำหรับไฟล์ Excel (.xlsx / .xls) อ่านด้วย binary array ปกติ
+            workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+          }
+          resolve(workbook);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // พาร์สไฟล์ CSV / Excel สำหรับอัพโหลดข้อมูลนักเรียน
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError('');
+    setUploadSuccess('');
+    setPreviewData([]);
+
+    try {
+      const workbook = await parseFileWithEncoding(file);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
+
+      // แสดงตัวอย่าง 5 แถวแรก
+      if (data.length > 1) {
+        setPreviewData(data.slice(0, 6));
+      } else {
+        setUploadError('ไฟล์ไม่มีข้อมูลหรือรูปแบบไม่ถูกต้อง');
+      }
+    } catch (err) {
+      console.error(err);
+      setUploadError('ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็นไฟล์ CSV หรือ Excel (.xlsx) ที่ถูกต้อง');
+    }
+  };
+
+  // บันทึกการอัพโหลดข้อมูลนักเรียนจากไฟล์ และคํานวณบันทึกลง Firestore dmc-mhs1
+  const handleUploadSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (previewData.length === 0) {
+      setUploadError('กรุณาเลือกไฟล์และตรวจสอบตัวอย่างข้อมูลก่อนอัปโหลด');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError('');
+    setUploadSuccess('');
+
+    try {
+      // ดึง input file
+      const fileInput = document.getElementById('upload-file-input') as HTMLInputElement;
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        setUploadError('ไม่พบไฟล์ที่จะอัปโหลด');
+        setIsUploading(false);
+        return;
+      }
+
+      const workbook = await parseFileWithEncoding(file);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
+
+      let processedCount = 0;
+
+      // วนลูปบันทึกข้อมูลโรงเรียนแต่ละแห่ง
+      for (let i = 1; i < rows.length; i++) {
+            const parts = rows[i];
+            if (parts.length < 15 || !parts[2]) continue; // ข้ามแถวที่ข้อมูลไม่ครบ
+
+            const schoolId = String(parts[2]).trim();
+            const schoolNameRaw = String(parts[3] || '').trim();
+
+            // พาร์สข้อมูลรายชั้น (ตามดัชนีคอลัมน์)
+            const k1_male = Number(parts[4]) || 0;
+            const k1_female = Number(parts[5]) || 0;
+            const k1_total = Number(parts[6]) || 0;
+            const k1_rooms = Number(parts[7]) || 0;
+
+            const k2_male = Number(parts[8]) || 0;
+            const k2_female = Number(parts[9]) || 0;
+            const k2_total = Number(parts[10]) || 0;
+            const k2_rooms = Number(parts[11]) || 0;
+
+            const k3_male = Number(parts[12]) || 0;
+            const k3_female = Number(parts[13]) || 0;
+            const k3_total = Number(parts[14]) || 0;
+            const k3_rooms = Number(parts[15]) || 0;
+
+            const p1_male = Number(parts[20]) || 0;
+            const p1_female = Number(parts[21]) || 0;
+            const p1_total = Number(parts[22]) || 0;
+            const p1_rooms = Number(parts[23]) || 0;
+
+            const p2_male = Number(parts[24]) || 0;
+            const p2_female = Number(parts[25]) || 0;
+            const p2_total = Number(parts[26]) || 0;
+            const p2_rooms = Number(parts[27]) || 0;
+
+            const p3_male = Number(parts[28]) || 0;
+            const p3_female = Number(parts[29]) || 0;
+            const p3_total = Number(parts[30]) || 0;
+            const p3_rooms = Number(parts[31]) || 0;
+
+            const p4_male = Number(parts[32]) || 0;
+            const p4_female = Number(parts[33]) || 0;
+            const p4_total = Number(parts[34]) || 0;
+            const p4_rooms = Number(parts[35]) || 0;
+
+            const p5_male = Number(parts[36]) || 0;
+            const p5_female = Number(parts[37]) || 0;
+            const p5_total = Number(parts[38]) || 0;
+            const p5_rooms = Number(parts[39]) || 0;
+
+            const p6_male = Number(parts[40]) || 0;
+            const p6_female = Number(parts[41]) || 0;
+            const p6_total = Number(parts[42]) || 0;
+            const p6_rooms = Number(parts[43]) || 0;
+
+            const m1_male = Number(parts[48]) || 0;
+            const m1_female = Number(parts[49]) || 0;
+            const m1_total = Number(parts[50]) || 0;
+            const m1_rooms = Number(parts[51]) || 0;
+
+            const m2_male = Number(parts[52]) || 0;
+            const m2_female = Number(parts[53]) || 0;
+            const m2_total = Number(parts[54]) || 0;
+            const m2_rooms = Number(parts[55]) || 0;
+
+            const m3_male = Number(parts[56]) || 0;
+            const m3_female = Number(parts[57]) || 0;
+            const m3_total = Number(parts[58]) || 0;
+            const m3_rooms = Number(parts[59]) || 0;
+
+            const totalMale = k1_male + k2_male + k3_male + p1_male + p2_male + p3_male + p4_male + p5_male + p6_male + m1_male + m2_male + m3_male;
+            const totalFemale = k1_female + k2_female + k3_female + p1_female + p2_female + p3_female + p4_female + p5_female + p6_female + m1_female + m2_female + m3_female;
+            const totalStudents = totalMale + totalFemale;
+
+            const isExpansion = (m1_total + m2_total + m3_total) > 0;
+
+            // บันทึก / อัปเดตข้อมูลสถิตินักเรียนรายโรงเรียนลง Firestore
+            const studentDocRef = doc(db, 'students', `${schoolId}_${uploadYear}`);
+            try {
+              await setDoc(studentDocRef, {
+                schoolId,
+                schoolName: schoolNameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || schoolNameRaw,
+                academicYear: uploadYear,
+                grades: {
+                  "อ.1": { male: k1_male, female: k1_female, total: k1_total, rooms: k1_rooms },
+                  "อ.2": { male: k2_male, female: k2_female, total: k2_total, rooms: k2_rooms },
+                  "อ.3": { male: k3_male, female: k3_female, total: k3_total, rooms: k3_rooms },
+                  "ป.1": { male: p1_male, female: p1_female, total: p1_total, rooms: p1_rooms },
+                  "ป.2": { male: p2_male, female: p2_female, total: p2_total, rooms: p2_rooms },
+                  "ป.3": { male: p3_male, female: p3_female, total: p3_total, rooms: p3_rooms },
+                  "ป.4": { male: p4_male, female: p4_female, total: p4_total, rooms: p4_rooms },
+                  "ป.5": { male: p5_male, female: p5_female, total: p5_total, rooms: p5_rooms },
+                  "ป.6": { male: p6_male, female: p6_female, total: p6_total, rooms: p6_rooms },
+                  "ม.1": { male: m1_male, female: m1_female, total: m1_total, rooms: m1_rooms },
+                  "ม.2": { male: m2_male, female: m2_female, total: m2_total, rooms: m2_rooms },
+                  "ม.3": { male: m3_male, female: m3_female, total: m3_total, rooms: m3_rooms }
+                },
+                totalMale,
+                totalFemale,
+                totalStudents
+              });
+            } catch (e) {
+              handleFirestoreError(e, OperationType.WRITE, `students/${schoolId}_${uploadYear}`);
+              throw e;
+            }
+
+            // ตรวจสอบข้อมูลโรงเรียนพื้นฐาน ถ้ายังไม่มีให้สร้างขึ้นใหม่
+            const schoolDocRef = doc(db, 'schools', schoolId);
+            let size: School['size'] = 'small';
+            if (totalStudents >= 1500) size = 'special_large';
+            else if (totalStudents >= 300) size = 'large';
+            else if (totalStudents >= 120) size = 'medium';
+
+            // บันทึกเฉพาะข้อมูลพื้นฐานโครงสร้างแบบเบื้องต้น
+            try {
+              await setDoc(schoolDocRef, {
+                id: schoolId,
+                name: schoolNameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || schoolNameRaw,
+                district: "สพป.แม่ฮ่องสอน เขต 1",
+                size,
+                isExpansion,
+                latitude: 19.3021 + (Math.random() - 0.5) * 0.4,
+                longitude: 97.9654 + (Math.random() - 0.5) * 0.4,
+                internetType: 'fiber',
+                electricity: true,
+                staffCount: Math.max(3, Math.round(totalStudents / 15)),
+                directorPhone: "081-2345678",
+                schoolPhone: "053-611000",
+                imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
+                majorSubjects: ["คอมพิวเตอร์/เทคโนโลยี", "คณิตศาสตร์", "ภาษาไทย", "ภาษาอังกฤษ"]
+              }, { merge: true });
+            } catch (e) {
+              handleFirestoreError(e, OperationType.WRITE, `schools/${schoolId}`);
+              throw e;
+            }
+
+            processedCount++;
+          }
+
+          setUploadSuccess(`นำเข้าสถิตินักเรียนเรียบร้อยแล้ว จำนวน ${processedCount} โรงเรียน ประจำปีการศึกษา ${uploadYear}`);
+          setPreviewData([]);
+          await onRefreshData();
+        } catch (err) {
+          console.error(err);
+          setUploadError('เกิดข้อผิดพลาดในการนำเข้าข้อมูลโรงเรียน กรุณาตรวจสอบรูปแบบคอลัมน์ของไฟล์');
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] p-3 text-[#33272A] dark:border-[#FFD3B6]">
+          <Shield className="h-6 w-6" />
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">
+            {isSuperAdmin ? 'ระบบจัดการระดับเขตพื้นที่ (Super Admin)' : `ระบบจัดการสถานศึกษา: ${userProfile.schoolName}`}
+          </h2>
+          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">แผงควบคุมหลักสำหรับจัดการข้อมูล สิทธิ์ผู้สมัคร และไฟล์นำเข้า BIGDATA</p>
+        </div>
+      </div>
+
+      {/* แผงแก้ไขข้อมูลสถานศึกษาสำหรับ แอดมินโรงเรียน และ Super Admin (แก้ไขได้ทุกโรงเรียน) */}
+      <div className="card p-6">
+        <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+          <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" /> 
+          {isSuperAdmin ? 'แก้ไขข้อมูลพื้นฐานสถานศึกษาในระบบ (สิทธิ์ Super Admin)' : 'แก้ไขข้อมูลพื้นฐานของสถานศึกษาตนเอง'}
+        </h3>
+
+        {!isSuperAdmin && userProfile.status === 'pending' ? (
+          <div className="rounded-2xl bg-[#FFD3B6] p-4 text-xs font-bold text-[#33272A] border-2 border-[#33272A] flex gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-[#FF8BA7]" />
+            <span>บัญชีของคุณยังไม่ได้รับการอนุมัติจาก Super Admin (tamrri@gmail.com) จึงยังไม่สามารถบันทึกข้อมูลแก้ไขได้ในขณะนี้</span>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {isSuperAdmin && (
+              <div className="space-y-1.5 bg-[#FFD3B6]/20 p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                  <Building className="h-4 w-4 text-[#FF8BA7]" /> เลือกโรงเรียนที่จะทำการแก้ไขข้อมูลทั้งหมด
+                </label>
+                <select
+                  value={selectedSchoolId}
+                  onChange={(e) => setSelectedSchoolId(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                >
+                  <option value="">-- กรุณาเลือกสถานศึกษา --</option>
+                  {schools.map(s => (
+                    <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSchoolInfo} className="grid gap-4 sm:grid-cols-2">
+              {/* ชื่อโรงเรียน */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อสถานศึกษา</label>
+                <input
+                  type="text"
+                  required
+                  value={editSchoolName}
+                  onChange={(e) => setEditSchoolName(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* รูปภาพโรงเรียน */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">URL รูปภาพโรงเรียน</label>
+                <input
+                  type="text"
+                  required
+                  value={editImageUrl}
+                  onChange={(e) => setEditImageUrl(e.target.value)}
+                  placeholder="เช่น https://images.unsplash.com/..."
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* อำเภอ */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อำเภอ (พื้นที่ตั้ง)</label>
+                <select
+                  value={editAmphoe}
+                  onChange={(e) => setEditAmphoe(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                >
+                  <option value="">-- กรุณาเลือกอำเภอ --</option>
+                  <option value="เมืองแม่ฮ่องสอน">เมืองแม่ฮ่องสอน</option>
+                  <option value="ขุนยวม">ขุนยวม</option>
+                  <option value="ปาย">ปาย</option>
+                  <option value="ปางมะผ้า">ปางมะผ้า</option>
+                </select>
+              </div>
+
+              {/* กลุ่มเครือข่าย */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มพัฒนาคุณภาพการศึกษา (เครือข่าย)</label>
+                <input
+                  type="text"
+                  value={editNetworkGroup}
+                  onChange={(e) => setEditNetworkGroup(e.target.value)}
+                  placeholder="เช่น เครือข่ายปายสามัคคี, เครือข่ายคีรีราษฎร์"
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* ระบบเน็ต */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ตที่ใช้งาน</label>
+                <select
+                  value={editInternet}
+                  onChange={(e) => setEditInternet(e.target.value as School['internetType'])}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                >
+                  <option value="fiber">อินเทอร์เน็ตความเร็วสูง (Fiber Optic)</option>
+                  <option value="satellite">จานดาวเทียม (เช่น DLTV/IPStar/Starlink)</option>
+                  <option value="sim">ใช้ระบบซิมมือถือ (SIM 4G/5G)</option>
+                  <option value="none">ไม่ได้ใช้ระบบอินเทอร์เน็ต</option>
+                </select>
+              </div>
+
+              {/* กระแสไฟฟ้า */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กระแสไฟฟ้า</label>
+                <select
+                  value={editElectricity ? 'true' : 'false'}
+                  onChange={(e) => setEditElectricity(e.target.value === 'true')}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                >
+                  <option value="true">มีไฟฟ้าใช้งานสมบูรณ์</option>
+                  <option value="false">ไม่มีกระแสไฟฟ้า/ใช้พลังงานทดแทน</option>
+                </select>
+              </div>
+
+              {/* จำนวนครู */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากรในโรงเรียน (คน)</label>
+                <input
+                  type="number"
+                  min={1}
+                  required
+                  value={editStaffCount}
+                  onChange={(e) => setEditStaffCount(Number(e.target.value))}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* วิชาเอกหลัก (คั่นด้วย Comma) */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">วิชาเอกที่มีความพร้อม (คั่นด้วยจุลภาค ",")</label>
+                <input
+                  type="text"
+                  value={editMajorsStr}
+                  onChange={(e) => setEditMajorsStr(e.target.value)}
+                  placeholder="เช่น ปฐมวัย, คณิตศาสตร์, ภาษาอังกฤษ"
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* วิชาเอกแยกสถิติจำนวนครู (Interactive) */}
+              <div className="sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-3">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                  <GraduationCap className="h-4 w-4 text-[#FF8BA7]" /> ระบุวิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
+                </label>
+                
+                {/* เพิ่มวิชาเอกใหม่ */}
+                <div className="flex flex-wrap gap-2 items-end bg-white dark:bg-slate-800 p-2.5 rounded-xl border-2 border-[#33272A]/20">
+                  <div className="flex-1 min-w-[120px] space-y-1">
+                    <span className="text-[10px] font-bold text-slate-500">ชื่อวิชาเอก</span>
+                    <input 
+                      type="text"
+                      placeholder="เช่น ภาษาไทย, คอมพิวเตอร์"
+                      value={newMajorName}
+                      onChange={(e) => setNewMajorName(e.target.value)}
+                      className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none focus:ring-1 focus:ring-[#FF8BA7]"
+                    />
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-500">จำนวนครู (คน)</span>
+                    <input 
+                      type="number"
+                      min="0"
+                      value={newMajorCount}
+                      onChange={(e) => setNewMajorCount(Number(e.target.value))}
+                      className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newMajorName.trim()) return;
+                      // เช็คซ้ำ
+                      if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
+                        alert('วิชาเอกนี้มีอยู่ในรายการแล้ว');
+                        return;
+                      }
+                      setEditMajorsWithStaff(prev => [...prev, { name: newMajorName.trim(), teachersCount: newMajorCount }]);
+                      setNewMajorName('');
+                      setNewMajorCount(1);
+                    }}
+                    className="btn-cute bg-[#A0E7E5] text-[#33272A] text-xs font-black px-4 py-1.5 cursor-pointer shrink-0"
+                  >
+                    + เพิ่มวิชาเอก
+                  </button>
+                </div>
+
+                {/* รายการวิชาเอกปัจจุบัน */}
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {editMajorsWithStaff.length > 0 ? (
+                    editMajorsWithStaff.map((m, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-white dark:bg-[#1e1518] p-2 rounded-xl border border-[#33272A]/20 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                        <span>{m.name}</span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-500 font-semibold">จำนวนครู:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={m.teachersCount}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
+                              }}
+                              className="w-12 rounded border border-[#33272A]/30 bg-white p-0.5 text-center text-xs font-bold text-[#33272A]"
+                            />
+                            <span>คน</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-sm px-1"
+                            title="ลบ"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-slate-400 text-xs font-bold">ยังไม่มีข้อมูลวิชาเอกและจำนวนครู กรุณาเพิ่มข้อมูลด้านบน</div>
+                  )}
+                </div>
+              </div>
+
+              {/* เบอร์ติดต่อโรงเรียน */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ติดต่อโรงเรียน</label>
+                <input
+                  type="text"
+                  required
+                  value={editSchoolPhone}
+                  onChange={(e) => setEditSchoolPhone(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* เบอร์โทรศัพท์ผู้บริหาร */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ส่วนตัวผู้บริหาร</label>
+                <input
+                  type="text"
+                  required
+                  value={editDirectorPhone}
+                  onChange={(e) => setEditDirectorPhone(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* ข้อความแจ้งเตือน */}
+              <div className="sm:col-span-2 space-y-2">
+                {editSuccess && (
+                  <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                    {editSuccess}
+                  </div>
+                )}
+                {editError && (
+                  <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                    {editError}
+                  </div>
+                )}
+              </div>
+
+              <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingSchool || (isSuperAdmin && !selectedSchoolId)}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Save className="h-4.5 w-4.5" />
+                  {isSavingSchool ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถานศึกษา'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* แผงเมนูอัพโหลดไฟล์ข้อมูลนักเรียน (เฉพาะ Super Admin) */}
+      {isSuperAdmin && (
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* อนุมัติสิทธิ์ลงทะเบียน */}
+          <div className="card p-6 md:col-span-1">
+            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+              <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์แอดมิน ({pendingUsers.length})
+            </h3>
+
+            {isLoadingUsers ? (
+              <div className="flex justify-center p-8 text-[#33272A] text-xs font-black gap-1.5 items-center">
+                <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
+              </div>
+            ) : pendingUsers.length > 0 ? (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {pendingUsers.map(user => (
+                  <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold">
+                    <div>
+                      <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
+                      <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
+                    </div>
+                    <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
+                      <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
+                      <p className="font-black text-slate-700 dark:text-slate-200 text-[11px]">{user.schoolName} ({user.schoolId})</p>
+                    </div>
+                    <div className="flex gap-1.5 pt-1.5 justify-end">
+                      <button
+                        onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
+                        className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer"
+                      >
+                        ปฏิเสธ
+                      </button>
+                      <button
+                        onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
+                        className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer"
+                      >
+                        อนุมัติสิทธิ์
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs font-bold">
+                ไม่มีคำร้องรอนุมัติในระบบ
+              </div>
+            )}
+
+            {/* นโยบายการสมัครโรงเรียนละ 1 คน */}
+            <div className="mt-6 pt-4 border-t-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-3">
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-[#FF8BA7]" /> นโยบายสิทธิ์การสมัครแอดมิน
+              </h4>
+              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed">
+                จำกัดให้ผู้สมัครสามารถลงทะเบียนเป็นแอดมินได้เพียง 1 คนต่อหนึ่งโรงเรียน เพื่อความเป็นระเบียบเรียบร้อยและความปลอดภัยของข้อมูล
+              </p>
+              
+              <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัดสิทธิ์ 1 คนต่อโรงเรียน</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleRestriction(!restrictOneAdminPerSchool)}
+                  disabled={isSavingSettings}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                    restrictOneAdminPerSchool 
+                      ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                      : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                  }`}
+                >
+                  {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                </button>
+              </div>
+              {settingsSuccess && (
+                <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                  {settingsSuccess}
+                </p>
+              )}
+            </div>
+
+            {/* ระบบจัดการและโอนย้ายฐานข้อมูลคลาวด์ dmc-mhs1 */}
+            <div className="mt-6 pt-4 border-t-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-3">
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Database className="h-4 w-4 text-[#FF8BA7]" /> ระบบจัดการฐานข้อมูลคลาวด์ dmc-mhs1
+              </h4>
+              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed">
+                สั่งการโอนย้ายข้อมูลเริ่มต้น หรือโอนถ่ายสถิตินักเรียน Big Data ทั้ง 43 โรงเรียนเข้าคลาวด์แบบรวดเร็ว
+              </p>
+              
+              <div className="p-2.5 bg-[#FFF9F5] dark:bg-[#1e1518] rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex flex-col gap-2">
+                <div className="flex items-center justify-between text-[11px] font-black">
+                  <span className="text-[#33272A] dark:text-[#FFF9F5]">สถานะฐานข้อมูล:</span>
+                  <span className={isUsingLocalFallback ? "text-amber-500" : "text-emerald-500"}>
+                    {isUsingLocalFallback ? "❌ ใช้ข้อมูลจำลองชั่วคราว" : "✅ เชื่อมต่อฐานข้อมูลจริง"}
+                  </span>
+                </div>
+                {onForceMigrate && (
+                  <button
+                    type="button"
+                    onClick={onForceMigrate}
+                    className="w-full btn-cute bg-[#FFD3B6] text-[#33272A] py-1.5 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
+                  >
+                    🚀 บังคับโอนย้ายข้อมูลสถิติด่วน
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* อัปโหลดไฟล์ CSV / Excel */}
+          <div className="card p-6 md:col-span-2">
+            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+              <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
+            </h3>
+
+            <p className="text-[11px] text-[#33272A] dark:text-[#FFF9F5] font-bold mb-4 leading-relaxed bg-[#FFD3B6]/20 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+              ระบบนี้รองรับไฟล์ Excel (.xlsx) และ CSV ที่มีโครงสร้างเหมือนหัวข้อไฟล์ที่ได้รับ (รวมอนุบาล ประถม ม.1 - ม.3) ข้อมูลจะบันทึกประสานลงในระบบ dmc-mhs1 และแบ่งปันสถิติตลอดทั้งเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
+            </p>
+
+            <form onSubmit={handleUploadSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* เลือกปีการศึกษา */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
+                  <select
+                    value={uploadYear}
+                    onChange={(e) => setUploadYear(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  >
+                    <option value="2568">2568</option>
+                    <option value="2569">2569</option>
+                    <option value="2570">2570</option>
+                  </select>
+                </div>
+
+                {/* อัปโหลดไฟล์ */}
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
+                  <input
+                    type="file"
+                    id="upload-file-input"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileChange}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* ข้อความสถานะ */}
+              {uploadError && (
+                <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
+                  <AlertCircle className="h-4.5 w-4.5 text-rose-600" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+              {uploadSuccess && (
+                <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                  {uploadSuccess}
+                </div>
+              )}
+
+              {/* ตัวอย่างพรีวิวข้อมูล */}
+              {previewData.length > 0 && (
+                <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
+                  <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-[#33272A] text-[#33272A]/70 font-bold">
+                          {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
+                            <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#33272A]/10 font-bold">
+                        {previewData.slice(1, 5).map((row: any, i: number) => (
+                           <tr key={i}>
+                             {row?.slice(0, 6).map((cell: any, ci: number) => (
+                               <td key={ci} className="p-1 text-[#33272A]/80 dark:text-slate-300">{String(cell || '')}</td>
+                             ))}
+                           </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ปุ่มอัพโหลด */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={isUploading || previewData.length === 0}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Upload className="h-4.5 w-4.5" />
+                  {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

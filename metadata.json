@@ -1,0 +1,6 @@
+{
+  "name": "MHS1 BIGDATA",
+  "description": "ระบบข้อมูลสารสนเทศจำนวนนักเรียนแยกชั้น แยกเพศ และสาธารณูปโภคสถานศึกษา สพป.แม่ฮ่องสอน เขต 1 พร้อมการวิเคราะห์ข้อมูลความปลอดภัยขั้นสูง",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

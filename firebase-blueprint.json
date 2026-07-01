@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "School": {
+      "title": "School",
+      "description": "Information about a school",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "district": { "type": "string" },
+        "size": { "type": "string", "enum": ["small", "medium", "large", "special_large"] },
+        "isExpansion": { "type": "boolean" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "internetType": { "type": "string", "enum": ["fiber", "satellite", "sim", "none"] },
+        "electricity": { "type": "boolean" },
+        "staffCount": { "type": "number" },
+        "directorPhone": { "type": "string" },
+        "schoolPhone": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "majorSubjects": { "type": "array" }
+      },
+      "required": ["id", "name", "district", "size", "isExpansion", "latitude", "longitude", "internetType", "electricity", "staffCount", "directorPhone", "schoolPhone", "imageUrl", "majorSubjects"]
+    },
+    "StudentData": {
+      "title": "StudentData",
+      "description": "Student statistics for a school in an academic year",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "grades": { "type": "object" },
+        "totalMale": { "type": "number" },
+        "totalFemale": { "type": "number" },
+        "totalStudents": { "type": "number" }
+      },
+      "required": ["schoolId", "schoolName", "academicYear", "grades", "totalMale", "totalFemale", "totalStudents"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile for school admin or super admin",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "school_admin"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "firstName", "lastName", "schoolId", "schoolName", "role", "status"]
+    },
+    "DownloadLog": {
+      "title": "DownloadLog",
+      "description": "Log entry for user downloading data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "purpose": { "type": "string" },
+        "timestamp": { "type": "object" }
+      },
+      "required": ["name", "email", "schoolId", "schoolName", "purpose", "timestamp"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "Global system configurations and policies",
+      "type": "object",
+      "properties": {
+        "restrictOneAdminPerSchool": { "type": "boolean" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["restrictOneAdminPerSchool"]
+    }
+  },
+  "firestore": {
+    "schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/School" },
+      "description": "Collection of schools under MHS1"
+    },
+    "students/{studentDocId}": {
+      "schema": { "$ref": "#/entities/StudentData" },
+      "description": "Collection of student statistics per school and year"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Collection of registered user profiles"
+    },
+    "download_logs/{logId}": {
+      "schema": { "$ref": "#/entities/DownloadLog" },
+      "description": "Collection of download log entries"
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemConfig" },
+      "description": "Global configuration settings managed by Super Admins"
+    }
+  }
+}

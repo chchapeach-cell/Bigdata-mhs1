@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #FF8BA7;
+  --color-secondary: #A0E7E5;
+  --color-accent: #FFD3B6;
+  --color-bg-vibrant: #FFF9F5;
+  --color-text-vibrant: #33272A;
+}
+
+:root {
+  --primary: #FF8BA7;
+  --secondary: #A0E7E5;
+  --accent: #FFD3B6;
+  --bg-vibrant: #FFF9F5;
+  --text-vibrant: #33272A;
+}
+
+body {
+  background-color: var(--bg-vibrant);
+  color: var(--text-vibrant);
+}
+
+.card {
+  background: white;
+  border: 2px solid #33272A;
+  border-radius: 24px;
+  box-shadow: 4px 4px 0px #33272A;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #33272A;
+}
+
+.dark .card {
+  background: #1e1518;
+  border: 2px solid #FFD3B6;
+  box-shadow: 4px 4px 0px #FFD3B6;
+  color: #FFF9F5;
+}
+
+.dark .card:hover {
+  box-shadow: 6px 6px 0px #FFD3B6;
+}
+
+.btn-cute {
+  background-color: white;
+  color: #33272A;
+  border: 2px solid #33272A;
+  border-radius: 999px;
+  box-shadow: 3px 3px 0px #33272A;
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.btn-cute:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #33272A;
+}
+
+.dark .btn-cute {
+  background-color: #33272A;
+  color: #FFF9F5;
+  border: 2px solid #FFD3B6;
+  box-shadow: 3px 3px 0px #FFD3B6;
+}
+
+.dark .btn-cute:active {
+  box-shadow: 1px 1px 0px #FFD3B6;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.sidebar-link:hover {
+  background: #FFD3B6;
+  border-color: #33272A;
+}
+
+.dark .sidebar-link:hover {
+  background: #33272A;
+  border-color: #FFD3B6;
+  color: #FFF9F5;
+}
+
+.grid-pattern {
+  background-image: radial-gradient(#33272a18 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .grid-pattern {
+  background-image: radial-gradient(#ffffff0a 1px, transparent 1px);
+}
