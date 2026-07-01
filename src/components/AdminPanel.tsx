@@ -1,7 +1,7 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database } from 'lucide-react';
-import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List } from 'lucide-react';
+import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import * as XLSX from 'xlsx';
 
@@ -10,17 +10,13 @@ interface AdminPanelProps {
   schools: School[];
   studentData: StudentData[];
   onRefreshData: () => Promise<void>;
-  isUsingLocalFallback?: boolean;
-  onForceMigrate?: () => Promise<void>;
 }
 
 export default function AdminPanel({
   userProfile,
   schools,
   studentData,
-  onRefreshData,
-  isUsingLocalFallback = false,
-  onForceMigrate
+  onRefreshData
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin';
 
@@ -83,6 +79,9 @@ export default function AdminPanel({
 
   // State สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
+  const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
+  const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs'>('upload');
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [uploadYear, setUploadYear] = useState('2568');
   const [uploadError, setUploadError] = useState('');
@@ -167,9 +166,41 @@ export default function AdminPanel({
     }
   };
 
+  const loadApprovedUsers = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const q = query(collection(db, 'users'), where('status', '==', 'approved'));
+      const querySnapshot = await getDocs(q);
+      const list: UserProfile[] = [];
+      querySnapshot.forEach(doc => {
+        list.push({ ...doc.data(), uid: doc.id } as UserProfile);
+      });
+      setApprovedUsers(list);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadDownloadLogs = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const q = query(collection(db, 'download_logs'), orderBy('timestamp', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const list: any[] = [];
+      querySnapshot.forEach(doc => {
+        list.push({ ...doc.data(), id: doc.id });
+      });
+      setDownloadLogs(list);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (isSuperAdmin) {
       loadPendingUsers();
+      loadApprovedUsers();
+      loadDownloadLogs();
       loadSystemSettings();
     }
   }, [isSuperAdmin]);
@@ -178,17 +209,28 @@ export default function AdminPanel({
   const handleUserStatusUpdate = async (uid: string, status: 'approved' | 'rejected') => {
     try {
       const userRef = doc(db, 'users', uid);
-      try {
-        await updateDoc(userRef, { status });
-      } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `users/${uid}`);
-        throw e;
-      }
+      await updateDoc(userRef, { status });
       setPendingUsers(prev => prev.filter(u => u.uid !== uid));
+      if (status === 'approved') {
+        loadApprovedUsers();
+      }
       alert(`อัปเดตสถานะของผู้สมัครเรียบร้อยแล้วเป็น: ${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}`);
     } catch (error) {
       console.error(error);
       alert('เกิดข้อผิดพลาดในการอัปเดตสิทธิ์ผู้ใช้');
+    }
+  };
+
+  const handleDeleteUser = async (uid: string) => {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้งานนี้?')) return;
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+      setApprovedUsers(prev => prev.filter(u => u.uid !== uid));
+      setPendingUsers(prev => prev.filter(u => u.uid !== uid));
+      alert('ลบผู้ใช้งานเรียบร้อยแล้ว');
+    } catch (error) {
+      console.error(error);
+      alert('เกิดข้อผิดพลาดในการลบผู้ใช้งาน');
     }
   };
 
@@ -789,195 +831,345 @@ export default function AdminPanel({
         )}
       </div>
 
-      {/* แผงเมนูอัพโหลดไฟล์ข้อมูลนักเรียน (เฉพาะ Super Admin) */}
+      {/* แผงเมนู (เฉพาะ Super Admin) */}
       {isSuperAdmin && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* อนุมัติสิทธิ์ลงทะเบียน */}
-          <div className="card p-6 md:col-span-1">
-            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-              <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์แอดมิน ({pendingUsers.length})
-            </h3>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setAdminTab('upload')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
+                adminTab === 'upload' 
+                  ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <Upload className="h-4 w-4 inline-block mr-1.5" /> จัดการข้อมูล BIGDATA
+            </button>
+            <button
+              onClick={() => setAdminTab('users')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
+                adminTab === 'users' 
+                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <Users className="h-4 w-4 inline-block mr-1.5" /> ทะเบียนผู้ใช้งาน
+              {pendingUsers.length > 0 && (
+                <span className="ml-1.5 bg-rose-500 text-white rounded-full px-2 py-0.5 text-[10px] animate-pulse">
+                  {pendingUsers.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setAdminTab('logs')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
+                adminTab === 'logs' 
+                  ? 'bg-[#FFD3B6] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <History className="h-4 w-4 inline-block mr-1.5" /> ประวัติการดาวน์โหลด
+            </button>
+          </div>
 
-            {isLoadingUsers ? (
-              <div className="flex justify-center p-8 text-[#33272A] text-xs font-black gap-1.5 items-center">
-                <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
-              </div>
-            ) : pendingUsers.length > 0 ? (
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {pendingUsers.map(user => (
-                  <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold">
-                    <div>
-                      <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
-                      <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
-                    </div>
-                    <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
-                      <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
-                      <p className="font-black text-slate-700 dark:text-slate-200 text-[11px]">{user.schoolName} ({user.schoolId})</p>
-                    </div>
-                    <div className="flex gap-1.5 pt-1.5 justify-end">
-                      <button
-                        onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
-                        className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer"
-                      >
-                        ปฏิเสธ
-                      </button>
-                      <button
-                        onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
-                        className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer"
-                      >
-                        อนุมัติสิทธิ์
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs font-bold">
-                ไม่มีคำร้องรอนุมัติในระบบ
-              </div>
-            )}
-
-            {/* นโยบายการสมัครแอดมิน */}
-            <div className="mt-6 pt-4 border-t-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-3">
-              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <Shield className="h-4 w-4 text-[#FF8BA7]" /> นโยบายระบบ
-              </h4>
-              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed">
-                จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
-              </p>
-              
-              <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมินโรงเรียน</span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                  disabled={isSavingSettings}
-                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                    allowSchoolAdminRegistration 
-                      ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                      : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                  }`}
-                >
-                  {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
-                </button>
-              </div>
-
-              <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัดสิทธิ์ 1 คนต่อโรงเรียน</span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                  disabled={isSavingSettings}
-                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                    restrictOneAdminPerSchool 
-                      ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                      : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                  }`}
-                >
-                  {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                </button>
-              </div>
-              
-              {settingsSuccess && (
-                <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
-                  {settingsSuccess}
+          {adminTab === 'upload' && (
+            <div className="grid gap-6 md:grid-cols-3">
+              <div className="card p-6 md:col-span-1">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Shield className="h-4.5 w-4.5 text-[#FF8BA7]" /> นโยบายระบบ
+                </h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                  จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
                 </p>
-              )}
-            </div>
-          </div>
-
-          {/* อัปโหลดไฟล์ CSV / Excel */}
-          <div className="card p-6 md:col-span-2">
-            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-              <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
-            </h3>
-
-            <p className="text-[11px] text-[#33272A] dark:text-[#FFF9F5] font-bold mb-4 leading-relaxed bg-[#FFD3B6]/20 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
-              ระบบนี้รองรับไฟล์ Excel (.xlsx) และ CSV ที่มีโครงสร้างเหมือนหัวข้อไฟล์ที่ได้รับ (รวมอนุบาล ประถม ม.1 - ม.3) ข้อมูลจะบันทึกประสานลงในระบบ dmc-mhs1 และแบ่งปันสถิติตลอดทั้งเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
-            </p>
-
-            <form onSubmit={handleUploadSubmit} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {/* เลือกปีการศึกษา */}
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
-                  <input
-                    type="text"
-                    value={uploadYear}
-                    onChange={(e) => setUploadYear(e.target.value)}
-                    pattern="[0-9]{4}"
-                    placeholder="เช่น 2568"
-                    required
-                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                  />
-                </div>
-
-                {/* อัปโหลดไฟล์ */}
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
-                  <input
-                    type="file"
-                    id="upload-file-input"
-                    accept=".xlsx, .xls, .csv"
-                    onChange={handleFileChange}
-                    className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* ข้อความสถานะ */}
-              {uploadError && (
-                <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
-                  <AlertCircle className="h-4.5 w-4.5 text-rose-600" />
-                  <span>{uploadError}</span>
-                </div>
-              )}
-              {uploadSuccess && (
-                <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
-                  {uploadSuccess}
-                </div>
-              )}
-
-              {/* ตัวอย่างพรีวิวข้อมูล */}
-              {previewData.length > 0 && (
-                <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
-                  <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-[#33272A] text-[#33272A]/70 font-bold">
-                          {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
-                            <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#33272A]/10 font-bold">
-                        {previewData.slice(1, 5).map((row: any, i: number) => (
-                           <tr key={i}>
-                             {row?.slice(0, 6).map((cell: any, ci: number) => (
-                               <td key={ci} className="p-1 text-[#33272A]/80 dark:text-slate-300">{String(cell || '')}</td>
-                             ))}
-                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className="space-y-3">
+                  <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมิน</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                      disabled={isSavingSettings}
+                      className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                        allowSchoolAdminRegistration 
+                          ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                      }`}
+                    >
+                      {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
+                    </button>
+                  </div>
+                  <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 คนต่อโรงเรียน</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
+                      disabled={isSavingSettings}
+                      className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                        restrictOneAdminPerSchool 
+                          ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                      }`}
+                    >
+                      {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                    </button>
                   </div>
                 </div>
-              )}
-
-              {/* ปุ่มอัพโหลด */}
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={isUploading || previewData.length === 0}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Upload className="h-4.5 w-4.5" />
-                  {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
-                </button>
+                {settingsSuccess && (
+                  <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                    {settingsSuccess}
+                  </p>
+                )}
               </div>
-            </form>
-          </div>
+
+              {/* อัปโหลดไฟล์ CSV / Excel */}
+              <div className="card p-6 md:col-span-2">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
+                </h3>
+                <p className="text-[11px] text-[#33272A] dark:text-[#FFF9F5] font-bold mb-4 leading-relaxed bg-[#FFD3B6]/20 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  ระบบนี้รองรับไฟล์ Excel (.xlsx) และ CSV ที่มีโครงสร้างเหมือนหัวข้อไฟล์ที่ได้รับ (รวมอนุบาล ประถม ม.1 - ม.3) ข้อมูลจะบันทึกประสานลงในระบบ dmc-mhs1 และแบ่งปันสถิติตลอดทั้งเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
+                </p>
+                <form onSubmit={handleUploadSubmit} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
+                      <input
+                        type="text"
+                        value={uploadYear}
+                        onChange={(e) => setUploadYear(e.target.value)}
+                        pattern="[0-9]{4}"
+                        placeholder="เช่น 2568"
+                        required
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
+                      <input
+                        type="file"
+                        id="upload-file-input"
+                        accept=".xlsx, .xls, .csv"
+                        onChange={handleFileChange}
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
+                      />
+                    </div>
+                  </div>
+                  {uploadError && (
+                    <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
+                      <AlertCircle className="h-4.5 w-4.5 text-rose-600" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+                  {uploadSuccess && (
+                    <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                      {uploadSuccess}
+                    </div>
+                  )}
+                  {previewData.length > 0 && (
+                    <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
+                      <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="border-b border-[#33272A] text-[#33272A]/70 font-bold">
+                              {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
+                                <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#33272A]/10 font-bold">
+                            {previewData.slice(1, 5).map((row: any, i: number) => (
+                               <tr key={i}>
+                                 {row?.slice(0, 6).map((cell: any, ci: number) => (
+                                   <td key={ci} className="p-1 text-[#33272A]/80 dark:text-slate-300">{String(cell || '')}</td>
+                                 ))}
+                               </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={isUploading || previewData.length === 0}
+                      className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Upload className="h-4.5 w-4.5" />
+                      {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'users' && (
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* คำร้องรออนุมัติ */}
+              <div className="card p-6 md:col-span-1">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์ ({pendingUsers.length})
+                </h3>
+                {isLoadingUsers ? (
+                  <div className="flex justify-center p-8 text-[#33272A] text-xs font-black gap-1.5 items-center">
+                    <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
+                  </div>
+                ) : pendingUsers.length > 0 ? (
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                    {pendingUsers.map(user => (
+                      <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6]">
+                        <div>
+                          <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
+                          <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
+                        </div>
+                        <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
+                          <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
+                          <p className="font-black text-slate-700 dark:text-slate-200 text-[11px]">{user.schoolName} ({user.schoolId})</p>
+                        </div>
+                        <div className="flex gap-1.5 pt-1.5 justify-end">
+                          <button
+                            onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
+                            className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-colors"
+                          >
+                            ปฏิเสธ
+                          </button>
+                          <button
+                            onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
+                            className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_#33272A]"
+                          >
+                            อนุมัติสิทธิ์
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs font-bold bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-[#33272A]/30">
+                    ไม่มีคำร้องรออนุมัติในระบบ
+                  </div>
+                )}
+              </div>
+
+              {/* ทะเบียนผู้ใช้งานทั้งหมด */}
+              <div className="card p-6 md:col-span-2">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({approvedUsers.length})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
+                        <th className="p-2">ชื่อ-นามสกุล</th>
+                        <th className="p-2">อีเมล</th>
+                        <th className="p-2">โรงเรียน (รหัส)</th>
+                        <th className="p-2">บทบาท</th>
+                        <th className="p-2 text-center">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
+                      {approvedUsers.map((u, i) => (
+                        <tr key={u.uid} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-2 text-[#33272A] dark:text-slate-200">{u.firstName} {u.lastName}</td>
+                          <td className="p-2 text-[#33272A]/70 dark:text-slate-400">{u.email}</td>
+                          <td className="p-2 text-[#33272A] dark:text-slate-200">
+                            {u.role === 'super_admin' ? (
+                              <span className="text-[#FF8BA7]">-</span>
+                            ) : (
+                              `${u.schoolName} (${u.schoolId})`
+                            )}
+                          </td>
+                          <td className="p-2">
+                            {u.role === 'super_admin' ? (
+                              <span className="bg-[#FF8BA7]/20 text-[#FF8BA7] px-2 py-0.5 rounded-full text-[10px] font-black border border-[#FF8BA7]/30">Super Admin</span>
+                            ) : (
+                              <span className="bg-[#A0E7E5]/30 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full text-[10px] font-black border border-[#A0E7E5]/50">School Admin</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {u.role !== 'super_admin' && (
+                              <button
+                                onClick={() => handleDeleteUser(u.uid)}
+                                className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                title="ลบผู้ใช้งาน"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {approvedUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-[#33272A]/50 font-bold">ไม่มีข้อมูลผู้ใช้งาน</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'logs' && (
+            <div className="card p-6">
+              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                <History className="h-4.5 w-4.5 text-[#FFD3B6]" /> ประวัติการดาวน์โหลดข้อมูล (Download Logs)
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
+                      <th className="p-2 w-32">วัน-เวลา</th>
+                      <th className="p-2">ผู้ดาวน์โหลด</th>
+                      <th className="p-2">ข้อมูลโรงเรียน</th>
+                      <th className="p-2">วัตถุประสงค์</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
+                    {downloadLogs.map((log) => {
+                      // Format timestamp
+                      let timeStr = '-';
+                      if (log.timestamp) {
+                        try {
+                          const date = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+                          timeStr = date.toLocaleString('th-TH', { 
+                            year: 'numeric', month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          });
+                        } catch(e) {}
+                      }
+                      
+                      return (
+                        <tr key={log.id} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-2 text-[#33272A]/70 dark:text-slate-400 whitespace-nowrap">{timeStr}</td>
+                          <td className="p-2 text-[#33272A] dark:text-slate-200">
+                            <div>{log.name}</div>
+                            <div className="text-[10px] text-[#33272A]/60 dark:text-slate-500">{log.email}</div>
+                          </td>
+                          <td className="p-2 text-[#33272A] dark:text-slate-200">
+                            {log.schoolId === 'all' ? (
+                              <span className="text-[#FF8BA7] font-black">ดาวน์โหลดทั้งหมด</span>
+                            ) : (
+                              <span>{log.schoolName} ({log.schoolId})</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-[#33272A] dark:text-slate-300">
+                            {log.purpose}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {downloadLogs.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-[#33272A]/50 font-bold">ไม่มีประวัติการดาวน์โหลด</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
