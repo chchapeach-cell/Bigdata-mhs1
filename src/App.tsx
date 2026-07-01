@@ -245,6 +245,7 @@ export default function App() {
               <SchoolDetailView
                 school={selectedSchool}
                 studentData={selectedSchoolStudent}
+                allStudentData={studentData}
                 onBack={() => setSelectedSchoolId(null)}
                 userProfile={userProfile}
                 onRefreshData={fetchAllData}

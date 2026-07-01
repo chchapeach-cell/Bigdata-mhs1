@@ -1,8 +1,9 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { db, auth, OperationType, handleFirestoreError } from '../firebase';
+import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 
 interface AdminPanelProps {
@@ -43,6 +44,135 @@ export default function AdminPanel({
   const [editSuccess, setEditSuccess] = useState('');
   const [editError, setEditError] = useState('');
   const [isSavingSchool, setIsSavingSchool] = useState(false);
+
+  // --- พาร์ทใหม่: จัดการข้อมูลโปรไฟล์ส่วนตัวของคุณ (Self Profile Editing) ---
+  const [selfFirstName, setSelfFirstName] = useState(userProfile.firstName || '');
+  const [selfLastName, setSelfLastName] = useState(userProfile.lastName || '');
+  const [selfPassword, setSelfPassword] = useState('');
+  const [isSavingSelf, setIsSavingSelf] = useState(false);
+  const [selfSuccess, setSelfSuccess] = useState('');
+  const [selfError, setSelfError] = useState('');
+
+  useEffect(() => {
+    if (userProfile) {
+      setSelfFirstName(userProfile.firstName || '');
+      setSelfLastName(userProfile.lastName || '');
+    }
+  }, [userProfile]);
+
+  const handleSaveSelfProfile = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSavingSelf(true);
+    setSelfSuccess('');
+    setSelfError('');
+    try {
+      // 1. อัปเดตข้อมูลใน Firestore
+      const userRef = doc(db, 'users', userProfile.uid);
+      await updateDoc(userRef, {
+        firstName: selfFirstName.trim(),
+        lastName: selfLastName.trim()
+      });
+
+      // 2. อัปเดตรหัสผ่าน (หากกรอกข้อมูล)
+      if (selfPassword.trim()) {
+        if (selfPassword.trim().length < 6) {
+          throw new Error('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+        }
+        if (auth.currentUser) {
+          await updatePassword(auth.currentUser, selfPassword.trim());
+        } else {
+          throw new Error('ไม่พบข้อมูลบัญชีผู้ใช้ปัจจุบัน');
+        }
+      }
+
+      setSelfSuccess('แก้ไขข้อมูลส่วนตัวสำเร็จแล้ว!');
+      setSelfPassword('');
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to update self profile:', err);
+      if (err.code === 'auth/requires-recent-login') {
+        setSelfError('เนื่องจากการเปลี่ยนรหัสผ่านเป็นเรื่องความปลอดภัยสูง กรุณาออกจากระบบแล้วล็อกอินเข้าใช้งานใหม่อีกครั้งเพื่อเปลี่ยนรหัสผ่าน');
+      } else {
+        setSelfError(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+    } finally {
+      setIsSavingSelf(false);
+    }
+  };
+
+  // --- พาร์ทใหม่: จัดการสิทธิ์แอดมินและการแก้ไขโดย Super Admin (User Management & Search) ---
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [editUserFirstName, setEditUserFirstName] = useState('');
+  const [editUserLastName, setEditUserLastName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserSchoolId, setEditUserSchoolId] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'super_admin' | 'school_admin'>('school_admin');
+  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [userEditError, setUserEditError] = useState('');
+  const [userEditSuccess, setUserEditSuccess] = useState('');
+
+  const handleOpenEditUser = (user: UserProfile) => {
+    setEditingUser(user);
+    setEditUserFirstName(user.firstName || '');
+    setEditUserLastName(user.lastName || '');
+    setEditUserEmail(user.email || '');
+    setEditUserSchoolId(user.schoolId || '');
+    setEditUserRole((user.role as 'super_admin' | 'school_admin') || 'school_admin');
+    setUserEditError('');
+    setUserEditSuccess('');
+  };
+
+  const handleSaveUserEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setIsSavingUserEdit(true);
+    setUserEditError('');
+    setUserEditSuccess('');
+    try {
+      const userRef = doc(db, 'users', editingUser.uid);
+      const matchedSchool = schools.find(s => s.id === editUserSchoolId);
+      const updatedData = {
+        firstName: editUserFirstName.trim(),
+        lastName: editUserLastName.trim(),
+        email: editUserEmail.trim(),
+        schoolId: editUserSchoolId,
+        schoolName: editUserSchoolId === 'all' ? 'สพป.แม่ฮ่องสอน เขต 1' : (matchedSchool ? matchedSchool.name : ''),
+        role: editUserRole,
+      };
+      await updateDoc(userRef, updatedData);
+      setUserEditSuccess('อัปเดตข้อมูลผู้ใช้งานเรียบร้อยแล้ว!');
+      
+      await loadApprovedUsers();
+      await loadPendingUsers();
+      
+      setTimeout(() => {
+        setEditingUser(null);
+      }, 1500);
+    } catch (err: any) {
+      console.error('Failed to update user profile:', err);
+      setUserEditError('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message);
+    } finally {
+      setIsSavingUserEdit(false);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!editingUser || !editingUser.email) return;
+    setIsResettingPassword(true);
+    setUserEditError('');
+    setUserEditSuccess('');
+    try {
+      await sendPasswordResetEmail(auth, editingUser.email);
+      setUserEditSuccess('ส่งอีเมลลิงก์เพื่อรีเซ็ตรหัสผ่านไปยัง ' + editingUser.email + ' เรียบร้อยแล้ว!');
+    } catch (err: any) {
+      console.error('Failed to send reset password email:', err);
+      setUserEditError('เกิดข้อผิดพลาดในการส่งอีเมลรีเซ็ตรหัสผ่าน: ' + err.message);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   // เอฟเฟ็กต์สำหรับอัปเดตค่าฟอร์มเมื่อเปลี่ยนโรงเรียนที่ต้องการแก้ไข
   useEffect(() => {
@@ -538,6 +668,30 @@ export default function AdminPanel({
         }
       };
 
+  const filteredApprovedUsers = approvedUsers.filter(u => {
+    const term = userSearchTerm.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      (u.firstName || '').toLowerCase().includes(term) ||
+      (u.lastName || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.schoolName || '').toLowerCase().includes(term) ||
+      (u.schoolId || '').toLowerCase().includes(term)
+    );
+  });
+
+  const filteredPendingUsers = pendingUsers.filter(u => {
+    const term = userSearchTerm.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      (u.firstName || '').toLowerCase().includes(term) ||
+      (u.lastName || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.schoolName || '').toLowerCase().includes(term) ||
+      (u.schoolId || '').toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
@@ -550,6 +704,74 @@ export default function AdminPanel({
           </h2>
           <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">แผงควบคุมหลักสำหรับจัดการข้อมูล สิทธิ์ผู้สมัคร และไฟล์นำเข้า BIGDATA</p>
         </div>
+      </div>
+
+      {/* แก้ไขข้อมูลส่วนตัวสำหรับผู้ใช้งานทุกคน (เจ้าตัวแก้ไขข้อมูลตัวเอง) */}
+      <div className="card p-6 border-l-4 border-l-[#A0E7E5]">
+        <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+          <User className="h-4.5 w-4.5 text-[#A0E7E5]" /> แก้ไขข้อมูลโปรไฟล์ส่วนตัวของคุณ ({userProfile.email})
+        </h3>
+        
+        <form onSubmit={handleSaveSelfProfile} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
+              <input
+                type="text"
+                required
+                value={selfFirstName}
+                onChange={(e) => setSelfFirstName(e.target.value)}
+                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
+              <input
+                type="text"
+                required
+                value={selfLastName}
+                onChange={(e) => setSelfLastName(e.target.value)}
+                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                <Key className="h-3.5 w-3.5 text-[#FF8BA7]" /> เปลี่ยนรหัสผ่านใหม่ (หากไม่เปลี่ยนให้เว้นว่างไว้)
+              </label>
+              <input
+                type="password"
+                placeholder="ป้อนอย่างน้อย 6 อักขระเพื่อเปลี่ยนรหัสผ่าน"
+                value={selfPassword}
+                onChange={(e) => setSelfPassword(e.target.value)}
+                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+              />
+            </div>
+          </div>
+
+          {selfSuccess && (
+            <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
+              {selfSuccess}
+            </div>
+          )}
+          
+          {selfError && (
+            <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
+              {selfError}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isSavingSelf}
+              className="button bg-[#A0E7E5] text-[#33272A] hover:bg-[#A0E7E5]/80 py-2 px-5 text-xs font-black disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingSelf ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลโปรไฟล์ส่วนตัว'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* แผงแก้ไขข้อมูลสถานศึกษาสำหรับ แอดมินโรงเรียน และ Super Admin (แก้ไขได้ทุกโรงเรียน) */}
@@ -1019,107 +1241,135 @@ export default function AdminPanel({
           )}
 
           {adminTab === 'users' && (
-            <div className="grid gap-6 md:grid-cols-3">
-              {/* คำร้องรออนุมัติ */}
-              <div className="card p-6 md:col-span-1">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์ ({pendingUsers.length})
-                </h3>
-                {isLoadingUsers ? (
-                  <div className="flex justify-center p-8 text-[#33272A] dark:text-[#FFF9F5] text-xs font-black gap-1.5 items-center">
-                    <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
-                  </div>
-                ) : pendingUsers.length > 0 ? (
-                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                    {pendingUsers.map(user => (
-                      <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6]">
-                        <div>
-                          <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
-                          <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
-                        </div>
-                        <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
-                          <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
-                          <p className="font-black text-slate-700 dark:text-slate-200 text-[11px]">{user.schoolName} ({user.schoolId})</p>
-                        </div>
-                        <div className="flex gap-1.5 pt-1.5 justify-end">
-                          <button
-                            onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
-                            className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-colors"
-                          >
-                            ปฏิเสธ
-                          </button>
-                          <button
-                            onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
-                            className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_#33272A]"
-                          >
-                            อนุมัติสิทธิ์
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs font-bold bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-[#33272A]/30">
-                    ไม่มีคำร้องรออนุมัติในระบบ
-                  </div>
-                )}
+            <div className="space-y-6 animate-fade-in">
+              {/* แถบค้นหาข้อมูลผู้ใช้งาน */}
+              <div className="card p-4">
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Search className="h-4 w-4 text-[#33272A]/50 dark:text-[#FFF9F5]/50" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อผู้ใช้งาน อีเมล รหัสโรงเรียน หรือชื่อโรงเรียนสังกัด..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-full pl-10 rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  />
+                </div>
               </div>
 
-              {/* ทะเบียนผู้ใช้งานทั้งหมด */}
-              <div className="card p-6 md:col-span-2">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({approvedUsers.length})
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
-                        <th className="p-2">ชื่อ-นามสกุล</th>
-                        <th className="p-2">อีเมล</th>
-                        <th className="p-2">โรงเรียน (รหัส)</th>
-                        <th className="p-2">บทบาท</th>
-                        <th className="p-2 text-center">จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
-                      {approvedUsers.map((u, i) => (
-                        <tr key={u.uid} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-2 text-[#33272A] dark:text-slate-200">{u.firstName} {u.lastName}</td>
-                          <td className="p-2 text-[#33272A]/70 dark:text-slate-400">{u.email}</td>
-                          <td className="p-2 text-[#33272A] dark:text-slate-200">
-                            {u.role === 'super_admin' ? (
-                              <span className="text-[#FF8BA7]">-</span>
-                            ) : (
-                              `${u.schoolName} (${u.schoolId})`
-                            )}
-                          </td>
-                          <td className="p-2">
-                            {u.role === 'super_admin' ? (
-                              <span className="bg-[#FF8BA7]/20 text-[#FF8BA7] px-2 py-0.5 rounded-full text-[10px] font-black border border-[#FF8BA7]/30">Super Admin</span>
-                            ) : (
-                              <span className="bg-[#A0E7E5]/30 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full text-[10px] font-black border border-[#A0E7E5]/50">School Admin</span>
-                            )}
-                          </td>
-                          <td className="p-2 text-center">
-                            {u.role !== 'super_admin' && (
-                              <button
-                                onClick={() => handleDeleteUser(u.uid)}
-                                className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                                title="ลบผู้ใช้งาน"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+              <div className="grid gap-6 md:grid-cols-3">
+                {/* คำร้องรออนุมัติ */}
+                <div className="card p-6 md:col-span-1">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์ ({filteredPendingUsers.length})
+                  </h3>
+                  {isLoadingUsers ? (
+                    <div className="flex justify-center p-8 text-[#33272A] dark:text-[#FFF9F5] text-xs font-black gap-1.5 items-center">
+                      <RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดคำร้อง...
+                    </div>
+                  ) : filteredPendingUsers.length > 0 ? (
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                      {filteredPendingUsers.map(user => (
+                        <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6]">
+                          <div>
+                            <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
+                            <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
+                          </div>
+                          <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
+                            <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
+                            <p className="font-black text-slate-700 dark:text-slate-200 text-[11px]">{user.schoolName} ({user.schoolId})</p>
+                          </div>
+                          <div className="flex gap-1.5 pt-1.5 justify-end">
+                            <button
+                              onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
+                              className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-colors"
+                            >
+                              ปฏิเสธ
+                            </button>
+                            <button
+                              onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
+                              className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_#33272A]"
+                            >
+                              อนุมัติสิทธิ์
+                            </button>
+                          </div>
+                        </div>
                       ))}
-                      {approvedUsers.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่มีข้อมูลผู้ใช้งาน</td>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs font-bold bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-[#33272A]/30">
+                      ไม่มีคำร้องรออนุมัติในระบบ
+                    </div>
+                  )}
+                </div>
+
+                {/* ทะเบียนผู้ใช้งานทั้งหมด */}
+                <div className="card p-6 md:col-span-2">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({filteredApprovedUsers.length})
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
+                          <th className="p-2">ชื่อ-นามสกุล</th>
+                          <th className="p-2">อีเมล</th>
+                          <th className="p-2">โรงเรียน (รหัส)</th>
+                          <th className="p-2">บทบาท</th>
+                          <th className="p-2 text-center">จัดการ</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
+                        {filteredApprovedUsers.map((u, i) => (
+                          <tr key={u.uid} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-2 text-[#33272A] dark:text-slate-200">{u.firstName} {u.lastName}</td>
+                            <td className="p-2 text-[#33272A]/70 dark:text-slate-400">{u.email}</td>
+                            <td className="p-2 text-[#33272A] dark:text-slate-200">
+                              {u.role === 'super_admin' ? (
+                                <span className="text-[#FF8BA7] font-black">ส่วนกลาง (เขตพื้นที่)</span>
+                              ) : (
+                                `${u.schoolName || ''} (${u.schoolId || ''})`
+                              )}
+                            </td>
+                            <td className="p-2">
+                              {u.role === 'super_admin' ? (
+                                <span className="bg-[#FF8BA7]/20 text-[#FF8BA7] px-2 py-0.5 rounded-full text-[10px] font-black border border-[#FF8BA7]/30">Super Admin</span>
+                              ) : (
+                                <span className="bg-[#A0E7E5]/30 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full text-[10px] font-black border border-[#A0E7E5]/50">School Admin</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditUser(u)}
+                                  className="text-teal-600 hover:text-teal-850 p-1.5 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors cursor-pointer"
+                                  title="แก้ไขข้อมูลผู้ใช้และส่งรีเซ็ตรหัสผ่าน"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                                
+                                {u.role !== 'super_admin' && (
+                                  <button
+                                    onClick={() => handleDeleteUser(u.uid)}
+                                    className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                                    title="ลบผู้ใช้งาน"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredApprovedUsers.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่พบผู้ใช้งานตามคำค้นหา</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1184,6 +1434,144 @@ export default function AdminPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal แก้ไขข้อมูลผู้ใช้งานโดย Super Admin */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-[#1e1518] rounded-3xl border-4 border-[#33272A] dark:border-[#FFD3B6] p-6 max-w-md w-full shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6] space-y-4">
+            <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+              <h3 className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Edit3 className="h-5 w-5 text-[#FF8BA7]" /> แก้ไขข้อมูลและรีเซ็ตรหัสผ่านแอดมิน
+              </h3>
+              <button 
+                onClick={() => setEditingUser(null)} 
+                className="text-gray-500 hover:text-gray-700 font-bold text-lg cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserEdit} className="space-y-4">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
+                    <input
+                      type="text"
+                      required
+                      value={editUserFirstName}
+                      onChange={(e) => setEditUserFirstName(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
+                    <input
+                      type="text"
+                      required
+                      value={editUserLastName}
+                      onChange={(e) => setEditUserLastName(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
+                  <input
+                    type="email"
+                    required
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">บทบาทผู้ใช้งาน</label>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value as 'super_admin' | 'school_admin')}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  >
+                    <option value="school_admin">School Admin (แอดมินโรงเรียน)</option>
+                    <option value="super_admin">Super Admin (แอดมินเขตพื้นที่)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">โรงเรียนสังกัด</label>
+                  <select
+                    value={editUserSchoolId}
+                    onChange={(e) => setEditUserSchoolId(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  >
+                    <option value="all">สพป.แม่ฮ่องสอน เขต 1 (ส่วนกลาง/เขตพื้นที่)</option>
+                    {schools.map(s => (
+                      <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* ส่วนรีเซ็ตรหัสผ่านด่วน */}
+              <div className="bg-[#FFD3B6]/20 p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-2">
+                <p className="text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-black flex items-center gap-1">
+                  <Key className="h-4 w-4 text-[#FF8BA7]" /> รีเซ็ตรหัสผ่านสำหรับแอดมินท่านนี้
+                </p>
+                <p className="text-[10px] text-gray-500 font-semibold leading-relaxed">
+                  ระบบจะส่งอีเมลลิงก์สำหรับกำหนดรหัสผ่านใหม่ไปยังที่อยู่อีเมลของผู้ใช้ท่านนี้โดยตรง เพื่อความปลอดภัยและเป็นความลับ
+                </p>
+                <button
+                  type="button"
+                  disabled={isResettingPassword}
+                  onClick={handleSendPasswordReset}
+                  className="w-full py-1.5 bg-[#FF8BA7]/20 border-2 border-[#33272A] text-[#33272A] hover:bg-[#FF8BA7]/30 rounded-xl text-xs font-black transition-colors cursor-pointer"
+                >
+                  {isResettingPassword ? 'กำลังดำเนินการส่งอีเมล...' : 'ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน'}
+                </button>
+                <div className="bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 p-2.5 rounded-xl border border-amber-200/50 text-[10px] font-semibold space-y-1">
+                  <p className="font-bold">💡 ทำไมผู้ใช้ไม่ได้รับอีเมลรีเซ็ตรหัสผ่าน?</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li><span className="font-bold text-rose-500">ตรวจสอบโฟลเดอร์ "อีเมลขยะ" (Spam / Junk Mail):</span> อีเมลเริ่มต้นของระบบ Firebase มักจะถูกกรองเป็นสแปม</li>
+                    <li><span className="font-bold text-[#FF8BA7]">เข้าสู่ระบบด้วย Google:</span> หากผู้ใช้รายนี้สมัครเข้าใช้งานด้วยการกดปุ่ม "Gmail (Google)" เขาจะไม่มีรหัสผ่านในระบบ (ให้ล็อกอินผ่านปุ่ม Gmail ตามเดิมได้เลยโดยไม่ต้องรีเซ็ตรหัสผ่าน)</li>
+                    <li><span className="font-bold">การเปิดใช้งานใน Firebase Console:</span> ตรวจสอบให้แน่ใจว่าได้เปิดใช้งาน Email Template ในส่วนของ "Password reset" ในหน้า Firebase Console &gt; Authentication &gt; Templates แล้ว</li>
+                  </ul>
+                </div>
+              </div>
+
+              {userEditSuccess && (
+                <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
+                  {userEditSuccess}
+                </div>
+              )}
+
+              {userEditError && (
+                <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
+                  {userEditError}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-2 border-t-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-4 py-2 text-xs font-black cursor-pointer hover:bg-gray-200 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingUserEdit}
+                  className="rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#A0E7E5]/80 transition-colors disabled:opacity-50"
+                >
+                  {isSavingUserEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

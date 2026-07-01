@@ -26,7 +26,7 @@ export default function SchoolListView({
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
   
   // สถานะการจัดเรียงข้อมูล
-  const [sortField, setSortField] = useState<'id' | 'name' | 'staffCount' | 'studentCount' | null>(null);
+  const [sortField, setSortField] = useState<'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // สำหรับการดาวน์โหลดรายงาน
@@ -73,14 +73,48 @@ export default function SchoolListView({
   const sortedSchools = useMemo(() => {
     if (!sortField) return filteredSchools;
     
-    return [...filteredSchools].sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
+    const sizeOrder: Record<string, number> = {
+      small: 1,
+      medium: 2,
+      large: 3,
+      special_large: 4
+    };
 
-      if (sortField === 'name') {
+    const netOrder: Record<string, number> = {
+      fiber: 1,
+      satellite: 2,
+      sim: 3,
+      none: 4
+    };
+
+    return [...filteredSchools].sort((a, b) => {
+      let valA: any;
+      let valB: any;
+
+      if (sortField === 'amphoe') {
+        valA = a.amphoe || getAmphoeAndNetwork(a.id, a.name).amphoe;
+        valB = b.amphoe || getAmphoeAndNetwork(b.id, b.name).amphoe;
+      } else if (sortField === 'size') {
+        valA = sizeOrder[a.size || ''] || 0;
+        valB = sizeOrder[b.size || ''] || 0;
+      } else if (sortField === 'internetType') {
+        valA = netOrder[a.internetType || ''] || 5;
+        valB = netOrder[b.internetType || ''] || 5;
+      } else {
+        valA = a[sortField];
+        valB = b[sortField];
+      }
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
         return sortDirection === 'asc'
           ? valA.localeCompare(valB, 'th')
           : valB.localeCompare(valA, 'th');
+      }
+
+      if (typeof valA === 'boolean' && typeof valB === 'boolean') {
+        const numA = valA ? 1 : 0;
+        const numB = valB ? 1 : 0;
+        return sortDirection === 'asc' ? numA - numB : numB - numA;
       }
 
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
@@ -90,7 +124,7 @@ export default function SchoolListView({
   }, [filteredSchools, sortField, sortDirection]);
 
   // ฟังก์ชันสลับการจัดเรียง
-  const handleSort = (field: 'id' | 'name' | 'staffCount' | 'studentCount') => {
+  const handleSort = (field: 'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -331,9 +365,9 @@ export default function SchoolListView({
 
         {/* ตารางแสดงข้อมูลแบบ Responsive */}
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-[11px]">
+              <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-xs">
                 <th 
                   className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
                   onClick={() => handleSort('id')}
@@ -356,9 +390,39 @@ export default function SchoolListView({
                     ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
                   </div>
                 </th>
-                <th className="p-3">อำเภอ / กลุ่มเครือข่าย</th>
-                <th className="p-3 text-center">ขนาด</th>
-                <th className="p-3 text-center">ประเภท</th>
+                <th 
+                  className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                  onClick={() => handleSort('amphoe')}
+                >
+                  <div className="flex items-center gap-1">
+                    อำเภอ / กลุ่มเครือข่าย
+                    {sortField === 'amphoe' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                  </div>
+                </th>
+                <th 
+                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                  onClick={() => handleSort('size')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    ขนาด
+                    {sortField === 'size' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                  </div>
+                </th>
+                <th 
+                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                  onClick={() => handleSort('isExpansion')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    ประเภท
+                    {sortField === 'isExpansion' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                  </div>
+                </th>
                 <th 
                   className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
                   onClick={() => handleSort('staffCount')}
@@ -381,7 +445,17 @@ export default function SchoolListView({
                     ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
                   </div>
                 </th>
-                <th className="p-3 text-center">ระบบเน็ต</th>
+                <th 
+                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                  onClick={() => handleSort('internetType')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    ระบบเน็ต
+                    {sortField === 'internetType' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                  </div>
+                </th>
                 <th className="p-3 text-right">จัดการ</th>
               </tr>
             </thead>
@@ -392,21 +466,21 @@ export default function SchoolListView({
                   const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
                   return (
                     <tr key={school.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                      <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{school.id}</td>
+                      <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
                       <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
                         <button 
                           onClick={() => onSelectSchool(school.id)}
-                          className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-[13px]"
+                          className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
                         >
                           {school.name}
                         </button>
                       </td>
                       <td className="p-3">
-                        <div className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">{amp}</div>
-                        <div className="text-[10px] text-slate-500 dark:text-rose-200/50 font-medium">{net}</div>
+                        <div className="text-[13px] font-black text-[#33272A] dark:text-[#FFF9F5]">{amp}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-rose-200/50 font-medium">{net}</div>
                       </td>
                       <td className="p-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
                           school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
                           school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
                           school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
@@ -416,16 +490,16 @@ export default function SchoolListView({
                         </span>
                       </td>
                       <td className="p-3 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                        <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
                           school.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFF9F5] text-slate-500'
                         }`}>
                           {school.isExpansion ? 'ขยายโอกาส' : 'ทั่วไป'}
                         </span>
                       </td>
-                      <td className="p-3 text-center font-bold">{school.staffCount}</td>
-                      <td className="p-3 text-center font-black text-[#FF8BA7]">{school.studentCount}</td>
+                      <td className="p-3 text-center font-bold text-sm">{school.staffCount}</td>
+                      <td className="p-3 text-center font-black text-[#FF8BA7] text-sm">{school.studentCount}</td>
                       <td className="p-3 text-center">
-                        <span className="font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                        <span className="font-bold text-[#33272A] dark:text-[#FFF9F5] text-[13px]">
                           {school.internetType === 'fiber' ? 'Fiber' :
                            school.internetType === 'satellite' ? 'ดาวเทียม' :
                            school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}

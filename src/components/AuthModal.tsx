@@ -156,9 +156,9 @@ export default function AuthModal({
       } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         setErrorMsg('หน้าต่างลงชื่อเข้าใช้ถูกยกเลิกหรือถูกปิดก่อนที่จะทำรายการเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/operation-not-allowed') {
-        setErrorMsg('⚠️ บริการล็อกอินด้วย Google (Google Auth Provider) ยังไม่ถูกเปิดใช้งานในระบบ Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่ Authentication > Sign-in method หรือกดปุ่ม "Demo Admin" ด้านล่างเพื่อทดสอบข้ามขั้นตอนนี้ได้ทันที');
+        setErrorMsg('⚠️ บริการล็อกอินด้วย Google (Google Auth Provider) ยังไม่ถูกเปิดใช้งานในระบบ Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่ Authentication > Sign-in method');
       } else if (error.code === 'auth/unauthorized-domain') {
-        setErrorMsg('⚠️ โดเมนปัจจุบันยังไม่ได้ถูกตั้งค่าเป็น Authorized Domain ในระบบ Firebase Console ของคุณ กรุณาตั้งค่าโดเมนในหน้า Authentication หรือใช้ปุ่ม "Demo Admin" เพื่อเข้าใช้ระบบได้โดยตรง');
+        setErrorMsg('⚠️ โดเมนปัจจุบันยังไม่ได้ถูกตั้งค่าเป็น Authorized Domain ในระบบ Firebase Console ของคุณ กรุณาตั้งค่าโดเมนในหน้า Authentication');
       } else {
         setErrorMsg(`เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google: ${error.message || error.code || 'Unknown Error'}`);
       }
@@ -230,7 +230,7 @@ export default function AuthModal({
       console.error(error);
       setIsLoading(false);
       if (error.code === 'auth/operation-not-allowed') {
-        setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเปิดใช้งานที่ Authentication > Sign-in method หรือกดปุ่ม "🔑 เข้าสู่ระบบเพื่อทดสอบ (Demo Admin Bypass)" ด้านล่างเพื่อข้ามขั้นตอนและเข้าทดสอบระบบได้ทันที');
+        setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเปิดใช้งานที่ Authentication > Sign-in method');
       } else {
         setErrorMsg(`เข้าสู่ระบบไม่สำเร็จ: ${error.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'}`);
       }
@@ -344,7 +344,7 @@ export default function AuthModal({
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/operation-not-allowed') {
-        setErrorMsg('⚠️ บริการสมัครสมาชิกด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่เมนู Authentication > Sign-in method หรือใช้ปุ่ม "🔑 เข้าสู่ระบบเพื่อทดสอบ (Demo Admin Bypass)" เพื่อข้ามไปใช้งานและทดสอบระบบได้ทันที');
+        setErrorMsg('⚠️ บริการสมัครสมาชิกด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่เมนู Authentication > Sign-in method');
       } else {
         setErrorMsg(`เกิดข้อผิดพลาดในการลงทะเบียน: ${error.message || 'กรุณาลองใหม่อีกครั้ง'}`);
       }
@@ -447,29 +447,6 @@ export default function AuthModal({
                   className="h-4 w-4"
                 />
                 <span>Gmail (Google)</span>
-              </button>
-
-              {/* ปุ่ม Demo Admin Bypass เพื่อความสะดวกหาก Firebase Auth ยังไม่ได้เปิดใช้งานใน Console */}
-              <button
-                type="button"
-                onClick={() => {
-                  const demoProfile: UserProfile = {
-                    uid: "demo_admin_user_id",
-                    email: "ch.chapeach@gmail.com",
-                    firstName: "ผู้ดูแลระบบทดสอบ",
-                    lastName: "(Demo Admin)",
-                    schoolId: "all",
-                    schoolName: "สพป.แม่ฮ่องสอน เขต 1",
-                    role: "super_admin",
-                    status: "approved",
-                    createdAt: new Date()
-                  };
-                  onAuthSuccess(demoProfile);
-                  onClose();
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-[#33272A] bg-amber-100 hover:bg-amber-200 p-2 text-xs font-black text-amber-900 cursor-pointer shadow-[2px_2px_0px_#33272A] hover:translate-y-0.5 active:translate-y-1 transition-all outline-none"
-              >
-                <span>🔑 เข้าสู่ระบบเพื่อทดสอบ (Demo Admin Bypass)</span>
               </button>
 
               <div className="relative flex py-2 items-center text-slate-300 dark:text-slate-700">

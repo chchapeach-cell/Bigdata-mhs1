@@ -4,13 +4,14 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
-  Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2 
+  Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface SchoolDetailViewProps {
   school: School;
   studentData: StudentData | null;
+  allStudentData?: StudentData[];
   onBack: () => void;
   userProfile: UserProfile | null;
   onRefreshData: () => Promise<void>;
@@ -20,6 +21,7 @@ interface SchoolDetailViewProps {
 export default function SchoolDetailView({
   school,
   studentData,
+  allStudentData = [],
   onBack,
   userProfile,
   onRefreshData,
@@ -238,6 +240,24 @@ export default function SchoolDetailView({
         รวม: studentData.grades[grade].total
       }));
   }, [studentData]);
+
+  // คำนวณแนวโน้มจำนวนนักเรียนรายปีการศึกษาของโรงเรียนนี้
+  const schoolTrendData = useMemo(() => {
+    if (!allStudentData || allStudentData.length === 0) return [];
+    
+    // กรองประวัติข้อมูลนักเรียนของโรงเรียนนี้ในทุกปีการศึกษา
+    const history = allStudentData.filter(s => s.schoolId === school.id);
+    
+    // เรียงลำดับจากปีการศึกษาน้อยไปมาก
+    const sortedHistory = [...history].sort((a, b) => a.academicYear.localeCompare(b.academicYear));
+    
+    return sortedHistory.map(item => ({
+      year: `ปีการศึกษา ${item.academicYear}`,
+      ชาย: item.totalMale || 0,
+      หญิง: item.totalFemale || 0,
+      นักเรียนรวม: item.totalStudents || 0
+    }));
+  }, [allStudentData, school.id]);
 
   // คำนวณประเภทช่วงชั้นเรียน
   const schoolLevelsText = useMemo(() => {
@@ -936,50 +956,159 @@ export default function SchoolDetailView({
         </div>
       </div>
 
-      {/* ตารางข้อมูลนักเรียนแบบละเอียด */}
-      <div className="card overflow-hidden">
-        <div className="p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518]">
-          <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">ตารางวิเคราะห์สถิติจำนวนนักเรียนและห้องเรียนรายระดับชั้น</h3>
+      {/* ส่วนวิเคราะห์แนวโน้มและตารางวิเคราะห์สถิติจำนวนนักเรียน */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* ส่วนวิเคราะห์แนวโน้มประชากรนักเรียนรายปีการศึกษา */}
+        <div className="card p-6 flex flex-col justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4 mb-4">
+            <div>
+              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-[#FF8BA7]" /> แนวโน้มจำนวนนักเรียนรายปีการศึกษา
+              </h3>
+              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
+                วิเคราะห์สถิติจำนวนนักเรียนรวมของ {school.name} เปรียบเทียบตามแต่ละปีการศึกษาในระบบ
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
+                <span className="h-2 w-2 rounded-full bg-[#FF8BA7]"></span>
+                หญิง
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
+                <span className="h-2 w-2 rounded-full bg-[#A0E7E5]"></span>
+                ชาย
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
+                <span className="h-2 w-2 rounded-full bg-[#FFD3B6]"></span>
+                นักเรียนรวม
+              </span>
+            </div>
+          </div>
+
+          <div className="h-72 w-full text-[10px] font-bold mt-2">
+            {schoolTrendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={schoolTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                  <XAxis dataKey="year" stroke={chartStroke} />
+                  <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '16px',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
+                    }}
+                    itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px', fontWeight: 'bold' }} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="ชาย" 
+                    stroke="#A0E7E5" 
+                    strokeWidth={3} 
+                    dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#A0E7E5' }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="หญิง" 
+                    stroke="#FF8BA7" 
+                    strokeWidth={3} 
+                    dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#FF8BA7' }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="นักเรียนรวม" 
+                    stroke={isDarkMode ? '#FFD3B6' : '#33272A'} 
+                    strokeWidth={4} 
+                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 5, fill: isDarkMode ? '#FFD3B6' : '#33272A' }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-2">
+                <span>ไม่พบข้อมูลประวัติสถิติจำนวนนักเรียนในระบบสำหรับคำนวณแนวโน้ม</span>
+                <span className="text-[9px] font-medium opacity-75">กรุณาเพิ่มข้อมูลสถิตินักเรียนปีการศึกษาอื่นเพิ่มเติมในหน้า แอดมิน เพื่อแสดงผลกราฟแนวโน้ม</span>
+              </div>
+            )}
+          </div>
+
+          {schoolTrendData.length > 0 && (
+            <div className="mt-4 p-3 bg-[#FFF9F5] dark:bg-[#1e1518]/60 border border-[#33272A]/10 dark:border-[#FFD3B6]/10 rounded-xl text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span>💡 <b>วิเคราะห์แนวโน้ม:</b> จำนวนนักเรียนล่าสุดในปีการศึกษาล่าสุด มีจำนวนนักเรียนรวม <b>{schoolTrendData[schoolTrendData.length - 1]?.นักเรียนรวม} คน</b> </span>
+                {schoolTrendData.length > 1 && (() => {
+                  const prev = schoolTrendData[schoolTrendData.length - 2];
+                  const curr = schoolTrendData[schoolTrendData.length - 1];
+                  const diff = curr.นักเรียนรวม - prev.นักเรียนรวม;
+                  if (diff > 0) {
+                    return <span className="text-emerald-500 font-extrabold">(เพิ่มขึ้นจากปีการศึกษาก่อนหน้า +{diff} คน)</span>;
+                  } else if (diff < 0) {
+                    return <span className="text-rose-500 font-extrabold">(ลดลงจากปีการศึกษาก่อนหน้า {Math.abs(diff)} คน)</span>;
+                  } else {
+                    return <span className="text-slate-500 font-extrabold">(จำนวนเท่าเดิมกับปีการศึกษาก่อนหน้า)</span>;
+                  }
+                })()}
+              </div>
+              <div className="text-[10px] text-[#33272A]/50 dark:text-[#FFF9F5]/50 italic shrink-0">
+                *ข้อมูลนำมาจากสถิตินักเรียนรายปีการศึกษาในฐานข้อมูล
+              </div>
+            </div>
+          )}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
-                <th className="p-4">ชั้นเรียน</th>
-                <th className="p-4 text-center">เพศชาย (คน)</th>
-                <th className="p-4 text-center">เพศหญิง (คน)</th>
-                <th className="p-4 text-center">รวม (คน)</th>
-                <th className="p-4 text-center">จำนวนห้องเรียน</th>
-                <th className="p-4 text-center">เฉลี่ยต่อห้อง (คน)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 text-[#33272A] dark:text-[#FFF9F5] font-bold">
-              {studentData && studentData.grades && (() => {
-                const GRADE_ORDER = [
-                  "อ.1", "อ.2", "อ.3",
-                  "ป.1", "ป.2", "ป.3", "ป.4", "ป.5", "ป.6",
-                  "ม.1", "ม.2", "ม.3"
-                ];
-                return GRADE_ORDER
-                  .filter(grade => studentData.grades[grade] !== undefined)
-                  .map(grade => {
-                    const gradeInfo = studentData.grades[grade];
-                    const avgPerRoom = gradeInfo.rooms > 0 ? (gradeInfo.total / gradeInfo.rooms).toFixed(1) : "-";
-                    if (gradeInfo.total === 0) return null; // ไม่แสดงแถวที่มีนักเรียนเป็น 0
-                    return (
-                      <tr key={grade} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/20">
-                        <td className="p-4 font-black text-[#33272A] dark:text-[#FFF9F5]">{grade}</td>
-                        <td className="p-4 text-center text-[#33272A] dark:text-[#A0E7E5]">{gradeInfo.male}</td>
-                        <td className="p-4 text-center text-[#FF8BA7]">{gradeInfo.female}</td>
-                        <td className="p-4 text-center font-black text-[#33272A] dark:text-[#FFF9F5]">{gradeInfo.total}</td>
-                        <td className="p-4 text-center">{gradeInfo.rooms}</td>
-                        <td className="p-4 text-center text-[#33272A]/70 dark:text-[#FFF9F5]/70">{avgPerRoom}</td>
-                      </tr>
-                    );
-                  });
-              })()}
-            </tbody>
-          </table>
+
+        {/* ตารางข้อมูลนักเรียนแบบละเอียด */}
+        <div className="card overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518]">
+              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">ตารางวิเคราะห์สถิติจำนวนนักเรียนและห้องเรียนรายระดับชั้น</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                    <th className="p-4">ชั้นเรียน</th>
+                    <th className="p-4 text-center">เพศชาย (คน)</th>
+                    <th className="p-4 text-center">เพศหญิง (คน)</th>
+                    <th className="p-4 text-center">รวม (คน)</th>
+                    <th className="p-4 text-center">จำนวนห้องเรียน</th>
+                    <th className="p-4 text-center">เฉลี่ยต่อห้อง (คน)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 text-[#33272A] dark:text-[#FFF9F5] font-bold">
+                  {studentData && studentData.grades && (() => {
+                    const GRADE_ORDER = [
+                      "อ.1", "อ.2", "อ.3",
+                      "ป.1", "ป.2", "ป.3", "ป.4", "ป.5", "ป.6",
+                      "ม.1", "ม.2", "ม.3"
+                    ];
+                    return GRADE_ORDER
+                      .filter(grade => studentData.grades[grade] !== undefined)
+                      .map(grade => {
+                        const gradeInfo = studentData.grades[grade];
+                        const avgPerRoom = gradeInfo.rooms > 0 ? (gradeInfo.total / gradeInfo.rooms).toFixed(1) : "-";
+                        if (gradeInfo.total === 0) return null; // ไม่แสดงแถวที่มีนักเรียนเป็น 0
+                        return (
+                          <tr key={grade} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/20">
+                            <td className="p-4 font-black text-[#33272A] dark:text-[#FFF9F5]">{grade}</td>
+                            <td className="p-4 text-center text-[#33272A] dark:text-[#A0E7E5]">{gradeInfo.male}</td>
+                            <td className="p-4 text-center text-[#FF8BA7]">{gradeInfo.female}</td>
+                            <td className="p-4 text-center font-black text-[#33272A] dark:text-[#FFF9F5]">{gradeInfo.total}</td>
+                            <td className="p-4 text-center">{gradeInfo.rooms}</td>
+                            <td className="p-4 text-center text-[#33272A]/70 dark:text-[#FFF9F5]/70">{avgPerRoom}</td>
+                          </tr>
+                        );
+                      });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
