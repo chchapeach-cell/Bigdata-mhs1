@@ -17,6 +17,8 @@ export interface School {
   directorPhone: string; // เบอร์โทรศัพท์ผู้บริหาร
   schoolPhone: string; // เบอร์โรงเรียน
   imageUrl: string; // รูปภาพโรงเรียน
+  logoUrl?: string; // รูปภาพตราโรงเรียน
+  directorImageUrl?: string; // รูปภาพผู้บริหารโรงเรียน (เห็นเฉพาะแอดมิน)
   latitude: number;
   longitude: number;
   size: 'small' | 'medium' | 'large' | 'special_large'; // ขนาดโรงเรียน (วิเคราะห์จากจำนวนนักเรียน)

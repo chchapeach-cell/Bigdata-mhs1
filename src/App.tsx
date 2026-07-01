@@ -35,6 +35,10 @@ export default function App() {
     const saved = localStorage.getItem('theme');
     return saved === 'dark';
   });
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>(() => {
+    const saved = localStorage.getItem('font-size');
+    return (saved as 'small' | 'medium' | 'large' | 'xlarge') || 'medium';
+  });
 
   // จัดการระบบธีม Dark Mode / Light Mode
   useEffect(() => {
@@ -46,6 +50,18 @@ export default function App() {
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode]);
+
+  // จัดการปรับขนาดตัวอักษรของระบบ
+  useEffect(() => {
+    const sizeMap = {
+      small: '14px',
+      medium: '16px',
+      large: '19px',
+      xlarge: '23px',
+    };
+    document.documentElement.style.fontSize = sizeMap[fontSize];
+    localStorage.setItem('font-size', fontSize);
+  }, [fontSize]);
 
   // ตรวจสอบการเข้าสู่ระบบและโหลดโปรไฟล์
   useEffect(() => {
@@ -209,6 +225,8 @@ export default function App() {
           setActiveTab(tab);
           setSelectedSchoolId(null); // ล้างค่าเลือกโรงเรียนเมื่อเปลี่ยนแท็บหลัก
         }}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
       />
 
       {/* MAIN CONTENT AREA */}

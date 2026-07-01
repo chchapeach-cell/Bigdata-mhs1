@@ -66,6 +66,10 @@ export default function SchoolDetailView({
   const [editLongitude, setEditLongitude] = useState(school.longitude || 97.9);
   const [editSize, setEditSize] = useState<School['size']>(school.size || 'small');
   const [editIsExpansion, setEditIsExpansion] = useState(school.isExpansion);
+  const [editLogoUrl, setEditLogoUrl] = useState(school.logoUrl || '');
+  const [editDirectorImageUrl, setEditDirectorImageUrl] = useState(school.directorImageUrl || '');
+  const [adminViewType, setAdminViewType] = useState<'logo' | 'director'>('logo');
+  const [activeImageTab, setActiveImageTab] = useState<'cover' | 'logo' | 'director'>('cover');
 
   // อัปเดตฟอร์มเมื่อเปลี่ยนโรงเรียน (เช่น ได้ข้อมูลใหม่จากการ Refresh)
   useEffect(() => {
@@ -77,6 +81,8 @@ export default function SchoolDetailView({
     setEditStaffCount(school.staffCount);
     setEditMajorsStr(school.majorSubjects ? school.majorSubjects.join(', ') : '');
     setEditImageUrl(school.imageUrl || '');
+    setEditLogoUrl(school.logoUrl || '');
+    setEditDirectorImageUrl(school.directorImageUrl || '');
     setEditLatitude(school.latitude || 19.3);
     setEditLongitude(school.longitude || 97.9);
     setEditSize(school.size || 'small');
@@ -102,6 +108,38 @@ export default function SchoolDetailView({
       if (result) {
         setEditImageUrl(result);
         setSuccessMsg('อัปโหลดรูปภาพสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLocalLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setEditLogoUrl(result);
+        setSuccessMsg('อัปโหลดรูปตราโรงเรียนสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLocalDirectorImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (result) {
+        setEditDirectorImageUrl(result);
+        setSuccessMsg('อัปโหลดรูปภาพผู้บริหารสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
         setTimeout(() => setSuccessMsg(''), 4000);
       }
     };
@@ -137,6 +175,8 @@ export default function SchoolDetailView({
         majorSubjects: combinedMajors,
         majorSubjectsWithStaff: updatedMajorsWithStaff,
         imageUrl: editImageUrl,
+        logoUrl: editLogoUrl,
+        directorImageUrl: editDirectorImageUrl,
         latitude: Number(editLatitude) || 19.3,
         longitude: Number(editLongitude) || 97.9,
         size: editSize,
@@ -282,13 +322,67 @@ export default function SchoolDetailView({
             alt={isEditing ? editName : school.name}
             className="h-full w-full object-cover brightness-90 filter transition-all duration-500"
           />
-          {/* ตราโรงเรียนจำลองเป็นไอคอนพาสเทลน่ารักๆ ด้านบนภาพ */}
-          <div className="absolute bottom-4 left-6 flex items-center gap-3 z-20">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white border-2 border-[#33272A] p-2 dark:border-[#FFD3B6] dark:bg-[#1e1518] shadow-lg">
-              {/* ตราโรงเรียนจำลอง */}
-              <div className="h-10 w-10 rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-xs">
-                {(isEditing ? editName : school.name).substring(8, 11) || "มฮ."}
+          {/* ตราโรงเรียนหรือรูปผู้บริหารด้านบนภาพ */}
+          <div className="absolute bottom-4 left-6 flex items-center gap-3.5 z-20">
+            <div className="relative">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border-2 border-[#33272A] p-1 dark:border-[#FFD3B6] dark:bg-[#1e1518] shadow-lg overflow-hidden">
+                {hasAdminAccess && adminViewType === 'director' ? (
+                  (isEditing ? editDirectorImageUrl : school.directorImageUrl) ? (
+                    <img
+                      src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
+                      alt="รูปผู้บริหาร"
+                      className="h-full w-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <div className="h-full w-full rounded-xl bg-purple-100 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-black text-[9px] text-center leading-none p-0.5">
+                      <span>ไม่มีรูป</span>
+                      <span className="mt-0.5">ผู้บริหาร</span>
+                    </div>
+                  )
+                ) : (
+                  (isEditing ? editLogoUrl : school.logoUrl) ? (
+                    <img
+                      src={isEditing ? editLogoUrl : school.logoUrl}
+                      alt="ตราโรงเรียน"
+                      className="h-full w-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <div className="h-full w-full rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-xs">
+                      {(isEditing ? editName : school.name).substring(8, 11) || "มฮ."}
+                    </div>
+                  )
+                )}
               </div>
+
+              {/* ปุ่มสลับแสดงผล ตราโรงเรียน / ผู้บริหาร (เห็นเฉพาะแอดมิน) */}
+              {hasAdminAccess && (
+                <div className="absolute -top-3.5 -right-3.5 flex gap-1 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-full p-0.5 shadow-md">
+                  <button
+                    type="button"
+                    onClick={() => setAdminViewType('logo')}
+                    className={`p-1 rounded-full text-[9px] font-black cursor-pointer transition-colors leading-none ${
+                      adminViewType === 'logo'
+                        ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
+                        : 'text-slate-400 dark:text-slate-500 hover:text-[#33272A]'
+                    }`}
+                    title="แสดงตราโรงเรียน"
+                  >
+                    ตรา
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminViewType('director')}
+                    className={`p-1 rounded-full text-[9px] font-black cursor-pointer transition-colors leading-none ${
+                      adminViewType === 'director'
+                        ? 'bg-[#A0E7E5] text-[#33272A] border border-[#33272A]'
+                        : 'text-slate-400 dark:text-slate-500 hover:text-[#33272A]'
+                    }`}
+                    title="แสดงรูปผู้บริหาร"
+                  >
+                    ผอ.
+                  </button>
+                </div>
+              )}
             </div>
             <div className="text-white drop-shadow-md">
               {isEditing ? (
@@ -325,35 +419,134 @@ export default function SchoolDetailView({
             </div>
           </div>
 
-          {/* ส่วนแก้ไขและอัปโหลดรูปภาพปก (Overlay ซ้อนทับเฉพาะเวลาแก้ไขรูปภาพ) */}
+          {/* ส่วนแก้ไขและอัปโหลดรูปภาพปก ตราโรงเรียน และรูปผู้บริหาร */}
           {isEditing && (
-            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-4 text-white z-10 space-y-3">
-              <p className="text-xs font-black flex items-center gap-1">
-                <Image className="h-4 w-4 text-[#FF8BA7]" /> แก้ไขรูปภาพปกโรงเรียน
-              </p>
-              
-              <div className="w-full max-w-md space-y-2">
-                <input
-                  type="text"
-                  placeholder="วางลิงก์รูปภาพปกที่นี่ (เช่น https://...)"
-                  value={editImageUrl}
-                  onChange={(e) => setEditImageUrl(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
-                />
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-[10px] font-bold">หรือ</span>
-                  <label className="bg-[#FF8BA7] text-[#33272A] hover:bg-opacity-90 px-3 py-1.5 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-md border-2 border-[#33272A]">
-                    <Upload className="h-3.5 w-3.5" />
-                    อัปโหลดรูปภาพใหม่จากอุปกรณ์ของคุณ
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLocalImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+            <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 text-white z-10 space-y-4 overflow-y-auto">
+              <div className="flex gap-2 bg-[#33272A] border border-[#FFD3B6]/20 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveImageTab('cover')}
+                  className={`px-3 py-1 text-xs font-black rounded-lg cursor-pointer transition-colors ${
+                    activeImageTab === 'cover' ? 'bg-[#FF8BA7] text-[#33272A]' : 'text-white hover:bg-slate-700'
+                  }`}
+                >
+                  รูปภาพปก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveImageTab('logo')}
+                  className={`px-3 py-1 text-xs font-black rounded-lg cursor-pointer transition-colors ${
+                    activeImageTab === 'logo' ? 'bg-[#FF8BA7] text-[#33272A]' : 'text-white hover:bg-slate-700'
+                  }`}
+                >
+                  ตราโรงเรียน
+                </button>
+                {hasAdminAccess && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveImageTab('director')}
+                    className={`px-3 py-1 text-xs font-black rounded-lg cursor-pointer transition-colors ${
+                      activeImageTab === 'director' ? 'bg-[#FF8BA7] text-[#33272A]' : 'text-white hover:bg-slate-700'
+                    }`}
+                  >
+                    รูปผู้บริหาร (Admin)
+                  </button>
+                )}
               </div>
+
+              {activeImageTab === 'cover' && (
+                <div className="w-full max-w-md space-y-3 text-center">
+                  <p className="text-xs font-black flex items-center justify-center gap-1">
+                    <Image className="h-4 w-4 text-[#FF8BA7]" /> แก้ไขรูปภาพปกโรงเรียน
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="วางลิงก์รูปภาพปกที่นี่ (เช่น https://...)"
+                    value={editImageUrl}
+                    onChange={(e) => setEditImageUrl(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-300">หรือ</span>
+                    <label className="bg-[#FF8BA7] text-[#33272A] hover:bg-opacity-90 px-3 py-1.5 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-md border-2 border-[#33272A]">
+                      <Upload className="h-3.5 w-3.5" />
+                      อัปโหลดรูปภาพจากอุปกรณ์
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLocalImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {activeImageTab === 'logo' && (
+                <div className="w-full max-w-md space-y-3 text-center">
+                  <p className="text-xs font-black flex items-center justify-center gap-1">
+                    <Image className="h-4 w-4 text-[#FF8BA7]" /> แก้ไขตราสัญลักษณ์โรงเรียน
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="วางลิงก์รูปภาพตราโรงเรียนที่นี่ (เช่น https://...)"
+                    value={editLogoUrl}
+                    onChange={(e) => setEditLogoUrl(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-300">หรือ</span>
+                    <label className="bg-[#A0E7E5] text-[#33272A] hover:bg-opacity-90 px-3 py-1.5 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-md border-2 border-[#33272A]">
+                      <Upload className="h-3.5 w-3.5" />
+                      อัปโหลดรูปตราสัญลักษณ์ใหม่
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLocalLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {editLogoUrl && (
+                    <div className="flex justify-center mt-2">
+                      <img src={editLogoUrl} className="h-12 w-12 object-cover rounded-xl border-2 border-white" alt="ตราตัวอย่าง" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeImageTab === 'director' && hasAdminAccess && (
+                <div className="w-full max-w-md space-y-3 text-center">
+                  <p className="text-xs font-black flex items-center justify-center gap-1">
+                    <Image className="h-4 w-4 text-[#FF8BA7]" /> แก้ไขรูปภาพผู้บริหาร (เห็นเฉพาะแอดมิน)
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="วางลิงก์รูปภาพผู้บริหารที่นี่ (เช่น https://...)"
+                    value={editDirectorImageUrl}
+                    onChange={(e) => setEditDirectorImageUrl(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-300">หรือ</span>
+                    <label className="bg-[#FFD3B6] text-[#33272A] hover:bg-opacity-90 px-3 py-1.5 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-md border-2 border-[#33272A]">
+                      <Upload className="h-3.5 w-3.5" />
+                      อัปโหลดรูปภาพผู้บริหารใหม่
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLocalDirectorImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {editDirectorImageUrl && (
+                    <div className="flex justify-center mt-2">
+                      <img src={editDirectorImageUrl} className="h-12 w-12 object-cover rounded-xl border-2 border-white" alt="รูปผู้บริหารตัวอย่าง" />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -370,6 +563,19 @@ export default function SchoolDetailView({
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">ผู้บริหาร:</span>
                 <span className="text-[#33272A] dark:text-[#FFF9F5]">ผู้อำนวยการโรงเรียน</span>
               </div>
+              {hasAdminAccess && (isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
+                <div className="flex items-start gap-2.5 mt-2 p-2 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[240px]">
+                  <img
+                    src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
+                    alt="รูปผู้บริหาร"
+                    className="h-14 w-14 rounded-lg object-cover border border-[#33272A] dark:border-[#FFD3B6] shrink-0"
+                  />
+                  <div>
+                    <div className="font-black text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-tight">รูปภาพผู้บริหาร</div>
+                    <div className="text-[9px] text-[#FF8BA7] dark:text-[#A0E7E5] mt-1 font-extrabold">เห็นเฉพาะผู้ดูแลระบบ</div>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">เบอร์ผู้บริหาร:</span>
                 {isEditing ? (

@@ -10,6 +10,8 @@ interface HeaderProps {
   toggleDarkMode: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  fontSize: 'small' | 'medium' | 'large' | 'xlarge';
+  setFontSize: (size: 'small' | 'medium' | 'large' | 'xlarge') => void;
 }
 
 export default function Header({
@@ -19,7 +21,9 @@ export default function Header({
   isDarkMode,
   toggleDarkMode,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  fontSize,
+  setFontSize
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 w-full border-b-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] backdrop-blur-md transition-colors duration-300">
@@ -79,6 +83,54 @@ export default function Header({
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
+          {/* Font size adjuster */}
+          <div className="flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
+            <button
+              onClick={() => setFontSize('small')}
+              className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
+                fontSize === 'small'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
+                  : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+              }`}
+              title="ตัวอักษรขนาดเล็ก"
+            >
+              ก
+            </button>
+            <button
+              onClick={() => setFontSize('medium')}
+              className={`px-2 py-0.5 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                fontSize === 'medium'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
+                  : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+              }`}
+              title="ตัวอักษรขนาดปกติ"
+            >
+              ก
+            </button>
+            <button
+              onClick={() => setFontSize('large')}
+              className={`px-2 py-0.5 text-sm font-black rounded-lg transition-all cursor-pointer ${
+                fontSize === 'large'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
+                  : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+              }`}
+              title="ตัวอักษรขนาดใหญ่"
+            >
+              ก
+            </button>
+            <button
+              onClick={() => setFontSize('xlarge')}
+              className={`px-2 py-0.5 text-base font-black rounded-lg transition-all cursor-pointer ${
+                fontSize === 'xlarge'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
+                  : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+              }`}
+              title="ตัวอักษรขนาดใหญ่พิเศษ"
+            >
+              ก
+            </button>
+          </div>
+
           {/* Dark mode toggle */}
           <button
             onClick={toggleDarkMode}
