@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "database": "ai-studio-mhs1bigdata-b097cba8-6fe0-43e2-ad20-e20681250b82",
+    "rules": "firestore.rules"
+  }
+}

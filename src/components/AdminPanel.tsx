@@ -90,8 +90,9 @@ export default function AdminPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
 
-  // นโยบายจำกัด 1 แอดมินต่อโรงเรียน
+  // นโยบายจำกัด 1 แอดมินต่อโรงเรียน และการเปิด-ปิดรับสมัครแอดมิน
   const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState(true);
+  const [allowSchoolAdminRegistration, setAllowSchoolAdminRegistration] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState('');
 
@@ -105,6 +106,9 @@ export default function AdminPanel({
         if (data.restrictOneAdminPerSchool !== undefined) {
           setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
         }
+        if (data.allowSchoolAdminRegistration !== undefined) {
+          setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
+        }
       }
     } catch (e) {
       console.error('Failed to load system settings:', e);
@@ -112,17 +116,23 @@ export default function AdminPanel({
   };
 
   // บันทึกและสลับสถานะนโยบาย (เฉพาะ Super Admin)
-  const handleToggleRestriction = async (newValue: boolean) => {
+  const handleToggleRestriction = async (field: 'restrictOneAdminPerSchool' | 'allowSchoolAdminRegistration', newValue: boolean) => {
     if (!isSuperAdmin) return;
     setIsSavingSettings(true);
     setSettingsSuccess('');
     try {
       await setDoc(doc(db, 'settings', 'system_config'), {
-        restrictOneAdminPerSchool: newValue,
+        [field]: newValue,
         updatedAt: new Date()
       }, { merge: true });
-      setRestrictOneAdminPerSchool(newValue);
-      setSettingsSuccess('อัปเดตนโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียนเรียบร้อยแล้ว!');
+      
+      if (field === 'restrictOneAdminPerSchool') {
+        setRestrictOneAdminPerSchool(newValue);
+      } else {
+        setAllowSchoolAdminRegistration(newValue);
+      }
+      
+      setSettingsSuccess('อัปเดตนโยบายระบบเรียบร้อยแล้ว!');
       setTimeout(() => setSettingsSuccess(''), 4000);
     } catch (e) {
       console.error('Failed to save settings:', e);
@@ -827,20 +837,36 @@ export default function AdminPanel({
               </div>
             )}
 
-            {/* นโยบายการสมัครโรงเรียนละ 1 คน */}
+            {/* นโยบายการสมัครแอดมิน */}
             <div className="mt-6 pt-4 border-t-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-3">
               <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <Shield className="h-4 w-4 text-[#FF8BA7]" /> นโยบายสิทธิ์การสมัครแอดมิน
+                <Shield className="h-4 w-4 text-[#FF8BA7]" /> นโยบายระบบ
               </h4>
               <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed">
-                จำกัดให้ผู้สมัครสามารถลงทะเบียนเป็นแอดมินได้เพียง 1 คนต่อหนึ่งโรงเรียน เพื่อความเป็นระเบียบเรียบร้อยและความปลอดภัยของข้อมูล
+                จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
               </p>
               
+              <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมินโรงเรียน</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                  disabled={isSavingSettings}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                    allowSchoolAdminRegistration 
+                      ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                      : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                  }`}
+                >
+                  {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
+                </button>
+              </div>
+
               <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
                 <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัดสิทธิ์ 1 คนต่อโรงเรียน</span>
                 <button
                   type="button"
-                  onClick={() => handleToggleRestriction(!restrictOneAdminPerSchool)}
+                  onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
                   disabled={isSavingSettings}
                   className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
                     restrictOneAdminPerSchool 
@@ -851,39 +877,12 @@ export default function AdminPanel({
                   {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
                 </button>
               </div>
+              
               {settingsSuccess && (
                 <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
                   {settingsSuccess}
                 </p>
               )}
-            </div>
-
-            {/* ระบบจัดการและโอนย้ายฐานข้อมูลคลาวด์ dmc-mhs1 */}
-            <div className="mt-6 pt-4 border-t-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-3">
-              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <Database className="h-4 w-4 text-[#FF8BA7]" /> ระบบจัดการฐานข้อมูลคลาวด์ dmc-mhs1
-              </h4>
-              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed">
-                สั่งการโอนย้ายข้อมูลเริ่มต้น หรือโอนถ่ายสถิตินักเรียน Big Data ทั้ง 43 โรงเรียนเข้าคลาวด์แบบรวดเร็ว
-              </p>
-              
-              <div className="p-2.5 bg-[#FFF9F5] dark:bg-[#1e1518] rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex flex-col gap-2">
-                <div className="flex items-center justify-between text-[11px] font-black">
-                  <span className="text-[#33272A] dark:text-[#FFF9F5]">สถานะฐานข้อมูล:</span>
-                  <span className={isUsingLocalFallback ? "text-amber-500" : "text-emerald-500"}>
-                    {isUsingLocalFallback ? "❌ ใช้ข้อมูลจำลองชั่วคราว" : "✅ เชื่อมต่อฐานข้อมูลจริง"}
-                  </span>
-                </div>
-                {onForceMigrate && (
-                  <button
-                    type="button"
-                    onClick={onForceMigrate}
-                    className="w-full btn-cute bg-[#FFD3B6] text-[#33272A] py-1.5 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
-                  >
-                    🚀 บังคับโอนย้ายข้อมูลสถิติด่วน
-                  </button>
-                )}
-              </div>
             </div>
           </div>
 
@@ -902,15 +901,15 @@ export default function AdminPanel({
                 {/* เลือกปีการศึกษา */}
                 <div className="space-y-1">
                   <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
-                  <select
+                  <input
+                    type="text"
                     value={uploadYear}
                     onChange={(e) => setUploadYear(e.target.value)}
+                    pattern="[0-9]{4}"
+                    placeholder="เช่น 2568"
+                    required
                     className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                  >
-                    <option value="2568">2568</option>
-                    <option value="2569">2569</option>
-                    <option value="2570">2570</option>
-                  </select>
+                  />
                 </div>
 
                 {/* อัปโหลดไฟล์ */}

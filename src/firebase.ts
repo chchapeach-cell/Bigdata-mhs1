@@ -3,19 +3,19 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAp_wojE-tyvI9eXDuYWcrr8wxNke4Gyn0",
-  authDomain: "strategic-lattice-clsxp.firebaseapp.com",
-  projectId: "strategic-lattice-clsxp",
-  storageBucket: "strategic-lattice-clsxp.firebasestorage.app",
-  messagingSenderId: "397068537512",
-  appId: "1:397068537512:web:9d31b88bc614fa740f7c9d"
+  apiKey: "AIzaSyBSLb2bAiHaYqfriuKpyzIXFKtAYrrZBvw",
+  authDomain: "mhs1-dmc.firebaseapp.com",
+  projectId: "mhs1-dmc",
+  storageBucket: "mhs1-dmc.firebasestorage.app",
+  messagingSenderId: "615145729605",
+  appId: "1:615145729605:web:365a0db791798f2c057d2c"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with specific databaseId from config
-const db = getFirestore(app, "dmc-mhs1");
+// Initialize Firestore with specific databaseId
+const db = getFirestore(app, 'ai-studio-mhs1bigdata-b097cba8-6fe0-43e2-ad20-e20681250b82');
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();

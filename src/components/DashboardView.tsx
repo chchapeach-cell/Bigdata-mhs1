@@ -1,9 +1,55 @@
 import { useState, useMemo } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map, Calendar, TrendingUp } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp } from 'lucide-react';
 import { getAmphoeAndNetwork } from '../utils/initialData';
-import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
+import { APIProvider, Map as GoogleMap, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
+
+// Helper component for marker with info window
+function SchoolMarker({ school, isSelected, onClick }: { school: School, isSelected: boolean, onClick: () => void, key?: string | number }) {
+  const [markerRef, marker] = useAdvancedMarkerRef();
+  const lat = Number(school.latitude) || 19.3021;
+  const lng = Number(school.longitude) || 97.9654;
+  
+  let markerColor = '#60A5FA'; // ขนาดใหญ่ / ขนาดพิเศษ (สีฟ้า)
+  if (school.size === 'small') {
+    markerColor = '#FFD3B6'; // ขนาดเล็ก (สีส้มพาสเทล)
+  } else if (school.size === 'medium') {
+    markerColor = '#FFAAA5'; // ขนาดกลาง (สีส้มแดงพาสเทล)
+  }
+  
+  if (isSelected) {
+    markerColor = '#FF8BA7'; // หมุดที่เลือก (สีชมพูเด่น)
+  }
+
+  return (
+    <>
+      <AdvancedMarker 
+        ref={markerRef} 
+        position={{lat, lng}} 
+        onClick={onClick}
+        zIndex={isSelected ? 50 : 1}
+      >
+        <Pin background={markerColor} glyphColor="#fff" scale={isSelected ? 1.2 : 1} borderColor="#33272A" />
+      </AdvancedMarker>
+      {isSelected && (
+        <InfoWindow anchor={marker} onCloseClick={onClick}>
+          <div className="text-[12px] font-black text-[#33272A] p-1">
+            📍 {school.name}
+          </div>
+        </InfoWindow>
+      )}
+    </>
+  );
+}
+
+// Google Maps API Key
+const API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
 
 interface DashboardViewProps {
   schools: School[];
@@ -600,58 +646,49 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* ซีกขวา: แผนที่แบบโต้ตอบ PigeonMap */}
+          {/* ซีกขวา: แผนที่แบบโต้ตอบ Google Maps */}
           <div className="md:col-span-2">
             <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-white shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[320px] md:h-[380px]">
-              <PigeonMap
-                center={mapCenter}
-                zoom={mapZoom}
-                onBoundsChanged={({ center, zoom }) => {
-                  setMapCenter(center);
-                  setMapZoom(zoom);
-                }}
-              >
-                {/* วาดหมุดของโรงเรียนทั้งหมด */}
-                {schools.map(school => {
-                  const lat = Number(school.latitude) || 19.3021;
-                  const lng = Number(school.longitude) || 97.9654;
-                  const isSelected = selectedMapSchoolId === school.id;
-                  
-                  let markerColor = '#60A5FA'; // ขนาดใหญ่ / ขนาดพิเศษ (สีฟ้า)
-                  if (school.size === 'small') {
-                    markerColor = '#FFD3B6'; // ขนาดเล็ก (สีส้มพาสเทล)
-                  } else if (school.size === 'medium') {
-                    markerColor = '#FFAAA5'; // ขนาดกลาง (สีส้มแดงพาสเทล)
-                  }
-                  
-                  if (isSelected) {
-                    markerColor = '#FF8BA7'; // หมุดที่เลือก (สีชมพูเด่น)
-                  }
-
-                  const MarkerComponent = PigeonMarker as any;
-                  return (
-                    <MarkerComponent
-                      key={school.id}
-                      width={isSelected ? 38 : 24}
-                      anchor={[lat, lng]}
-                      color={markerColor}
-                      onClick={() => handleMarkerClick(school)}
-                    />
-                  );
-                })}
-
-                {/* สัญลักษณ์โอเวอร์เลย์แสดงชื่อโรงเรียนที่ถูกเลือกลอยขึ้นมาบนหัวหมุด */}
-                {mapSchool && (
-                  <PigeonOverlay
-                    anchor={[Number(mapSchool.latitude) || 19.3021, Number(mapSchool.longitude) || 97.9654]}
-                    offset={[0, -32]}
+              {!hasValidKey ? (
+                <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',fontFamily:'sans-serif'}}>
+                  <div style={{textAlign:'center',maxWidth:520}}>
+                    <h2>Google Maps API Key Required</h2>
+                    <p><strong>Step 1:</strong> <a href="https://console.cloud.google.com/google/maps-apis/start?utm_campaign=gmp-code-assist-ais" target="_blank" rel="noopener">Get an API Key</a></p>
+                    <p><strong>Step 2:</strong> Add your key as a secret in AI Studio:</p>
+                    <ul style={{textAlign:'left',lineHeight:'1.8'}}>
+                      <li>Open <strong>Settings</strong> (⚙️ gear icon, <strong>top-right corner</strong>)</li>
+                      <li>Select <strong>Secrets</strong></li>
+                      <li>Type <code>GOOGLE_MAPS_PLATFORM_KEY</code> as the secret name, press <strong>Enter</strong></li>
+                      <li>Paste your API key as the value, press <strong>Enter</strong></li>
+                    </ul>
+                    <p>The app rebuilds automatically after you add the secret.</p>
+                  </div>
+                </div>
+              ) : (
+                <APIProvider apiKey={API_KEY} version="weekly">
+                  <GoogleMap
+                    defaultCenter={{lat: mapCenter[0], lng: mapCenter[1]}}
+                    defaultZoom={mapZoom}
+                    center={{lat: mapCenter[0], lng: mapCenter[1]}}
+                    zoom={mapZoom}
+                    onCenterChanged={(ev) => setMapCenter([ev.detail.center.lat, ev.detail.center.lng])}
+                    onZoomChanged={(ev) => setMapZoom(ev.detail.zoom)}
+                    mapId="DEMO_MAP_ID"
+                    internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+                    style={{width: '100%', height: '100%'}}
+                    disableDefaultUI={true}
                   >
-                    <div className="bg-[#FFF9F5] border-2 border-[#33272A] px-2 py-1 rounded-xl text-[10px] font-black text-[#33272A] shadow-[2px_2px_0px_#33272A] dark:bg-[#1e1518] dark:text-[#FFF9F5] whitespace-nowrap z-50">
-                      📍 {mapSchool.name}
-                    </div>
-                  </PigeonOverlay>
-                )}
-              </PigeonMap>
+                    {schools.map(school => (
+                      <SchoolMarker
+                        key={school.id}
+                        school={school}
+                        isSelected={selectedMapSchoolId === school.id}
+                        onClick={() => handleMarkerClick(school)}
+                      />
+                    ))}
+                  </GoogleMap>
+                </APIProvider>
+              )}
             </div>
             <div className="flex justify-between items-center mt-1.5 px-1">
               <span className="text-[10px] text-gray-400 font-bold">💡 ใช้ปุ่มกลิ้งเม้าส์เพื่อซูมแผนที่ และลากเมาส์เพื่อเลื่อนตำแหน่งดูภาพรวมเขต สพป.มส.1</span>
