@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database } from 'lucide-react';
 import { getAmphoeAndNetwork } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -13,6 +13,7 @@ interface DashboardViewProps {
   availableYears: string[];
   onSelectSchool?: (id: string) => void;
   isDarkMode?: boolean;
+  onFilterNavigate?: (filters: { size?: string; type?: string; amphoe?: string }) => void;
 }
 
 const COLORS = ['#A0E7E5', '#FF8BA7', '#FFD3B6', '#FFAAA5', '#60A5FA', '#A78BFA'];
@@ -24,7 +25,8 @@ export default function DashboardView({
   setAcademicYear,
   availableYears,
   onSelectSchool,
-  isDarkMode = false
+  isDarkMode = false,
+  onFilterNavigate
 }: DashboardViewProps) {
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
@@ -256,61 +258,93 @@ export default function DashboardView({
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* โรงเรียนทั้งหมด */}
-        <div className="relative overflow-hidden card p-6">
+        <div 
+          onClick={() => onFilterNavigate?.({ type: 'all' })}
+          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FF8BA7] transition-all duration-300 group"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">สถานศึกษาทั้งหมด</span>
-            <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A]">
+            <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
               <Building2 className="h-6 w-6" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalSchools}</span>
-            <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">โรงเรียน</span>
+          <div className="mt-4 flex justify-between items-end">
+            <div>
+              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalSchools}</span>
+              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">โรงเรียน</span>
+            </div>
+            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+              ดูรายชื่อ ➡️
+            </span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#FF8BA7]"></div>
         </div>
 
         {/* นักเรียนทั้งหมด */}
-        <div className="relative overflow-hidden card p-6">
+        <div 
+          onClick={() => onFilterNavigate?.({ type: 'all' })}
+          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FFD3B6] transition-all duration-300 group"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">นักเรียนทั้งหมด</span>
-            <div className="rounded-2xl bg-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A]">
+            <div className="rounded-2xl bg-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
               <Users className="h-6 w-6" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalStudents.toLocaleString()}</span>
-            <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน (ชาย: {stats.totalMale} / หญิง: {stats.totalFemale})</span>
+          <div className="mt-4 flex justify-between items-end">
+            <div>
+              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalStudents.toLocaleString()}</span>
+              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน (ชาย: {stats.totalMale} / หญิง: {stats.totalFemale})</span>
+            </div>
+            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+              ดูรายชื่อ ➡️
+            </span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#FFD3B6]"></div>
         </div>
 
         {/* ครู/บุคลากร */}
-        <div className="relative overflow-hidden card p-6">
+        <div 
+          onClick={() => onFilterNavigate?.({ type: 'all' })}
+          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#A0E7E5] transition-all duration-300 group"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ครูและบุคลากร</span>
-            <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A]">
+            <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
               <GraduationCap className="h-6 w-6" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalTeachers}</span>
-            <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน</span>
+          <div className="mt-4 flex justify-between items-end">
+            <div>
+              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalTeachers}</span>
+              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน</span>
+            </div>
+            <span className="text-[10px] font-black text-[#A0E7E5] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+              ดูรายชื่อ ➡️
+            </span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#A0E7E5]"></div>
         </div>
 
         {/* โรงเรียนขยายโอกาส */}
-        <div className="relative overflow-hidden card p-6">
+        <div 
+          onClick={() => onFilterNavigate?.({ type: 'expansion' })}
+          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FF8BA7] transition-all duration-300 group"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ขยายโอกาส (ม.1-ม.3)</span>
-            <div className="rounded-2xl bg-[#FFD3B6]/80 border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A]">
+            <div className="rounded-2xl bg-[#FFD3B6]/80 border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
               <Award className="h-6 w-6" />
             </div>
           </div>
-          <div className="mt-4">
-            <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.expansionSchools}</span>
-            <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">แห่ง</span>
+          <div className="mt-4 flex justify-between items-end">
+            <div>
+              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.expansionSchools}</span>
+              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">แห่ง</span>
+            </div>
+            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+              ดูรายชื่อ ➡️
+            </span>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#FFD3B6]"></div>
         </div>
@@ -384,17 +418,26 @@ export default function DashboardView({
           </div>
           {/* ข้อมูลคำอธิบายวงกลม */}
           <div className="mt-4 space-y-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
-            {stats.sizeStats.map((entry, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-3.5 w-3.5 rounded-full border border-[#33272A]" style={{ backgroundColor: entry.color }}></span>
-                  <span className="text-[#33272A] dark:text-[#FFF9F5]">{entry.name}</span>
+            {stats.sizeStats.map((entry, index) => {
+              const sizeCode = entry.name.includes('เล็ก') ? 'small' : entry.name.includes('กลาง') ? 'medium' : entry.name.includes('พิเศษ') ? 'special_large' : 'large';
+              return (
+                <div 
+                  key={index}
+                  onClick={() => onFilterNavigate?.({ size: sizeCode })}
+                  className="flex items-center justify-between p-1.5 rounded-xl cursor-pointer hover:bg-[#FFD3B6]/25 dark:hover:bg-slate-800/40 transition-all group"
+                  title="คลิกเพื่อคัดกรองตามขนาดสถานศึกษานี้"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 rounded-full border border-[#33272A]" style={{ backgroundColor: entry.color }}></span>
+                    <span className="text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors">{entry.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 font-black">
+                    <span>{entry.value} แห่ง ({((entry.value / (stats.totalSchools || 1)) * 100).toFixed(0)}%)</span>
+                    <span className="text-[10px] text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">➡️</span>
+                  </div>
                 </div>
-                <span className="font-black">
-                  {entry.value} แห่ง ({((entry.value / (stats.totalSchools || 1)) * 100).toFixed(0)}%)
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -444,12 +487,20 @@ export default function DashboardView({
             {/* รายละเอียด */}
             <div className="space-y-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
               {amphoeStats.map((entry, index) => (
-                <div key={index} className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-1">
+                <div 
+                  key={index}
+                  onClick={() => onFilterNavigate?.({ amphoe: entry.name })}
+                  className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-1.5 cursor-pointer p-1 rounded-lg hover:bg-[#FFD3B6]/25 dark:hover:bg-slate-800/40 transition-all group"
+                  title={`คลิกเพื่อดูโรงเรียนในอำเภอ ${entry.name}`}
+                >
                   <div className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></span>
-                    <span>{entry.name}</span>
+                    <span className="group-hover:text-[#FF8BA7] transition-colors">{entry.name}</span>
                   </div>
-                  <span className="font-black text-[#FF8BA7]">{entry.value} โรงเรียน</span>
+                  <div className="flex items-center gap-1 font-black">
+                    <span className="text-[#FF8BA7]">{entry.value} โรงเรียน</span>
+                    <span className="text-[10px] text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">➡️</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -662,6 +713,22 @@ export default function DashboardView({
                   </PigeonOverlay>
                 )}
               </PigeonMap>
+
+              {/* Floating GIS HUD on Map */}
+              <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+                <div className="backdrop-blur-md bg-[#33272A]/85 border border-[#FFD3B6]/30 px-2 py-1 rounded-lg text-[9px] font-mono text-white flex items-center gap-1.5 shadow-[2px_2px_0px_rgba(0,0,0,0.3)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[#A0E7E5] font-black uppercase tracking-wider text-[8px]">GIS SERVER</span>
+                  <span className="opacity-50">|</span>
+                  <span className="font-bold">ACTIVE</span>
+                </div>
+                <div className="backdrop-blur-md bg-emerald-950/80 border border-emerald-500/30 px-2 py-1 rounded-lg text-[9px] font-mono text-emerald-300 flex items-center gap-1.5 shadow-[2px_2px_0px_rgba(0,0,0,0.3)]">
+                  <Database className="h-3 w-3 text-emerald-400 animate-bounce" style={{ animationDuration: '3s' }} />
+                  <span className="font-black text-[8px] uppercase tracking-wider">SYNC</span>
+                  <span className="opacity-50">|</span>
+                  <span className="text-white font-bold text-[8px]">FIREBASE LIVE</span>
+                </div>
+              </div>
             </div>
             <div className="flex justify-between items-center mt-1.5 px-1">
               <span className="text-[10px] text-gray-400 font-bold">💡 ใช้ปุ่มกลิ้งเม้าส์เพื่อซูมแผนที่ และลากเมาส์เพื่อเลื่อนตำแหน่งดูภาพรวมเขต สพป.มส.1</span>

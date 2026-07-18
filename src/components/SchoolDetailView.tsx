@@ -4,7 +4,8 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
-  Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp
+  Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
+  Database, Wifi, Cpu, Layers
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -342,6 +343,43 @@ export default function SchoolDetailView({
             alt={isEditing ? editName : school.name}
             className="h-full w-full object-cover brightness-90 filter transition-all duration-500"
           />
+
+          {/* HUD Overlay for BIGDATA website theme */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2 z-20 items-end">
+            {/* GIS indicator */}
+            <div className="backdrop-blur-md bg-[#33272A]/85 border-2 border-[#A0E7E5] px-3 py-1.5 rounded-xl text-[10px] font-mono text-white shadow-md flex items-center gap-1.5 transition-all">
+              <Cpu className="h-3.5 w-3.5 text-[#A0E7E5] animate-spin" style={{ animationDuration: '6s' }} />
+              <div className="flex flex-col">
+                <span className="text-[#A0E7E5] font-black text-[8px] tracking-wider leading-none uppercase">GIS COORDINATES</span>
+                <span className="font-bold text-[9px] mt-0.5">
+                  {(isEditing ? editLatitude : (school.latitude || 19.3)).toFixed(5)}° N, {(isEditing ? editLongitude : (school.longitude || 97.9)).toFixed(5)}° E
+                </span>
+              </div>
+            </div>
+
+            {/* BIG DATA Sync badge */}
+            <div className="backdrop-blur-md bg-emerald-950/85 border-2 border-emerald-400/60 px-3 py-1 rounded-xl text-[10px] font-bold text-[#A0E7E5] shadow-md flex items-center gap-1.5 transition-all">
+              <Database className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+              <div className="flex flex-col">
+                <span className="text-emerald-400 font-black text-[8px] tracking-wider leading-none uppercase">FIREBASE LINKED</span>
+                <span className="text-white text-[9px] mt-0.5 font-bold">MHS1_DATASET_LIVE</span>
+              </div>
+            </div>
+
+            {/* Internet connection badge */}
+            <div className="backdrop-blur-md bg-blue-950/85 border-2 border-blue-400/60 px-3 py-1 rounded-xl text-[10px] font-bold text-blue-200 shadow-md flex items-center gap-1.5 transition-all">
+              <Wifi className="h-3.5 w-3.5 text-blue-400" />
+              <div className="flex flex-col">
+                <span className="text-blue-300 font-black text-[8px] tracking-wider leading-none uppercase">NETWORK LINK</span>
+                <span className="text-white text-[9px] mt-0.5 font-bold">
+                  {(isEditing ? editInternetType : (school.internetType || 'none')) === 'fiber' ? 'FIBER OPTIC' :
+                   (isEditing ? editInternetType : (school.internetType || 'none')) === 'satellite' ? 'SATELLITE' :
+                   (isEditing ? editInternetType : (school.internetType || 'none')) === 'sim' ? 'SIM 4G/5G' : 'OFFLINE'}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* ตราโรงเรียนหรือรูปผู้บริหารด้านบนภาพ */}
           <div className="absolute bottom-4 left-6 flex items-center gap-3.5 z-20">
             <div className="relative">

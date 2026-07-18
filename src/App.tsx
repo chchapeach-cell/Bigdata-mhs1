@@ -18,6 +18,19 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   
+  // สถานะตัวกรองจากหน้านำทางแดชบอร์ด
+  const [initialFilters, setInitialFilters] = useState<{
+    size?: string;
+    type?: string;
+    amphoe?: string;
+  } | null>(null);
+
+  const handleFilterNavigate = (filters: { size?: string; type?: string; amphoe?: string }) => {
+    setInitialFilters(filters);
+    setActiveTab('schools');
+    setSelectedSchoolId(null); // เคลียร์สถานะการเลือกโรงเรียนรายบุคคลเพื่อเปิดหน้าตารางรายชื่อแบบกรอง
+  };
+  
   // ข้อมูลสถิติหลัก
   const [schools, setSchools] = useState<School[]>([]);
   const [studentData, setStudentData] = useState<StudentData[]>([]);
@@ -262,6 +275,7 @@ export default function App() {
                     availableYears={availableYears}
                     onSelectSchool={(id) => setSelectedSchoolId(id)}
                     isDarkMode={isDarkMode}
+                    onFilterNavigate={handleFilterNavigate}
                   />
                 )}
 
@@ -271,6 +285,8 @@ export default function App() {
                     studentData={studentData}
                     userProfile={userProfile}
                     onSelectSchool={(id) => setSelectedSchoolId(id)}
+                    initialFilters={initialFilters}
+                    clearInitialFilters={() => setInitialFilters(null)}
                   />
                 )}
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, FormEvent } from 'react';
+import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
 import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -11,19 +11,43 @@ interface SchoolListViewProps {
   studentData: StudentData[];
   onSelectSchool: (id: string) => void;
   userProfile: UserProfile | null;
+  initialFilters?: {
+    size?: string;
+    type?: string;
+    amphoe?: string;
+  } | null;
+  clearInitialFilters?: () => void;
 }
 
 export default function SchoolListView({
   schools,
   studentData,
   onSelectSchool,
-  userProfile
+  userProfile,
+  initialFilters,
+  clearInitialFilters
 }: SchoolListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all'); // all, expansion, basic
   const [netFilter, setNetFilter] = useState<string>('all');
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
+  
+  // ใช้ตัวกรองเริ่มต้นที่ส่งมาจากหน้าแดชบอร์ด
+  useEffect(() => {
+    if (initialFilters) {
+      if (initialFilters.type) setTypeFilter(initialFilters.type);
+      if (initialFilters.size) setSizeFilter(initialFilters.size);
+      if (initialFilters.amphoe) setAmphoeFilter(initialFilters.amphoe);
+      
+      // ล้างข้อมูลการพิมพ์ค้นหา
+      setSearchTerm('');
+      
+      if (clearInitialFilters) {
+        clearInitialFilters();
+      }
+    }
+  }, [initialFilters, clearInitialFilters]);
   
   // สถานะการจัดเรียงข้อมูล
   const [sortField, setSortField] = useState<'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | null>(null);
@@ -178,7 +202,22 @@ export default function SchoolListView({
       // 2. ดำเนินการสร้างไฟล์ Excel ด้วย xlsx
       let exportRows = [];
 
-      if (downloadTarget) {
+      if (downloadTarget && downloadTarget.id === 'filtered') {
+        // ดาวน์โหลดเฉพาะโรงเรียนที่ผ่านการคัดกรองอยู่ปัจจุบัน
+        exportRows = filteredSchools.map(s => ({
+          "รหัสโรงเรียน": s.id,
+          "ชื่อโรงเรียน": s.name,
+          "ขนาดสถานศึกษา": s.size === 'small' ? 'เล็ก' : s.size === 'medium' ? 'กลาง' : s.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ',
+          "โรงเรียนขยายโอกาส": s.isExpansion ? 'ใช่' : 'ไม่ใช่',
+          "ครูและบุคลากร (คน)": s.staffCount,
+          "นักเรียนชาย (คน)": s.maleCount,
+          "นักเรียนหญิง (คน)": s.femaleCount,
+          "นักเรียนรวมทั้งหมด (คน)": s.studentCount,
+          "ระบบอินเทอร์เน็ต": s.internetType === 'fiber' ? 'Fiber' : s.internetType === 'satellite' ? 'ดาวเทียม' : s.internetType === 'sim' ? 'SIM 4G/5G' : 'ไม่ได้ใช้',
+          "มีไฟฟ้าใช้งาน": s.electricity ? 'ใช่' : 'ไม่ใช่',
+          "เบอร์โทรผู้บริหาร": s.directorPhone
+        }));
+      } else if (downloadTarget && downloadTarget.id !== '') {
         // ดาวน์โหลดรายโรงเรียนเดียว
         const schoolObj = schoolsWithCounts.find(s => s.id === downloadTarget.id);
         const studentObj = studentData.find(s => s.schoolId === downloadTarget.id);
@@ -222,7 +261,9 @@ export default function SchoolListView({
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "รายงานนักเรียน MHS1");
 
-      const filename = downloadTarget 
+      const filename = downloadTarget && downloadTarget.id === 'filtered'
+        ? `MHS1_StudentData_Filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
+        : (downloadTarget && downloadTarget.id !== '')
         ? `MHS1_StudentData_${downloadTarget.id}_${downloadTarget.name.replace(/\s+/g, '')}.xlsx`
         : `MHS1_StudentData_AllSchools.xlsx`;
 
@@ -270,14 +311,25 @@ export default function SchoolListView({
             </button>
           </div>
 
-          {/* Export All button */}
-          <button
-            onClick={() => handleOpenDownload('', 'โรงเรียนทั้งหมดในเขตพื้นที่')}
-            className="btn-cute bg-[#A0E7E5] px-5 py-2.5 text-sm font-black text-[#33272A] flex items-center gap-1.5 transition-all"
-          >
-            <FileSpreadsheet className="h-5 w-5" />
-            ดาวน์โหลดข้อมูลทั้งหมด
-          </button>
+          {/* Export Buttons */}
+          <div className="flex flex-wrap gap-2">
+            {filteredSchools.length < schools.length && (
+              <button
+                onClick={() => handleOpenDownload('filtered', `ผลลัพธ์ที่กรอง (${filteredSchools.length} โรงเรียน)`)}
+                className="btn-cute bg-[#FFD3B6] hover:bg-opacity-90 px-4 py-2.5 text-xs font-black text-[#33272A] flex items-center gap-1.5 transition-all shadow-[2px_2px_0px_#33272A]"
+              >
+                <Download className="h-4 w-4" />
+                ดาวน์โหลดผลลัพธ์ที่กรองอยู่ ({filteredSchools.length} โรงเรียน)
+              </button>
+            )}
+            <button
+              onClick={() => handleOpenDownload('', 'โรงเรียนทั้งหมดในเขตพื้นที่')}
+              className="btn-cute bg-[#A0E7E5] px-4 py-2.5 text-xs font-black text-[#33272A] flex items-center gap-1.5 transition-all"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              ดาวน์โหลดข้อมูลทั้งหมด
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
