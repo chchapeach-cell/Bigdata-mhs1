@@ -30,8 +30,28 @@ export default function Header({
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* LOGO */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#60A5FA] to-[#34D399] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm">
-            <Globe className="h-6 w-6 text-[#33272A] dark:text-[#FFF9F5]" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden group cursor-pointer transition-transform duration-200 hover:scale-105">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="h-8 w-8">
+              {/* Stacked Database disks */}
+              <g transform="translate(8, 12) scale(0.72)">
+                {/* Bottom Disk */}
+                <path d="M10,65 C10,55 90,55 90,65 C90,75 10,75 10,65 Z" fill="#FF8BA7" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+                <path d="M10,65 L10,75 C10,85 90,85 90,75 L90,65" fill="#FF8BA7" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+                
+                {/* Middle Disk */}
+                <path d="M10,40 C10,30 90,30 90,40 C90,50 10,50 10,40 Z" fill="#FFD3B6" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+                <path d="M10,40 L10,50 C10,60 90,60 90,50 L90,40" fill="#FFD3B6" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+                
+                {/* Top Disk */}
+                <path d="M10,15 C10,5 90,5 90,15 C90,25 10,25 10,15 Z" fill="#A0E7E5" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+                <path d="M10,15 L10,25 C10,35 90,35 90,25 L90,15" fill="#A0E7E5" stroke="#33272A" strokeWidth="8" strokeLinejoin="round"/>
+              </g>
+              
+              {/* Data nodes connecting to the Database with hover animations */}
+              <path d="M 60 40 L 78 40 M 60 60 L 78 60 M 60 40 L 60 60" stroke="#33272A" strokeWidth="6" strokeLinecap="round" />
+              <circle cx="78" cy="40" r="8" fill="#FF8BA7" stroke="#33272A" strokeWidth="5" />
+              <circle cx="78" cy="60" r="8" fill="#A0E7E5" stroke="#33272A" strokeWidth="5" />
+            </svg>
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
