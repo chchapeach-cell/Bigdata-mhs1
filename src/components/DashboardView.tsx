@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search } from 'lucide-react';
 import { getAmphoeAndNetwork } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -30,6 +30,9 @@ export default function DashboardView({
 }: DashboardViewProps) {
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
+  
+  // สถานะค้นหาวิชาเอกภาพรวม
+  const [majorSearchQuery, setMajorSearchQuery] = useState<string>('');
 
   // กำหนดสไตล์กราฟตามโหมดมืด/สว่าง เพื่อความคมชัดในการอ่าน
   const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
@@ -226,6 +229,43 @@ export default function DashboardView({
       }
     ];
   }, [stats, filteredStudents]);
+
+  // คำนวณสถิติวิชาเอกทั้งหมดรวมในระดับเขตพื้นที่ (จากทุกโรงเรียน)
+  const aggregatedMajors = useMemo(() => {
+    const majorsMap: Record<string, { teachersCount: number; schoolCount: number }> = {};
+    
+    schools.forEach(school => {
+      let schoolMajors: { name: string; teachersCount: number }[] = [];
+      if (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0) {
+        schoolMajors = school.majorSubjectsWithStaff;
+      } else if (school.majorSubjects && school.majorSubjects.length > 0) {
+        schoolMajors = school.majorSubjects.map(m => ({ name: m, teachersCount: 1 }));
+      }
+      
+      const seenInSchool = new Set<string>();
+      schoolMajors.forEach(m => {
+        const name = m.name?.trim();
+        if (!name) return;
+        
+        if (!majorsMap[name]) {
+          majorsMap[name] = { teachersCount: 0, schoolCount: 0 };
+        }
+        majorsMap[name].teachersCount += (m.teachersCount || 0);
+        if (!seenInSchool.has(name)) {
+          majorsMap[name].schoolCount += 1;
+          seenInSchool.add(name);
+        }
+      });
+    });
+    
+    return Object.entries(majorsMap)
+      .map(([name, data]) => ({
+        name,
+        teachersCount: data.teachersCount,
+        schoolCount: data.schoolCount
+      }))
+      .sort((a, b) => b.teachersCount - a.teachersCount);
+  }, [schools]);
 
   return (
     <div className="space-y-6">
@@ -548,6 +588,155 @@ export default function DashboardView({
                 ไม่มีข้อมูลเปรียบเทียบปีการศึกษา
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* สถิติข้อมูลวิชาเอกและอัตรากำลังครูแยกตามวิชาเอกภาพรวม (Big Data Majors) */}
+      <div className="card p-6 space-y-4">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-[#FF8BA7]" /> 
+            ข้อมูลสารสนเทศวิชาเอกและอัตรากำลังครูแยกตามวิชาเอกภาพรวมทั้งเขตพื้นที่
+          </h3>
+          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+            รายงานวิเคราะห์ข้อมูล Big Data ด้านงานบุคคลจำแนกตามวิชาเอกและจำนวนบุคลากรครูผู้สอนในสังกัด
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* ซีกซ้าย/กลาง: แผนภูมิแท่งแสดง 10 วิชาเอกที่มีจำนวนครูมากที่สุด */}
+          <div className="lg:col-span-2 bg-[#FFF9F5]/50 dark:bg-slate-900/40 p-4 rounded-2xl border-2 border-[#33272A] dark:border-slate-800">
+            <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-4 uppercase tracking-wider flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-[#FF8BA7]" /> แผนภูมิแสดง 10 อันดับวิชาเอกที่มีสัดส่วนครูผู้สอนสูงสุด
+            </h4>
+            <div className="h-72 w-full text-xs font-bold">
+              {aggregatedMajors.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={aggregatedMajors.slice(0, 10)}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                    <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" stroke={chartStroke} width={80} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: `2px solid ${tooltipBorder}`,
+                        backgroundColor: tooltipBg,
+                        color: tooltipText,
+                        boxShadow: tooltipShadow,
+                      }}
+                      itemStyle={{ color: tooltipText }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                    <Bar 
+                      dataKey="teachersCount" 
+                      name="จำนวนครูผู้สอน (คน)" 
+                      fill="#FFD3B6" 
+                      stroke={chartStroke} 
+                      strokeWidth={2} 
+                      radius={[0, 4, 4, 0]}
+                    >
+                      {aggregatedMajors.slice(0, 10).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-slate-400 font-bold">
+                  ไม่มีข้อมูลสถิติมหภาคของวิชาเอกในระบบ
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ซีกขวา: รายชื่อวิชาเอกทั้งหมด พร้อมฟังก์ชันค้นหา */}
+          <div className="lg:col-span-1 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase flex items-center gap-1">
+                  <Search className="h-3 w-3" /> ค้นหา/กรองวิชาเอกในเขตพื้นที่
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={majorSearchQuery}
+                    onChange={(e) => setMajorSearchQuery(e.target.value)}
+                    placeholder="พิมพ์ค้นหา เช่น ภาษาไทย, ภาษาอังกฤษ..."
+                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] pl-8 pr-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-sm"
+                  />
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#33272A]/40 dark:text-[#FFF9F5]/40" />
+                  {majorSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setMajorSearchQuery('')}
+                      className="absolute right-2.5 top-2 text-xs font-black text-rose-400 hover:text-rose-500 cursor-pointer"
+                    >
+                      ล้าง
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* รายการวิชาเอก */}
+              <div className="bg-[#FFF9F5] dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl p-4 shadow-md h-[180px] overflow-y-auto space-y-2 custom-scrollbar">
+                {(() => {
+                  const filtered = aggregatedMajors.filter(m => 
+                    m.name.toLowerCase().includes(majorSearchQuery.toLowerCase())
+                  );
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-xs font-bold text-slate-400">
+                        ไม่พบวิชาเอกที่ค้นหา
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((major, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-[#33272A]/10 dark:border-[#FFD3B6]/10 hover:border-[#FF8BA7] hover:scale-[1.01] transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-5 w-5 rounded-lg bg-[#FF8BA7]/20 border border-[#FF8BA7]/50 flex items-center justify-center text-[9px] font-black text-[#FF8BA7]">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                          {major.name}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-black text-[#FF8BA7] block">
+                          ครู {major.teachersCount} คน
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 block">
+                          พบใน {major.schoolCount} โรงเรียน
+                        </span>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* KPI ย่อย */}
+            <div className="bg-[#A0E7E5]/20 dark:bg-slate-900/50 border border-[#33272A]/20 p-3 rounded-2xl space-y-1.5 shadow-sm mt-3 flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">วิชาเอกทั้งหมดในระบบ</span>
+                <span className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {aggregatedMajors.length} สาขาวิชาเอก
+                </span>
+              </div>
+              <div className="h-10 w-10 bg-[#A0E7E5] rounded-xl border border-[#33272A] flex items-center justify-center shadow-[1px_1px_0px_0px_#33272A]">
+                <Layers className="h-5 w-5 text-[#33272A]" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
