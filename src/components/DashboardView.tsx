@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle } from 'lucide-react';
 import { getAmphoeAndNetwork } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -33,6 +33,47 @@ export default function DashboardView({
   
   // สถานะค้นหาวิชาเอกภาพรวม
   const [majorSearchQuery, setMajorSearchQuery] = useState<string>('');
+
+  // จัดการ PWA Installation (ความสามารถในการติดตั้งบนมือถือ)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // เช็คสถานะโหมด Standalone / ติดตั้งแล้ว
+    if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   // กำหนดสไตล์กราฟตามโหมดมืด/สว่าง เพื่อความคมชัดในการอ่าน
   const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
@@ -957,6 +998,90 @@ export default function DashboardView({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ติดตั้งบนมือถือ (PWA Mobile Installation Widget) */}
+      <div className="card border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#1e1518] p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A]/10 pb-4 dark:border-[#FFD3B6]/10">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-[#A0E7E5] border-2 border-[#33272A] flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#33272A]">
+              <Smartphone className="h-5 w-5 text-[#33272A]" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                ติดตั้งแอปพลิเคชัน MHS1 BIGDATA บนมือถือของคุณ
+              </h3>
+              <p className="text-[10px] sm:text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold mt-0.5">
+                ใช้งานได้เสมือนแอปพลิเคชันจริง รวดเร็ว ไม่กินพื้นที่เครื่อง และเข้าถึงข้อมูลสถานศึกษาได้จากหน้าจอโฮมทันที
+              </p>
+            </div>
+          </div>
+
+          {/* ปุ่มสำหรับการติดตั้งด่วนเมื่อบราวเซอร์รองรับ */}
+          {isInstallable && !isInstalled ? (
+            <button
+              onClick={handleInstallClick}
+              className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-2.5 text-xs font-black flex items-center gap-1.5 shrink-0"
+            >
+              <Download className="h-4 w-4 animate-bounce" />
+              <span>ติดตั้งแอปบนมือถือ</span>
+            </button>
+          ) : isInstalled ? (
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-100 border border-emerald-400 text-emerald-800 text-[10px] font-black dark:bg-emerald-950/20 dark:text-emerald-400 flex items-center gap-1 shrink-0">
+              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+              เปิดใช้งานในรูปแบบแอปพลิเคชันแล้ว
+            </div>
+          ) : (
+            <span className="text-[10px] font-bold text-slate-400 italic bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 shrink-0">
+              พร้อมรองรับการติดตั้งแบบ PWA
+            </span>
+          )}
+        </div>
+
+        {/* คู่มือคำแนะนำการติดตั้งสำหรับระบบปฏิบัติการต่าง ๆ */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* iOS Safari */}
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+            <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
+              <span className="px-2 py-0.5 text-[9px] font-black bg-[#FF8BA7] text-[#33272A] border border-[#33272A] rounded-md">iOS</span>
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับ iPhone / iPad (Safari)</h4>
+            </div>
+            <ol className="text-[11px] font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80 space-y-2 list-decimal list-inside pl-1 leading-relaxed">
+              <li>เปิดบราวเซอร์ <span className="text-[#FF8BA7]">Safari</span> เข้าสู่หน้าระบบนี้</li>
+              <li>แตะที่ปุ่ม <span className="inline-flex items-center gap-0.5 bg-slate-100 px-1 py-0.5 rounded border text-[10px]"><Share2 className="h-3 w-3 inline" /> แชร์ (Share)</span> ที่แถบเมนูด้านล่าง</li>
+              <li>เลื่อนลงมาและเลือก <span className="text-[#FF8BA7]">"เพิ่มไปยังหน้าจอโฮม"</span> (Add to Home Screen)</li>
+              <li>แตะ <span className="font-extrabold text-[#33272A] dark:text-[#FFF9F5]">"เพิ่ม"</span> (Add) ที่มุมขวาบน เป็นอันเสร็จสิ้น!</li>
+            </ol>
+          </div>
+
+          {/* Android Chrome */}
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+            <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
+              <span className="px-2 py-0.5 text-[9px] font-black bg-[#A0E7E5] text-[#33272A] border border-[#33272A] rounded-md">Android</span>
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับมือถือ Android (Chrome)</h4>
+            </div>
+            <ol className="text-[11px] font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80 space-y-2 list-decimal list-inside pl-1 leading-relaxed">
+              <li>เปิดบราวเซอร์ <span className="text-[#A0E7E5] font-black">Google Chrome</span> เข้าสู่นี้</li>
+              <li>กดปุ่มเมนู <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">"จุดสามจุด (⋮)"</span> ที่มุมบนขวา</li>
+              <li>เลือกเมนู <span className="text-[#A0E7E5] font-black">"ติดตั้งแอป"</span> (Install App) หรือ <span className="text-[#A0E7E5] font-black">"เพิ่มลงในหน้าจอหลัก"</span></li>
+              <li>กดยืนยัน <span className="font-black">"ติดตั้ง"</span> ระบบจะดาวน์โหลดลงหน้าจอโฮมทันที</li>
+            </ol>
+          </div>
+
+          {/* Desktop/PC/Mac */}
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+            <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
+              <span className="px-2 py-0.5 text-[9px] font-black bg-[#FFD3B6] text-[#33272A] border border-[#33272A] rounded-md">Desktop</span>
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับคอมพิวเตอร์ PC / Mac</h4>
+            </div>
+            <ol className="text-[11px] font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80 space-y-2 list-decimal list-inside pl-1 leading-relaxed">
+              <li>ใช้เบราว์เซอร์ <span className="text-amber-500 font-bold">Chrome / Edge / Opera</span></li>
+              <li>มองหาไอคอน <span className="inline-flex items-center gap-0.5 bg-slate-100 px-1 py-0.5 rounded border text-[10px]"><Download className="h-3 w-3 inline" /> ติดตั้งแอป (Install)</span> ที่ด้านขวาบนของแถบที่อยู่เว็บ (Address bar)</li>
+              <li>คลิกไอคอนดังกล่าวแล้วกดยืนยันการติดตั้ง</li>
+              <li>ระบบจะทำการสร้าง Shortcut รวดเร็วทันใจบน Desktop</li>
+            </ol>
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="120" fill="#A0E7E5" stroke="#33272A" stroke-width="24"/>
+  <rect x="50" y="50" width="412" height="412" rx="80" fill="#FFF9F5" stroke="#33272A" stroke-width="16"/>
+  
+  <!-- Database Stack (Big Data Theme) -->
+  <g transform="translate(66, 66) scale(3.8)">
+    <!-- Bottom Disk -->
+    <path d="M10,65 C10,55 90,55 90,65 C90,75 10,75 10,65 Z" fill="#FF8BA7" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M10,65 L10,75 C10,85 90,85 90,75 L90,65" fill="#FF8BA7" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+    
+    <!-- Middle Disk -->
+    <path d="M10,40 C10,30 90,30 90,40 C90,50 10,50 10,40 Z" fill="#FFD3B6" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M10,40 L10,50 C10,60 90,60 90,50 L90,40" fill="#FFD3B6" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+    
+    <!-- Top Disk -->
+    <path d="M10,15 C10,5 90,5 90,15 C90,25 10,25 10,15 Z" fill="#A0E7E5" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M10,15 L10,25 C10,35 90,35 90,25 L90,15" fill="#A0E7E5" stroke="#33272A" stroke-width="8" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Connectors and Nodes -->
+  <path d="M 280 215 L 360 215 M 280 295 L 360 295 M 280 215 L 280 295" stroke="#33272A" stroke-width="20" stroke-linecap="round" />
+  <circle cx="360" cy="215" r="30" fill="#FF8BA7" stroke="#33272A" stroke-width="15" />
+  <circle cx="360" cy="295" r="30" fill="#A0E7E5" stroke="#33272A" stroke-width="15" />
+</svg>
