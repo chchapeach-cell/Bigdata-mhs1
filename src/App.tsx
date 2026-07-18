@@ -34,8 +34,10 @@ export default function App() {
   // ข้อมูลสถิติหลัก
   const [schools, setSchools] = useState<School[]>([]);
   const [studentData, setStudentData] = useState<StudentData[]>([]);
-  const [academicYear, setAcademicYear] = useState<string>('2568');
-  const [availableYears, setAvailableYears] = useState<string[]>(['2568', '2569']);
+  // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
+  const currentBEYear = (new Date().getFullYear() + 543).toString();
+  const [academicYear, setAcademicYear] = useState<string>(currentBEYear);
+  const [availableYears, setAvailableYears] = useState<string[]>([currentBEYear]);
   
   // จัดการผู้ใช้งาน
   const [user, setUser] = useState<any>(null);
@@ -179,7 +181,9 @@ export default function App() {
         if (years.length > 0) {
           years.sort((a, b) => b.localeCompare(a));
           setAvailableYears(years);
-          if (!years.includes(academicYear)) {
+          if (years.includes(currentBEYear)) {
+            setAcademicYear(currentBEYear);
+          } else {
             setAcademicYear(years[0]);
           }
         }
@@ -197,7 +201,9 @@ export default function App() {
         // จัดเรียง
         years.sort((a, b) => b.localeCompare(a));
         setAvailableYears(years);
-        if (!years.includes(academicYear)) {
+        if (years.includes(currentBEYear)) {
+          setAcademicYear(currentBEYear);
+        } else {
           setAcademicYear(years[0]);
         }
       }

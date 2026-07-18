@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
@@ -30,12 +30,12 @@ export default function Header({
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* LOGO */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm">
-            <Award className="h-6 w-6 text-[#33272A] dark:text-[#FFF9F5]" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#60A5FA] to-[#34D399] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm">
+            <Globe className="h-6 w-6 text-[#33272A] dark:text-[#FFF9F5]" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-              MHS1 <span className="text-[#33272A] text-[10px] font-black px-2 py-0.5 rounded-full bg-[#A0E7E5] border border-[#33272A] dark:border-[#FFD3B6]">BIGDATA</span>
+            <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+              BigData <span className="text-[#FF8BA7]">Mhs1</span>
             </h1>
             <p className="text-[9px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">สพป.แม่ฮ่องสอน เขต 1</p>
           </div>
@@ -84,7 +84,7 @@ export default function Header({
         {/* Right side controls */}
         <div className="flex items-center gap-3">
           {/* Font size adjuster */}
-          <div className="flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
+          <div className="hidden sm:flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
             <button
               onClick={() => setFontSize('small')}
               className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
@@ -143,16 +143,16 @@ export default function Header({
           {/* User Section */}
           {userProfile ? (
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col items-end text-right">
-                <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+              <div className="flex flex-col items-end text-right">
+                <span className="text-[10px] sm:text-xs font-black text-[#33272A] dark:text-[#FFF9F5] max-w-[100px] sm:max-w-[180px] truncate">
                   {userProfile.firstName} {userProfile.lastName}
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6]">
+                <span className="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6] max-w-[100px] sm:max-w-[180px] truncate mt-0.5">
                   {userProfile.role === 'super_admin' ? 'Super Admin' : `แอดมิน: ${userProfile.schoolName || 'โรงเรียน'}`}
                   {userProfile.status === 'pending' && ' (รออนุมัติ)'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 border-l-2 border-[#33272A] pl-3 dark:border-[#FFD3B6]">
+              <div className="flex items-center gap-1.5 border-l-2 border-[#33272A] pl-2 dark:border-[#FFD3B6]">
                 <button
                   onClick={() => setActiveTab('admin')}
                   className="rounded-full bg-[#A0E7E5] border border-[#33272A] p-1 text-[#33272A] hover:bg-opacity-90 dark:border-[#FFD3B6] sm:hidden"
@@ -162,9 +162,9 @@ export default function Header({
                 </button>
                 <button
                   onClick={onLogout}
-                  className="btn-cute bg-[#FF8BA7] px-3 py-1.5 text-[10px] font-bold transition-all"
+                  className="btn-cute bg-[#FF8BA7] px-2 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] font-black transition-all flex items-center gap-0.5"
                 >
-                  <LogOut className="h-3 w-3 mr-1" />
+                  <LogOut className="h-3 w-3 shrink-0" />
                   <span className="hidden sm:inline">ออกระบบ</span>
                 </button>
               </div>

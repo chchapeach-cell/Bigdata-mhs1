@@ -219,6 +219,12 @@ export default function AdminPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
 
+  // State สำหรับการลบข้อมูลรายปีการศึกษา
+  const [deleteYear, setDeleteYear] = useState('');
+  const [isDeletingYear, setIsDeletingYear] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteSuccess, setDeleteSuccess] = useState('');
+
   // นโยบายจำกัด 1 แอดมินต่อโรงเรียน และการเปิด-ปิดรับสมัครแอดมิน
   const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState(true);
   const [allowSchoolAdminRegistration, setAllowSchoolAdminRegistration] = useState(true);
@@ -268,6 +274,48 @@ export default function AdminPanel({
       alert('เกิดข้อผิดพลาดในการบันทึกนโยบายผู้สมัคร');
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  // ลบข้อมูลรายปีการศึกษา
+  const handleDeleteYear = async (year: string) => {
+    if (!year || !/^[0-9]{4}$/.test(year)) {
+      setDeleteError('กรุณาระบุปีการศึกษาเป็นตัวเลข 4 หลัก เช่น 2567');
+      return;
+    }
+
+    if (!window.confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบข้อมูลสถิตินักเรียนทั้งหมดของปีการศึกษา ${year}? การดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) {
+      return;
+    }
+
+    setIsDeletingYear(true);
+    setDeleteError('');
+    setDeleteSuccess('');
+
+    try {
+      const q = query(collection(db, 'students'), where('academicYear', '==', year));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setDeleteError(`ไม่พบข้อมูลสถิตินักเรียนของปีการศึกษา ${year} ในฐานข้อมูล`);
+        setIsDeletingYear(false);
+        return;
+      }
+
+      let deletedCount = 0;
+      for (const docSnap of querySnapshot.docs) {
+        await deleteDoc(doc(db, 'students', docSnap.id));
+        deletedCount++;
+      }
+
+      setDeleteSuccess(`ลบข้อมูลปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} โรงเรียน)`);
+      setDeleteYear('');
+      await onRefreshData(); // รีเฟรชข้อมูลในแอป
+    } catch (err: any) {
+      console.error(err);
+      setDeleteError('เกิดข้อผิดพลาดในการลบข้อมูล: ' + err.message);
+    } finally {
+      setIsDeletingYear(false);
     }
   };
 
@@ -1110,50 +1158,128 @@ export default function AdminPanel({
 
           {adminTab === 'upload' && (
             <div className="grid gap-6 md:grid-cols-3">
-              <div className="card p-6 md:col-span-1">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <Shield className="h-4.5 w-4.5 text-[#FF8BA7]" /> นโยบายระบบ
-                </h3>
-                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
-                  จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
-                </p>
-                <div className="space-y-3">
-                  <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมิน</span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                      disabled={isSavingSettings}
-                      className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                        allowSchoolAdminRegistration 
-                          ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                      }`}
-                    >
-                      {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
-                    </button>
-                  </div>
-                  <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 คนต่อโรงเรียน</span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                      disabled={isSavingSettings}
-                      className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                        restrictOneAdminPerSchool 
-                          ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                      }`}
-                    >
-                      {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                    </button>
-                  </div>
-                </div>
-                {settingsSuccess && (
-                  <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
-                    {settingsSuccess}
+              <div className="md:col-span-1 flex flex-col gap-6">
+                {/* นโยบายระบบ */}
+                <div className="card p-6">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Shield className="h-4.5 w-4.5 text-[#FF8BA7]" /> นโยบายระบบ
+                  </h3>
+                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                    จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
                   </p>
-                )}
+                  <div className="space-y-3">
+                    <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมิน</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                        disabled={isSavingSettings}
+                        className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                          allowSchoolAdminRegistration 
+                            ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                            : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                        }`}
+                      >
+                        {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
+                      </button>
+                    </div>
+                    <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 คนต่อโรงเรียน</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
+                        disabled={isSavingSettings}
+                        className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
+                          restrictOneAdminPerSchool 
+                            ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
+                            : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                        }`}
+                      >
+                        {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                      </button>
+                    </div>
+                  </div>
+                  {settingsSuccess && (
+                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                      {settingsSuccess}
+                    </p>
+                  )}
+                </div>
+
+                {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
+                <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลตามปีการศึกษา
+                  </h3>
+                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                    เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลสถิตินักเรียนของทุกโรงเรียนออกทั้งหมด
+                  </p>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={deleteYear}
+                          onChange={(e) => setDeleteYear(e.target.value)}
+                          pattern="[0-9]{4}"
+                          placeholder="เช่น 2567"
+                          maxLength={4}
+                          className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteYear(deleteYear)}
+                          disabled={isDeletingYear || !deleteYear}
+                          className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
+                        >
+                          {isDeletingYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* แสดงรายการปีการศึกษาที่มีอยู่ในฐานข้อมูลเพื่อให้คลิกลบได้สะดวก */}
+                    {studentData && studentData.length > 0 && (() => {
+                      const yearsInDb = Array.from(new Set(studentData.map(d => d.academicYear))).sort().reverse();
+                      if (yearsInDb.length > 0) {
+                        return (
+                          <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                            <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาในระบบ (คลิกเพื่อลบ):</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {yearsInDb.map(yr => (
+                                <button
+                                  key={yr}
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteYear(yr);
+                                    handleDeleteYear(yr);
+                                  }}
+                                  className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  {yr}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
+                  {deleteError && (
+                    <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
+                      {deleteError}
+                    </p>
+                  )}
+
+                  {deleteSuccess && (
+                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                      {deleteSuccess}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* อัปโหลดไฟล์ CSV / Excel */}

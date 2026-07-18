@@ -80,16 +80,17 @@ export default function AuthModal({
       // กรณีพิเศษ: อีเมลที่ได้รับอนุมัติเป็น Super Admin อัตโนมัติทันที
       const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
       if (isHardcodedSuperAdmin) {
+        const existingData = (userDocSnap && userDocSnap.exists()) ? userDocSnap.data() : null;
         const superAdminProfile: UserProfile = {
           uid: user.uid,
-          email: user.email,
-          firstName: 'Super',
-          lastName: 'Admin',
+          email: user.email || '',
+          firstName: existingData?.firstName || 'ผู้ดูแลระบบ',
+          lastName: existingData?.lastName || 'ส่วนกลาง',
           schoolId: 'all',
           schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
           role: 'super_admin',
           status: 'approved',
-          createdAt: serverTimestamp()
+          createdAt: existingData?.createdAt || serverTimestamp()
         };
         try {
           await setDoc(userDocRef, superAdminProfile, { merge: true });
@@ -186,16 +187,17 @@ export default function AuthModal({
 
       const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
       if (isHardcodedSuperAdmin) {
+        const existingData = (userDocSnap && userDocSnap.exists()) ? userDocSnap.data() : null;
         const superAdminProfile: UserProfile = {
           uid: user.uid,
           email: user.email || '',
-          firstName: 'Super',
-          lastName: 'Admin',
+          firstName: existingData?.firstName || 'ผู้ดูแลระบบ',
+          lastName: existingData?.lastName || 'ส่วนกลาง',
           schoolId: 'all',
           schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
           role: 'super_admin',
           status: 'approved',
-          createdAt: serverTimestamp()
+          createdAt: existingData?.createdAt || serverTimestamp()
         };
         try {
           await setDoc(userDocRef, superAdminProfile, { merge: true });

@@ -5,7 +5,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
-  Database, Wifi, Cpu, Layers
+  Database, Wifi, Cpu, Layers, Eye
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -73,6 +73,7 @@ export default function SchoolDetailView({
   const [editDirectorImageUrl, setEditDirectorImageUrl] = useState(school.directorImageUrl || '');
   const [adminViewType, setAdminViewType] = useState<'logo' | 'director'>('logo');
   const [activeImageTab, setActiveImageTab] = useState<'cover' | 'logo' | 'director'>('cover');
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
 
   // อัปเดตฟอร์มเมื่อเปลี่ยนโรงเรียน (เช่น ได้ข้อมูลใหม่จากการ Refresh)
   useEffect(() => {
@@ -389,7 +390,9 @@ export default function SchoolDetailView({
                     <img
                       src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
                       alt="รูปผู้บริหาร"
-                      className="h-full w-full object-cover rounded-xl"
+                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                      className="h-full w-full object-cover rounded-xl cursor-pointer hover:scale-110 transition-transform duration-300"
+                      title="คลิกเพื่อดูรูปขยาย"
                     />
                   ) : (
                     <div className="h-full w-full rounded-xl bg-purple-100 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-black text-[9px] text-center leading-none p-0.5">
@@ -402,7 +405,9 @@ export default function SchoolDetailView({
                     <img
                       src={isEditing ? editLogoUrl : school.logoUrl}
                       alt="ตราโรงเรียน"
-                      className="h-full w-full object-cover rounded-xl"
+                      onClick={() => setExpandedImageUrl(isEditing ? editLogoUrl : school.logoUrl || null)}
+                      className="h-full w-full object-cover rounded-xl cursor-pointer hover:scale-110 transition-transform duration-300"
+                      title="คลิกเพื่อดูรูปขยาย"
                     />
                   ) : (
                     <div className="h-full w-full rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-xs">
@@ -621,16 +626,24 @@ export default function SchoolDetailView({
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">ผู้บริหาร:</span>
                 <span className="text-[#33272A] dark:text-[#FFF9F5]">ผู้อำนวยการโรงเรียน</span>
               </div>
-              {hasAdminAccess && (isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
+              {(isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
                 <div className="flex items-start gap-2.5 mt-2 p-2 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[240px]">
                   <img
                     src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
                     alt="รูปผู้บริหาร"
-                    className="h-14 w-14 rounded-lg object-cover border border-[#33272A] dark:border-[#FFD3B6] shrink-0"
+                    onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                    className="h-14 w-14 rounded-lg object-cover border border-[#33272A] dark:border-[#FFD3B6] shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
+                    title="คลิกเพื่อขยายรูป"
                   />
                   <div>
                     <div className="font-black text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-tight">รูปภาพผู้บริหาร</div>
-                    <div className="text-[9px] text-[#FF8BA7] dark:text-[#A0E7E5] mt-1 font-extrabold">เห็นเฉพาะผู้ดูแลระบบ</div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                      className="text-[10px] text-[#FF8BA7] dark:text-[#A0E7E5] mt-1 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Eye className="h-3 w-3 inline" /> คลิกเพื่อขยาย
+                    </button>
                   </div>
                 </div>
               )}
@@ -995,7 +1008,7 @@ export default function SchoolDetailView({
       </div>
 
       {/* ส่วนวิเคราะห์แนวโน้มและตารางวิเคราะห์สถิติจำนวนนักเรียน */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* ส่วนวิเคราะห์แนวโน้มประชากรนักเรียนรายปีการศึกษา */}
         <div className="card p-6 flex flex-col justify-between">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4 mb-4">
@@ -1100,6 +1113,52 @@ export default function SchoolDetailView({
           )}
         </div>
 
+        {/* แผนภูมิแสดงจำนวนครูจำแนกตามวิชาเอก */}
+        <div className="card p-6 flex flex-col justify-between shadow-md">
+          <div>
+            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4 mb-4">
+              <Layers className="h-4 w-4 text-[#FF8BA7]" /> อัตรากำลังครูแยกตามวิชาเอก
+            </h3>
+            <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
+              สถิติจำนวนครูผู้เชี่ยวชาญแยกตามวิชาเอกในโรงเรียน
+            </p>
+          </div>
+
+          <div className="h-72 w-full text-[10px] font-bold mt-4">
+            {displayMajors.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={displayMajors} layout="vertical" margin={{ top: 10, right: 15, left: 15, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                  <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" stroke={chartStroke} width={75} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '16px',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
+                    }}
+                    itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
+                  />
+                  <Bar dataKey="teachersCount" name="จำนวนครู (คน)" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full w-full flex items-center justify-center text-slate-400 font-bold">
+                ไม่พบข้อมูลวิชาเอกของโรงเรียนนี้
+              </div>
+            )}
+          </div>
+
+          {displayMajors.length > 0 && (
+            <div className="mt-4 p-2 bg-[#FFF9F5] dark:bg-[#1e1518]/60 border border-[#33272A]/10 dark:border-[#FFD3B6]/10 rounded-xl text-[10px] text-center font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+              วิชาเอกหลักในระบบที่มีครูผู้เชี่ยวชาญเฉพาะทาง
+            </div>
+          )}
+        </div>
+
         {/* ตารางข้อมูลนักเรียนแบบละเอียด */}
         <div className="card overflow-hidden flex flex-col justify-between">
           <div>
@@ -1149,6 +1208,39 @@ export default function SchoolDetailView({
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal for Expanded Photo */}
+      {expandedImageUrl && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in cursor-zoom-out" 
+          onClick={() => setExpandedImageUrl(null)}
+        >
+          <div 
+            className="relative max-w-2xl w-full bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 shadow-2xl overflow-hidden animate-scale-up cursor-default" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setExpandedImageUrl(null)}
+              className="absolute top-4 right-4 bg-[#FF8BA7] text-[#33272A] hover:bg-[#ff7b9c] border-2 border-[#33272A] p-1.5 rounded-full cursor-pointer transition-colors shadow-[2px_2px_0px_0px_#33272A]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-full rounded-2xl overflow-hidden border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-rose-950/20 max-h-[70vh] flex items-center justify-center">
+                <img
+                  src={expandedImageUrl}
+                  alt="รูปขยาย"
+                  className="max-h-[65vh] w-auto max-w-full object-contain"
+                />
+              </div>
+              <div className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 bg-white dark:bg-rose-950/40 border-2 border-[#33272A] dark:border-[#FFD3B6] px-4 py-2 rounded-full shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]">
+                🏫 {school.name}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

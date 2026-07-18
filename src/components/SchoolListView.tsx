@@ -415,8 +415,8 @@ export default function SchoolListView({
           </div>
         </div>
 
-        {/* ตารางแสดงข้อมูลแบบ Responsive */}
-        <div className="overflow-x-auto w-full">
+        {/* ตารางแสดงข้อมูลแบบ Desktop */}
+        <div className="hidden lg:block overflow-x-auto w-full">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-xs">
@@ -588,6 +588,100 @@ export default function SchoolListView({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ตารางแสดงข้อมูลแบบ Mobile & Tablet Card Layout */}
+        <div className="lg:hidden p-4 space-y-4 bg-[#FFF9F5]/30 dark:bg-[#1e1518]/30 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+          {sortedSchools.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {sortedSchools.map((school) => {
+                const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
+                const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                return (
+                  <div 
+                    key={school.id} 
+                    className="card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                          รหัส: {school.id}
+                        </span>
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                            school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                            school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                            school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
+                            'bg-[#FFAAA5] text-[#33272A]'
+                          }`}>
+                            {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
+                          </span>
+                          {school.isExpansion && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] bg-[#A0E7E5] text-[#33272A]">
+                              ขยายโอกาส
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <button 
+                          onClick={() => onSelectSchool(school.id)}
+                          className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block"
+                        >
+                          {school.name}
+                        </button>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5 py-2 border-y border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-center text-xs">
+                        <div>
+                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ครู/บุคลากร</div>
+                          <div className="font-black text-[#33272A] dark:text-[#FFF9F5] mt-0.5">{school.staffCount} คน</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">นักเรียนรวม</div>
+                          <div className="font-black text-[#FF8BA7] mt-0.5">{school.studentCount} คน</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ระบบอินเทอร์เน็ต</div>
+                          <div className="font-black text-[#33272A] dark:text-[#FFF9F5] truncate mt-0.5" title={school.internetType}>
+                            {school.internetType === 'fiber' ? 'Fiber' :
+                             school.internetType === 'satellite' ? 'ดาวเทียม' :
+                             school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2.5 mt-4">
+                      <button
+                        onClick={() => onSelectSchool(school.id)}
+                        className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      >
+                        <Eye className="h-4 w-4" /> รายละเอียด
+                      </button>
+                      <button
+                        onClick={() => handleOpenDownload(school.id, school.name)}
+                        className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      >
+                        <Download className="h-4 w-4" /> ดาวน์โหลด
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-slate-400 card bg-white dark:bg-[#1e1518]">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
+                <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
