@@ -249,7 +249,7 @@ export default function App() {
       />
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-grow mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+      <main className="flex-grow mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 pb-20 md:pb-8">
         {isLoading ? (
           <div className="flex h-96 flex-col items-center justify-center gap-3">
             <RefreshCw className="h-10 w-10 text-rose-500 animate-spin" />
@@ -311,7 +311,7 @@ export default function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors">
+      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-20 md:pb-4">
         <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-[11px] font-bold text-[#33272A] dark:text-[#FFF9F5] gap-2 text-center md:text-left">
           <div className="flex items-center gap-1.5 justify-center">
             <Award className="h-4 w-4 text-[#FF8BA7]" />

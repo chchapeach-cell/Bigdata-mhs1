@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2 } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
@@ -201,33 +201,57 @@ export default function Header({
         </div>
       </div>
 
-      {/* Mobile Tab menu */}
-      <div className="md:hidden flex border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-1 justify-around">
+      {/* Mobile Bottom Tab Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
+        {/* Tab 1: ภาพรวม */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 text-center py-2 text-xs font-bold transition-colors ${
-            activeTab === 'dashboard' ? 'text-[#FF8BA7] border-b-2 border-[#FF8BA7]' : 'text-slate-500'
+          className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all ${
+            activeTab === 'dashboard'
+              ? 'text-[#FF8BA7] scale-105 font-black'
+              : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
-          ภาพรวมระบบ
+          <LayoutDashboard className={`h-5 w-5 ${activeTab === 'dashboard' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+          <span className="text-[10px] font-black">ภาพรวมระบบ</span>
         </button>
+
+        {/* Tab 2: รายชื่อโรงเรียน */}
         <button
           onClick={() => setActiveTab('schools')}
-          className={`flex-1 text-center py-2 text-xs font-bold transition-colors ${
-            activeTab === 'schools' ? 'text-[#FF8BA7] border-b-2 border-[#FF8BA7]' : 'text-slate-500'
+          className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all ${
+            activeTab === 'schools'
+              ? 'text-[#FF8BA7] scale-105 font-black'
+              : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
-          รายชื่อโรงเรียน
+          <Building2 className={`h-5 w-5 ${activeTab === 'schools' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+          <span className="text-[10px] font-black">รายชื่อโรงเรียน</span>
         </button>
-        {userProfile && (
+
+        {/* Tab 3: จัดการ หรือ เข้าสู่ระบบ */}
+        {userProfile ? (
           <button
             onClick={() => setActiveTab('admin')}
-            className={`flex-1 text-center py-2 text-xs font-bold transition-colors flex justify-center items-center gap-1 ${
-              activeTab === 'admin' ? 'text-[#FF8BA7] border-b-2 border-[#FF8BA7]' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all relative ${
+              activeTab === 'admin'
+                ? 'text-[#FF8BA7] scale-105 font-black'
+                : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
             }`}
           >
-            <Shield className="h-3.5 w-3.5" />
-            ระบบจัดการ
+            <Shield className={`h-5 w-5 ${activeTab === 'admin' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+            <span className="text-[10px] font-black">ระบบจัดการ</span>
+            {userProfile.status === 'pending' && (
+              <span className="absolute top-1 right-[25%] h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onLoginClick}
+            className="flex flex-col items-center justify-center gap-1.5 flex-1 py-1 text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#FF8BA7] transition-all"
+          >
+            <LogIn className="h-5 w-5 stroke-2" />
+            <span className="text-[10px] font-black">เข้าสู่ระบบ</span>
           </button>
         )}
       </div>
