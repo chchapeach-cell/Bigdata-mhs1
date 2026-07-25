@@ -236,6 +236,7 @@ export default function AdminPanel({
   const [gProcessedRowsCount, setGProcessedRowsCount] = useState<number>(0);
   const [gTotalRowsCount, setGTotalRowsCount] = useState<number>(0);
   const [gPreviewData, setGPreviewData] = useState<any[]>([]);
+  const [gRawRows, setGRawRows] = useState<any[][]>([]);
 
   // State สำหรับการลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
   const [deleteGYear, setDeleteGYear] = useState<string>('');
@@ -328,17 +329,227 @@ export default function AdminPanel({
     XLSX.writeFile(workbook, 'แบบฟอร์มนำเข้า_นักเรียนรหัสG_สพป_แม่ฮ่องสอน_เขต1.xlsx');
   };
 
+  // ฟังก์ชันพาร์สข้อมูลนักเรียนตัว G จากไฟล์ Excel/CSV หลากหลายรูปแบบ
+  const parseGStudentRows = (rows: any[][], defaultYear: string): any[] => {
+    if (!rows || rows.length === 0) return [];
+
+    const effectiveYear = (/^\d{4}$/.test(defaultYear) ? defaultYear : '2568').trim();
+
+    // 1. ค้นหาแถวหัวตาราง (Header Row)
+    let headerRowIndex = -1;
+    let schIdCol = -1;
+    let schNameCol = -1;
+    let yearCol = -1;
+    let maleCol = -1;
+    let femaleCol = -1;
+    let totalCol = -1;
+    let notesCol = -1;
+
+    for (let i = 0; i < Math.min(15, rows.length); i++) {
+      const r = rows[i];
+      if (!r || !Array.isArray(r)) continue;
+
+      const rowStr = r.map(c => String(c || '').trim()).join(' ');
+      if (
+        (rowStr.includes('รหัส') || rowStr.includes('โรงเรียน') || rowStr.includes('สถานศึกษา')) &&
+        (rowStr.includes('ชื่อ') || rowStr.includes('ชาย') || rowStr.includes('หญิง') || rowStr.includes('รวม') || rowStr.includes('ปี'))
+      ) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+
+    if (headerRowIndex !== -1) {
+      const hRow = rows[headerRowIndex].map(c => String(c || '').trim());
+
+      // คอลัมน์รหัสโรงเรียน
+      schIdCol = hRow.findIndex(c => c.includes('รหัสโรงเรียน') || c.includes('รหัสสถานศึกษา') || c.toLowerCase() === 'school_id' || c.toLowerCase() === 'schoolid');
+      if (schIdCol === -1) {
+        schIdCol = hRow.findIndex(c => c.includes('รหัส') && !c.includes('เขต') && !c.includes('กลุ่ม') && !c.includes('ไปรษณีย์'));
+      }
+
+      // คอลัมน์ชื่อโรงเรียน
+      schNameCol = hRow.findIndex(c => c.includes('ชื่อโรงเรียน') || c.includes('ชื่อสถานศึกษา') || c.toLowerCase() === 'school_name' || c.toLowerCase() === 'schoolname');
+      if (schNameCol === -1) {
+        schNameCol = hRow.findIndex(c => c.includes('ชื่อ') && !c.includes('เขต') && !c.includes('กลุ่ม') && !c.includes('ผู้บันทึก'));
+      }
+
+      // คอลัมน์ปีการศึกษา
+      yearCol = hRow.findIndex(c => c.includes('ปีการศึกษา') || c === 'ปี');
+
+      // คอลัมน์หมายเหตุ
+      notesCol = hRow.findIndex(c => c.includes('หมายเหตุ') || c.includes('note'));
+
+      // คอลัมน์รวมชาย / หญิง / รวมทั้งหมด (วนลูปจากท้ายแถวสำหรับ DMC report)
+      for (let c = hRow.length - 1; c >= 0; c--) {
+        const text = hRow[c];
+        if (!text) continue;
+
+        if (totalCol === -1 && (text.includes('รวมทั้งสิ้น') || text.includes('รวมทั้งหมด') || text.includes('รวม (คน)') || text === 'รวม' || text.includes('รวมจำนวน') || text.includes('รวมนักเรียน'))) {
+          totalCol = c;
+        }
+        if (femaleCol === -1 && (text.includes('หญิง') || text.includes('รวมหญิง')) && (text.includes('รวม') || text.includes('ทั้งหมด') || c >= hRow.length - 5)) {
+          femaleCol = c;
+        }
+        if (maleCol === -1 && (text.includes('ชาย') || text.includes('รวมชาย')) && (text.includes('รวม') || text.includes('ทั้งหมด') || c >= hRow.length - 5)) {
+          maleCol = c;
+        }
+      }
+    }
+
+    const results: any[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      if (i === headerRowIndex) continue;
+      const r = rows[i];
+      if (!r || !Array.isArray(r) || r.length < 2) continue;
+
+      const strRow = r.map(c => String(c || '').trim());
+      const fullText = strRow.join(' ');
+
+      // ข้ามแถวที่ไม่ใช่ข้อมูลโรงเรียน
+      if (
+        fullText.includes('ตารางแสดง') ||
+        fullText.includes('ข้อมูล ณ วันที่') ||
+        fullText.includes('รายงานจำนวน') ||
+        fullText.includes('รวมทั้งสิ้น') ||
+        fullText.includes('รวมทั้งเขต') ||
+        fullText.includes('รวมทุกโรงเรียน') ||
+        fullText.includes('สังกัด สพป')
+      ) {
+        continue;
+      }
+
+      let rawSchId = '';
+      let rawSchName = '';
+      let isDmcPattern = false;
+
+      // เช็คแพตเทิร์น DMC Report (ภาพที่ 2):
+      // r[0] = รหัสเขต (เช่น 58010000), r[1] = ชื่อเขต (เช่น สพป.แม่ฮ่องสอน เขต 1), r[2] = รหัสโรงเรียน (เช่น 58010001), r[3] = ชื่อโรงเรียน
+      const c0 = strRow[0] || '';
+      const c1 = strRow[1] || '';
+      const c2 = strRow[2] || '';
+      const c3 = strRow[3] || '';
+
+      if (c1.includes('สพป.') || c1.includes('เขต') || c1.includes('สพม.') || (/^580\d{5}$/.test(c0) && /^\d{8,10}$/.test(c2))) {
+        rawSchId = c2;
+        rawSchName = c3;
+        isDmcPattern = true;
+      } else {
+        const targetIdIdx = schIdCol >= 0 ? schIdCol : 0;
+        const targetNameIdx = schNameCol >= 0 ? schNameCol : 1;
+
+        rawSchId = strRow[targetIdIdx] || '';
+        rawSchName = strRow[targetNameIdx] || '';
+
+        if (/^580\d{5}$/.test(rawSchId) && /^\d{8,10}$/.test(c2)) {
+          rawSchId = c2;
+          rawSchName = c3 || c1;
+          isDmcPattern = true;
+        }
+      }
+
+      const schId = rawSchId.replace(/\D/g, '');
+      let schName = rawSchName.trim();
+
+      if (!schId || schId.length < 4 || rawSchId.includes('รหัส') || rawSchName.includes('ชื่อสถานศึกษา') || rawSchName.includes('ชื่อโรงเรียน')) {
+        continue;
+      }
+
+      // ค้นหาชื่อโรงเรียนจากรายการหลักในระบบถ้าในไฟล์ไม่มีชื่อ
+      if (!schName || /^[\d\s]+$/.test(schName)) {
+        const matchedSchool = schools.find(s => s.id === schId || s.id.endsWith(schId) || schId.endsWith(s.id));
+        if (matchedSchool) {
+          schName = matchedSchool.name;
+        }
+      }
+
+      // ปีการศึกษา
+      let yr = effectiveYear;
+      if (yearCol >= 0 && strRow[yearCol] && /^(20|25)\d{2}$/.test(strRow[yearCol])) {
+        yr = strRow[yearCol].trim();
+      } else if (!isDmcPattern && strRow[2] && /^(20|25)\d{2}$/.test(strRow[2])) {
+        yr = strRow[2].trim();
+      }
+
+      // ดึงจำนวน ชาย, หญิง, รวม
+      let mCount = 0;
+      let fCount = 0;
+      let tCount = 0;
+      let notes = notesCol >= 0 ? (strRow[notesCol] || '') : '';
+
+      if (isDmcPattern) {
+        if (totalCol >= 0 && r[totalCol] !== undefined) {
+          tCount = Number(r[totalCol]) || 0;
+        }
+        if (maleCol >= 0 && r[maleCol] !== undefined) {
+          mCount = Number(r[maleCol]) || 0;
+        }
+        if (femaleCol >= 0 && r[femaleCol] !== undefined) {
+          fCount = Number(r[femaleCol]) || 0;
+        }
+
+        if (tCount === 0 && mCount === 0 && fCount === 0) {
+          const numCells = strRow.slice(4).map(v => Number(v)).filter(v => !isNaN(v));
+          if (numCells.length >= 3) {
+            mCount = numCells[numCells.length - 3] || 0;
+            fCount = numCells[numCells.length - 2] || 0;
+            tCount = numCells[numCells.length - 1] || 0;
+          } else if (numCells.length > 0) {
+            tCount = numCells[numCells.length - 1] || 0;
+          }
+        }
+      } else {
+        if (totalCol >= 0) tCount = Number(r[totalCol]) || 0;
+        if (maleCol >= 0) mCount = Number(r[maleCol]) || 0;
+        if (femaleCol >= 0) fCount = Number(r[femaleCol]) || 0;
+
+        if (tCount === 0 && mCount === 0 && fCount === 0) {
+          if (strRow[2] && /^(20|25)\d{2}$/.test(strRow[2])) {
+            tCount = Number(r[3]) || 0;
+            mCount = Number(r[4]) || 0;
+            fCount = Number(r[5]) || 0;
+            if (!notes) notes = strRow[6] || '';
+          } else {
+            tCount = Number(r[2]) || 0;
+            mCount = Number(r[3]) || 0;
+            fCount = Number(r[4]) || 0;
+            if (!notes) notes = strRow[5] || '';
+          }
+        }
+      }
+
+      if (tCount === 0 && (mCount > 0 || fCount > 0)) {
+        tCount = mCount + fCount;
+      }
+
+      results.push({
+        schoolId: schId,
+        schoolName: schName || `โรงเรียนรหัส ${schId}`,
+        academicYear: yr,
+        totalGStudents: tCount,
+        maleGCount: mCount,
+        femaleGCount: fCount,
+        notes: notes
+      });
+    }
+
+    return results;
+  };
+
   // ฟังก์ชันเลือกไฟล์และพาร์สข้อมูลตัวอย่าง (Preview) สำหรับนักเรียนตัว G
   const handleGFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
       setGPreviewData([]);
+      setGRawRows([]);
       return;
     }
 
     setGError('');
     setGSuccess('');
     setGPreviewData([]);
+    setGRawRows([]);
 
     try {
       const workbook = await parseFileWithEncoding(file);
@@ -353,18 +564,14 @@ export default function AdminPanel({
         throw new Error('ไฟล์ไม่มีข้อมูล หรือรูปแบบไม่ถูกต้อง');
       }
 
-      // กรองเฉพาะแถวที่มีรหัสโรงเรียนและไม่ใช่หัวตาราง
-      const validRows = rows.filter((r: any) => {
-        if (!r || r.length === 0) return false;
-        const schId = String(r[0] || '').trim();
-        return schId && !schId.includes('รหัส') && !schId.toLowerCase().includes('id') && !schId.includes('โรงเรียน');
-      });
+      setGRawRows(rows);
+      const parsed = parseGStudentRows(rows, gUploadYear);
 
-      if (validRows.length === 0) {
-        throw new Error('ไม่พบแถวข้อมูลโรงเรียนที่ถูกต้องในไฟล์');
+      if (parsed.length === 0) {
+        throw new Error('ไม่พบแถวข้อมูลโรงเรียนที่ถูกต้องในไฟล์ กรุณาตรวจสอบรูปแบบไฟล์');
       }
 
-      setGPreviewData(validRows);
+      setGPreviewData(parsed);
     } catch (err: any) {
       console.error(err);
       setGError('เกิดข้อผิดพลาดในการอ่านไฟล์: ' + err.message);
@@ -392,55 +599,22 @@ export default function AdminPanel({
       let count = 0;
 
       for (let i = 0; i < total; i++) {
-        const row = gPreviewData[i];
-        const schId = String(row[0] || '').trim();
-        if (!schId) continue;
+        const item = gPreviewData[i];
+        if (!item.schoolId) continue;
 
-        const schName = String(row[1] || schId).trim();
-        const col2 = String(row[2] || '').trim();
-        const isCol2Year = /^(20|25)\d{2}$/.test(col2);
+        const yr = item.academicYear || gUploadYear || '2568';
 
-        let yr = '';
-        let totalG = 0;
-        let maleG = 0;
-        let femaleG = 0;
-        let notesStr = '';
+        setGUploadStatusText(`กำลังบันทึก: ${item.schoolName} (ปี ${yr}) [${i + 1}/${total}]`);
 
-        if (isCol2Year) {
-          // รูปแบบ 7 คอลัมน์: [รหัสโรงเรียน, ชื่อโรงเรียน, ปีการศึกษา, รวม, ชาย, หญิง, หมายเหตุ]
-          yr = col2;
-          totalG = Number(row[3]) || 0;
-          maleG = Number(row[4]) || 0;
-          femaleG = Number(row[5]) || 0;
-          notesStr = String(row[6] || '').trim();
-        } else {
-          // รูปแบบ 6 คอลัมน์ (หรือคอลัมน์ index 2 เป็นจำนวนนักเรียน/รหัสอื่น)
-          yr = (gUploadYear && /^\d{4}$/.test(gUploadYear.trim())) ? gUploadYear.trim() : (gYear || '2568');
-          totalG = Number(row[2]) || 0;
-          maleG = Number(row[3]) || 0;
-          femaleG = Number(row[4]) || 0;
-          notesStr = String(row[5] || '').trim();
-        }
-
-        if (totalG === 0 && (maleG > 0 || femaleG > 0)) {
-          totalG = maleG + femaleG;
-        }
-
-        if (!/^\d{4}$/.test(yr)) {
-          yr = (gUploadYear && /^\d{4}$/.test(gUploadYear.trim())) ? gUploadYear.trim() : '2568';
-        }
-
-        setGUploadStatusText(`กำลังบันทึก: ${schName} (ปี ${yr}) [${i + 1}/${total}]`);
-
-        const docId = `${schId}_${yr}`;
+        const docId = `${item.schoolId}_${yr}`;
         await setDoc(doc(db, 'students_g', docId), {
-          schoolId: schId,
-          schoolName: schName,
+          schoolId: item.schoolId,
+          schoolName: item.schoolName,
           academicYear: yr,
-          totalGStudents: totalG,
-          maleGCount: maleG,
-          femaleGCount: femaleG,
-          notes: notesStr,
+          totalGStudents: item.totalGStudents || 0,
+          maleGCount: item.maleGCount || 0,
+          femaleGCount: item.femaleGCount || 0,
+          notes: item.notes || '',
           updatedAt: new Date()
         }, { merge: true });
 
@@ -457,6 +631,7 @@ export default function AdminPanel({
       setGUploadStatusText(`นำเข้าข้อมูลนักเรียนตัว G สำเร็จสมบูรณ์ ทั้งหมด ${count} รายการ!`);
       setGSuccess(`นำเข้าข้อมูลนักเรียนตัว G เรียบร้อยแล้ว จำนวน ${count} โรงเรียน ประจำปีการศึกษา ${gUploadYear}`);
       setGPreviewData([]);
+      setGRawRows([]);
 
       const fileInput = document.getElementById('g-upload-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
@@ -2129,7 +2304,14 @@ export default function AdminPanel({
                         <input
                           type="text"
                           value={gUploadYear}
-                          onChange={(e) => setGUploadYear(e.target.value)}
+                          onChange={(e) => {
+                            const newYear = e.target.value;
+                            setGUploadYear(newYear);
+                            if (gRawRows.length > 0) {
+                              const reParsed = parseGStudentRows(gRawRows, newYear);
+                              setGPreviewData(reParsed);
+                            }
+                          }}
                           pattern="[0-9]{4}"
                           placeholder="เช่น 2568"
                           required
@@ -2205,7 +2387,7 @@ export default function AdminPanel({
                             {gPreviewData.length} แถว
                           </span>
                         </div>
-                        <div className="overflow-x-auto max-h-[160px]">
+                        <div className="overflow-x-auto max-h-[220px]">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="border-b-2 border-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black bg-blue-50/50 dark:bg-slate-700">
@@ -2219,21 +2401,21 @@ export default function AdminPanel({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#33272A]/10 font-bold">
-                              {gPreviewData.slice(0, 5).map((row: any, i: number) => (
+                              {gPreviewData.slice(0, 10).map((row: any, i: number) => (
                                 <tr key={i} className="hover:bg-slate-100 dark:hover:bg-slate-700/50">
-                                  <td className="p-1 font-mono text-blue-600">{String(row[0] || '')}</td>
-                                  <td className="p-1">{String(row[1] || '')}</td>
-                                  <td className="p-1 text-center">{String(row[2] || gUploadYear)}</td>
-                                  <td className="p-1 text-center font-black text-blue-600">{String(row[3] || 0)}</td>
-                                  <td className="p-1 text-center">{String(row[4] || 0)}</td>
-                                  <td className="p-1 text-center">{String(row[5] || 0)}</td>
-                                  <td className="p-1 text-slate-500">{String(row[6] || '-')}</td>
+                                  <td className="p-1 font-mono text-blue-600 font-bold">{row.schoolId}</td>
+                                  <td className="p-1 font-bold">{row.schoolName}</td>
+                                  <td className="p-1 text-center font-bold text-amber-600 dark:text-amber-400">{row.academicYear}</td>
+                                  <td className="p-1 text-center font-black text-blue-600">{row.totalGStudents}</td>
+                                  <td className="p-1 text-center">{row.maleGCount}</td>
+                                  <td className="p-1 text-center">{row.femaleGCount}</td>
+                                  <td className="p-1 text-slate-500">{row.notes || '-'}</td>
                                 </tr>
                               ))}
-                              {gPreviewData.length > 5 && (
+                              {gPreviewData.length > 10 && (
                                 <tr>
                                   <td colSpan={7} className="p-1.5 text-center text-slate-500 font-semibold italic bg-slate-50 dark:bg-slate-800">
-                                    ... และอีก {gPreviewData.length - 5} รายการ ...
+                                    ... และอีก {gPreviewData.length - 10} รายการ ...
                                   </td>
                                 </tr>
                               )}
