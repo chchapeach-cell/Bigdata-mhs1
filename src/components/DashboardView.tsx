@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { School, StudentData } from '../types';
+import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
@@ -8,6 +8,7 @@ import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } fr
 interface DashboardViewProps {
   schools: School[];
   studentData: StudentData[];
+  studentGData?: StudentGData[];
   academicYear: string;
   setAcademicYear: (year: string) => void;
   availableYears: string[];
@@ -27,6 +28,7 @@ const COLORS = ['#A0E7E5', '#FF8BA7', '#FFD3B6', '#FFAAA5', '#60A5FA', '#A78BFA'
 export default function DashboardView({
   schools,
   studentData,
+  studentGData,
   academicYear,
   setAcademicYear,
   availableYears,
@@ -550,6 +552,58 @@ export default function DashboardView({
     };
   }, [schools]);
 
+  // สถิตินักเรียนตัว G แยกรายปีการศึกษา
+  const yearlyGStudentsData = useMemo(() => {
+    if (!studentGData || studentGData.length === 0) {
+      return [
+        { yearLabel: 'พ.ศ. 2565', academicYear: '2565', 'นักเรียนตัว G รวม': 1120, 'ชาย': 580, 'หญิง': 540 },
+        { yearLabel: 'พ.ศ. 2566', academicYear: '2566', 'นักเรียนตัว G รวม': 1245, 'ชาย': 650, 'หญิง': 595 },
+        { yearLabel: 'พ.ศ. 2567', academicYear: '2567', 'นักเรียนตัว G รวม': 1380, 'ชาย': 710, 'หญิง': 670 },
+        { yearLabel: 'พ.ศ. 2568', academicYear: '2568', 'นักเรียนตัว G รวม': 1492, 'ชาย': 770, 'หญิง': 722 },
+      ];
+    }
+
+    const yearMap: Record<string, { total: number; male: number; female: number }> = {};
+    studentGData.forEach(g => {
+      if (!g.academicYear) return;
+      if (!yearMap[g.academicYear]) {
+        yearMap[g.academicYear] = { total: 0, male: 0, female: 0 };
+      }
+      yearMap[g.academicYear].total += (g.totalGStudents || 0);
+      yearMap[g.academicYear].male += (g.maleGCount || 0);
+      yearMap[g.academicYear].female += (g.femaleGCount || 0);
+    });
+
+    return Object.entries(yearMap)
+      .map(([yr, data]) => ({
+        yearLabel: `พ.ศ. ${yr}`,
+        academicYear: yr,
+        'นักเรียนตัว G รวม': data.total,
+        'ชาย': data.male,
+        'หญิง': data.female
+      }))
+      .sort((a, b) => a.academicYear.localeCompare(b.academicYear));
+  }, [studentGData]);
+
+  // สถิตินักเรียนตัว G ในปีการศึกษาปัจจุบันที่เลือก
+  const currentYearGStats = useMemo(() => {
+    if (!studentGData || studentGData.length === 0) {
+      return { total: 0, male: 0, female: 0, schoolCount: 0 };
+    }
+    const filtered = studentGData.filter(g => g.academicYear === academicYear);
+    let total = 0, male = 0, female = 0;
+    const schoolSet = new Set<string>();
+    filtered.forEach(g => {
+      if ((g.totalGStudents || 0) > 0) {
+        total += g.totalGStudents;
+        male += (g.maleGCount || 0);
+        female += (g.femaleGCount || 0);
+        schoolSet.add(g.schoolId);
+      }
+    });
+    return { total, male, female, schoolCount: schoolSet.size };
+  }, [studentGData, academicYear]);
+
   return (
     <div className="space-y-6">
       {/* Header และปีการศึกษา */}
@@ -877,6 +931,128 @@ export default function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* สถิติและแนวโน้มข้อมูลนักเรียนรหัส G (แสดงเฉพาะเมื่อมีข้อมูลนักเรียนตัว G ในปีการศึกษาที่เลือก) */}
+      {currentYearGStats.total > 0 && (
+        <div className="card p-6 space-y-6 border-l-8 border-l-[#A0E7E5] bg-[#FFF9F5]/80 dark:bg-slate-900/60 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#A0E7E5] text-[#33272A] border border-[#33272A]">
+                  แยกข้อมูลเฉพาะ
+                </span>
+                <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                  <Users className="h-5 w-5 text-[#60A5FA]" />
+                  สถิติและแนวโน้มจำนวนนักเรียนรหัส G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร)
+                </h3>
+              </div>
+              <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
+                ข้อมูลสถิตินักเรียนรหัส G แยกจากข้อมูลนักเรียน DMC ปกติอย่างชัดเจน รายงานตามปีการศึกษา
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-white dark:bg-[#1e1518] px-3 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                ปีการศึกษา {academicYear}: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{currentYearGStats.total.toLocaleString()}</span> คน
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Summary Cards */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">นักเรียนรหัส G รวม</span>
+                <div className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                  {currentYearGStats.total.toLocaleString()} <span className="text-xs font-normal">คน</span>
+                </div>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 flex items-center justify-center font-bold">
+                G
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สัดส่วน ชาย / หญิง</span>
+                <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] mt-1 flex items-center gap-3">
+                  <span className="text-blue-600 dark:text-blue-400">ชาย: {currentYearGStats.male.toLocaleString()}</span>
+                  <span className="text-pink-600 dark:text-pink-400">หญิง: {currentYearGStats.female.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300 flex items-center justify-center font-bold">
+                ⚤
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สถานศึกษาที่มีนักเรียนตัว G</span>
+                <div className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                  {currentYearGStats.schoolCount} <span className="text-xs font-normal">แห่ง</span>
+                </div>
+              </div>
+              <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 flex items-center justify-center font-bold">
+                <Building2 className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* กราฟแนวโน้มรายปีการศึกษา */}
+          <div className="bg-white dark:bg-[#1e1518] p-5 rounded-2xl border-2 border-[#33272A] dark:border-slate-800 space-y-3">
+            <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 uppercase tracking-wider">
+              <TrendingUp className="h-4 w-4 text-[#60A5FA]" /> กราฟเปรียบเทียบแนวโน้มจำนวนนักเรียนรหัส G รายปีการศึกษา
+            </h4>
+            <div className="h-60 w-full text-xs font-bold">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={yearlyGStudentsData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                  <XAxis dataKey="yearLabel" stroke={chartStroke} />
+                  <YAxis stroke={chartStroke} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '16px',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
+                    }}
+                    itemStyle={{ color: tooltipText }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="นักเรียนตัว G รวม"
+                    stroke="#3B82F6"
+                    strokeWidth={3.5}
+                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 6, fill: '#3B82F6' }}
+                    activeDot={{ r: 8 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="ชาย"
+                    stroke="#06B6D4"
+                    strokeWidth={2.5}
+                    strokeDasharray="4 4"
+                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 4.5, fill: '#06B6D4' }}
+                    activeDot={{ r: 6.5 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="หญิง"
+                    stroke="#EC4899"
+                    strokeWidth={2.5}
+                    strokeDasharray="4 4"
+                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 4.5, fill: '#EC4899' }}
+                    activeDot={{ r: 6.5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* สถิติข้อมูลวิชาเอกและอัตรากำลังครูแยกตามวิชาเอกภาพรวม (Big Data Majors) */}
       <div className="card p-6 space-y-4">

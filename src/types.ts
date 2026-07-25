@@ -56,6 +56,18 @@ export interface StudentData {
   totalStudents: number;
 }
 
+export interface StudentGData {
+  id?: string; // firebase doc id e.g. `${schoolId}_${academicYear}`
+  schoolId: string;
+  schoolName: string;
+  academicYear: string; // ปีการศึกษา เช่น "2568"
+  totalGStudents: number; // จำนวนนักเรียนตัว G รวม
+  maleGCount: number; // จำนวนนักเรียนชายตัว G
+  femaleGCount: number; // จำนวนนักเรียนหญิงตัว G
+  notes?: string;
+  updatedAt?: any;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;

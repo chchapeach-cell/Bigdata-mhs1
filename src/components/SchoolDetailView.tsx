@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork } from '../utils/initialData';
+import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
@@ -60,6 +60,7 @@ export default function SchoolDetailView({
 
   // ฟอร์มข้อมูลแก้ไข
   const [editName, setEditName] = useState(school.name);
+  const [editNetworkGroup, setEditNetworkGroup] = useState(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
   const [editDirectorPhone, setEditDirectorPhone] = useState(school.directorPhone || '');
   const [editSchoolPhone, setEditSchoolPhone] = useState(school.schoolPhone || '');
   const [editInternetType, setEditInternetType] = useState<School['internetType']>(school.internetType || 'none');
@@ -83,6 +84,7 @@ export default function SchoolDetailView({
   // อัปเดตฟอร์มเมื่อเปลี่ยนโรงเรียน (เช่น ได้ข้อมูลใหม่จากการ Refresh)
   useEffect(() => {
     setEditName(school.name);
+    setEditNetworkGroup(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
     setEditDirectorPhone(school.directorPhone || '');
     setEditSchoolPhone(school.schoolPhone || '');
     setEditInternetType(school.internetType || 'none');
@@ -347,6 +349,7 @@ export default function SchoolDetailView({
 
       const updatedData = {
         name: editName,
+        networkGroup: editNetworkGroup,
         directorPhone: editDirectorPhone,
         schoolPhone: editSchoolPhone,
         internetType: editInternetType,
@@ -838,6 +841,25 @@ export default function SchoolDetailView({
               <Building className="h-4 w-4 text-[#FF8BA7]" /> ข้อมูลทั่วไปและการติดต่อ
             </h3>
             <div className="space-y-2 text-xs font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+              <div className="flex items-center gap-2">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">กลุ่มโรงเรียน:</span>
+                {isEditing ? (
+                  <select
+                    value={editNetworkGroup}
+                    onChange={(e) => setEditNetworkGroup(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                  >
+                    {SCHOOL_GROUPS_LIST.map((g) => (
+                      <option key={g.name} value={g.name}>{g.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-lg font-black text-xs bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 flex items-center gap-1">
+                    <Layers className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    {school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">ผู้บริหาร:</span>
                 <span className="text-[#33272A] dark:text-[#FFF9F5]">ผู้อำนวยการโรงเรียน</span>

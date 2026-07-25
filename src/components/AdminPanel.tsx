@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers } from 'lucide-react';
+import { School, StudentData, UserProfile, StudentGData } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -11,6 +11,7 @@ interface AdminPanelProps {
   userProfile: UserProfile;
   schools: School[];
   studentData: StudentData[];
+  studentGData?: StudentGData[];
   onRefreshData: () => Promise<void>;
 }
 
@@ -18,6 +19,7 @@ export default function AdminPanel({
   userProfile,
   schools,
   studentData,
+  studentGData = [],
   onRefreshData
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin';
@@ -212,7 +214,296 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs' | 'schools'>('upload');
+  const [adminTab, setAdminTab] = useState<'upload' | 'g_students' | 'users' | 'logs' | 'schools'>('upload');
+
+  // State สำหรับจัดการข้อมูลนักเรียนตัว G
+  const [gYear, setGYear] = useState<string>('2568');
+  const [gSchoolId, setGSchoolId] = useState<string>(selectedSchoolId || '');
+  const [gTotalCount, setGTotalCount] = useState<number>(0);
+  const [gMaleCount, setGMaleCount] = useState<number>(0);
+  const [gFemaleCount, setGFemaleCount] = useState<number>(0);
+  const [gNotes, setGNotes] = useState<string>('');
+  const [isSavingG, setIsSavingG] = useState<boolean>(false);
+  const [gSuccess, setGSuccess] = useState<string>('');
+  const [gError, setGError] = useState<string>('');
+  const [gSearchQuery, setGSearchQuery] = useState<string>('');
+
+  // State สำหรับการอัปโหลดไฟล์นักเรียนตัว G
+  const [gUploadYear, setGUploadYear] = useState<string>('2568');
+  const [isUploadingGFile, setIsUploadingGFile] = useState<boolean>(false);
+  const [gUploadProgress, setGUploadProgress] = useState<number>(0);
+  const [gUploadStatusText, setGUploadStatusText] = useState<string>('');
+  const [gProcessedRowsCount, setGProcessedRowsCount] = useState<number>(0);
+  const [gTotalRowsCount, setGTotalRowsCount] = useState<number>(0);
+  const [gPreviewData, setGPreviewData] = useState<any[]>([]);
+
+  // State สำหรับการลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
+  const [deleteGYear, setDeleteGYear] = useState<string>('');
+  const [isDeletingGYear, setIsDeletingGYear] = useState<boolean>(false);
+  const [deleteGError, setDeleteGError] = useState<string>('');
+  const [deleteGSuccess, setDeleteGSuccess] = useState<string>('');
+
+  // อัปเดตข้อมูลนักเรียนตัว G เมื่อเปลี่ยนโรงเรียนหรือปีการศึกษา
+  useEffect(() => {
+    const targetId = isSuperAdmin ? gSchoolId : userProfile.schoolId;
+    if (!targetId) return;
+    const existing = studentGData.find(g => g.schoolId === targetId && g.academicYear === gYear);
+    if (existing) {
+      setGTotalCount(existing.totalGStudents || 0);
+      setGMaleCount(existing.maleGCount || 0);
+      setGFemaleCount(existing.femaleGCount || 0);
+      setGNotes(existing.notes || '');
+    } else {
+      setGTotalCount(0);
+      setGMaleCount(0);
+      setGFemaleCount(0);
+      setGNotes('');
+    }
+  }, [gSchoolId, gYear, studentGData, isSuperAdmin, userProfile]);
+
+  // ฟังก์ชันบันทึกข้อมูลนักเรียนตัว G (รายโรงเรียน)
+  const handleSaveStudentG = async (e: FormEvent) => {
+    e.preventDefault();
+    const targetId = isSuperAdmin ? gSchoolId : userProfile.schoolId;
+    if (!targetId) {
+      setGError('กรุณาเลือกโรงเรียนที่ต้องการบันทึก');
+      return;
+    }
+
+    setIsSavingG(true);
+    setGError('');
+    setGSuccess('');
+
+    try {
+      const sch = schools.find(s => s.id === targetId);
+      const docId = `${targetId}_${gYear}`;
+      const docRef = doc(db, 'students_g', docId);
+
+      await setDoc(docRef, {
+        schoolId: targetId,
+        schoolName: sch?.name || 'ไม่ระบุ',
+        academicYear: gYear,
+        totalGStudents: Number(gTotalCount) || 0,
+        maleGCount: Number(gMaleCount) || 0,
+        femaleGCount: Number(gFemaleCount) || 0,
+        notes: gNotes.trim(),
+        updatedAt: new Date()
+      }, { merge: true });
+
+      setGSuccess(`บันทึกข้อมูลนักเรียนรหัส G ของโรงเรียน "${sch?.name || targetId}" ปีการศึกษา ${gYear} สำเร็จแล้ว!`);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error(err);
+      setGError('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + err.message);
+    } finally {
+      setIsSavingG(false);
+    }
+  };
+
+  // ฟังก์ชันดาวน์โหลดแบบฟอร์มตัวอย่าง (Template Excel) สำหรับนักเรียนตัว G
+  const handleDownloadGTemplate = () => {
+    const templateData = [
+      {
+        'รหัสโรงเรียน': '1058000001',
+        'ชื่อสถานศึกษา': 'โรงเรียนอนุบาลแม่ฮ่องสอน',
+        'ปีการศึกษา': '2568',
+        'จำนวนรวมนักเรียนรหัส G': 22,
+        'จำนวนชาย': 12,
+        'จำนวนหญิง': 10,
+        'หมายเหตุ': 'กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร'
+      },
+      {
+        'รหัสโรงเรียน': '1058000002',
+        'ชื่อสถานศึกษา': 'โรงเรียนบ้านปางหมู',
+        'ปีการศึกษา': '2568',
+        'จำนวนรวมนักเรียนรหัส G': 15,
+        'จำนวนชาย': 8,
+        'จำนวนหญิง': 7,
+        'หมายเหตุ': 'สัญชาติเมียนมา/พื้นที่ชายแดน'
+      }
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'นักเรียนตัวG');
+    XLSX.writeFile(workbook, 'แบบฟอร์มนำเข้า_นักเรียนรหัสG_สพป_แม่ฮ่องสอน_เขต1.xlsx');
+  };
+
+  // ฟังก์ชันเลือกไฟล์และพาร์สข้อมูลตัวอย่าง (Preview) สำหรับนักเรียนตัว G
+  const handleGFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setGPreviewData([]);
+      return;
+    }
+
+    setGError('');
+    setGSuccess('');
+    setGPreviewData([]);
+
+    try {
+      const workbook = await parseFileWithEncoding(file);
+      const sheetName = workbook.SheetNames?.[0];
+      if (!sheetName || !workbook.Sheets?.[sheetName]) {
+        throw new Error('ไม่พบข้อมูลในไฟล์ที่เลือก');
+      }
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
+
+      if (!rows || rows.length < 1) {
+        throw new Error('ไฟล์ไม่มีข้อมูล หรือรูปแบบไม่ถูกต้อง');
+      }
+
+      // กรองเฉพาะแถวที่มีรหัสโรงเรียนและไม่ใช่หัวตาราง
+      const validRows = rows.filter((r: any) => {
+        if (!r || r.length === 0) return false;
+        const schId = String(r[0] || '').trim();
+        return schId && !schId.includes('รหัส') && !schId.toLowerCase().includes('id') && !schId.includes('โรงเรียน');
+      });
+
+      if (validRows.length === 0) {
+        throw new Error('ไม่พบแถวข้อมูลโรงเรียนที่ถูกต้องในไฟล์');
+      }
+
+      setGPreviewData(validRows);
+    } catch (err: any) {
+      console.error(err);
+      setGError('เกิดข้อผิดพลาดในการอ่านไฟล์: ' + err.message);
+    }
+  };
+
+  // บันทึกการอัพโหลดข้อมูลนักเรียนตัว G จากไฟล์ พร้อม Progress Bar
+  const handleGUploadSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (gPreviewData.length === 0) {
+      setGError('กรุณาเลือกไฟล์และตรวจสอบตัวอย่างข้อมูลก่อนอัปโหลด');
+      return;
+    }
+
+    setIsUploadingGFile(true);
+    setGError('');
+    setGSuccess('');
+    setGUploadProgress(0);
+    setGProcessedRowsCount(0);
+    setGUploadStatusText('กำลังเตรียมข้อมูลนำเข้า...');
+
+    try {
+      const total = gPreviewData.length;
+      setGTotalRowsCount(total);
+      let count = 0;
+
+      for (let i = 0; i < total; i++) {
+        const row = gPreviewData[i];
+        const schId = String(row[0] || '').trim();
+        if (!schId) continue;
+
+        const schName = String(row[1] || schId).trim();
+        const yr = String(row[2] || gUploadYear || gYear).trim();
+        let totalG = Number(row[3]) || 0;
+        let maleG = Number(row[4]) || 0;
+        let femaleG = Number(row[5]) || 0;
+        const notesStr = String(row[6] || '').trim();
+
+        if (totalG === 0 && (maleG > 0 || femaleG > 0)) {
+          totalG = maleG + femaleG;
+        }
+
+        setGUploadStatusText(`กำลังบันทึก: ${schName} (${i + 1}/${total})`);
+
+        const docId = `${schId}_${yr}`;
+        await setDoc(doc(db, 'students_g', docId), {
+          schoolId: schId,
+          schoolName: schName,
+          academicYear: yr,
+          totalGStudents: totalG,
+          maleGCount: maleG,
+          femaleGCount: femaleG,
+          notes: notesStr,
+          updatedAt: new Date()
+        }, { merge: true });
+
+        count++;
+        setGProcessedRowsCount(count);
+        setGUploadProgress(Math.round((count / total) * 100));
+
+        if (i % 2 === 0 || i === total - 1) {
+          await new Promise(r => setTimeout(r, 15));
+        }
+      }
+
+      setGUploadProgress(100);
+      setGUploadStatusText(`นำเข้าข้อมูลนักเรียนตัว G สำเร็จสมบูรณ์ ทั้งหมด ${count} รายการ!`);
+      setGSuccess(`นำเข้าข้อมูลนักเรียนตัว G เรียบร้อยแล้ว จำนวน ${count} โรงเรียน ประจำปีการศึกษา ${gUploadYear}`);
+      setGPreviewData([]);
+
+      const fileInput = document.getElementById('g-upload-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+
+      await onRefreshData();
+    } catch (err: any) {
+      console.error(err);
+      setGError('เกิดข้อผิดพลาดในการนำเข้าข้อมูล: ' + err.message);
+    } finally {
+      setIsUploadingGFile(false);
+    }
+  };
+
+  // ฟังก์ชันลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
+  const handleDeleteGYear = async (year: string) => {
+    if (!year || !/^[0-9]{4}$/.test(year)) {
+      setDeleteGError('กรุณาระบุปีการศึกษาเป็นตัวเลข 4 หลัก เช่น 2568');
+      return;
+    }
+
+    if (!window.confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบข้อมูลนักเรียนตัว G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร) ทั้งหมดของปีการศึกษา ${year}? การดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) {
+      return;
+    }
+
+    setIsDeletingGYear(true);
+    setDeleteGError('');
+    setDeleteGSuccess('');
+
+    try {
+      const q = query(collection(db, 'students_g'), where('academicYear', '==', year));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setDeleteGError(`ไม่พบข้อมูลนักเรียนตัว G ของปีการศึกษา ${year} ในฐานข้อมูล`);
+        setIsDeletingGYear(false);
+        return;
+      }
+
+      let deletedCount = 0;
+      for (const docSnap of querySnapshot.docs) {
+        await deleteDoc(doc(db, 'students_g', docSnap.id));
+        deletedCount++;
+      }
+
+      setDeleteGSuccess(`ลบข้อมูลนักเรียนตัว G ปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
+      setDeleteGYear('');
+      await onRefreshData();
+    } catch (err: any) {
+      console.error(err);
+      setDeleteGError('เกิดข้อผิดพลาดในการลบข้อมูลนักเรียนตัว G: ' + err.message);
+    } finally {
+      setIsDeletingGYear(false);
+    }
+  };
+
+  // ฟังก์ชันลบรายการนักเรียนตัว G แบบรายโรงเรียน
+  const handleDeleteSingleGRecord = async (schoolId: string, schoolName: string, academicYear: string) => {
+    if (!window.confirm(`⚠️ ยืนยันการลบข้อมูลนักเรียนตัว G ของโรงเรียน "${schoolName}" ปีการศึกษา ${academicYear}?`)) {
+      return;
+    }
+    try {
+      const docId = `${schoolId}_${academicYear}`;
+      await deleteDoc(doc(db, 'students_g', docId));
+      setGSuccess(`ลบข้อมูลนักเรียนตัว G ของ "${schoolName}" เรียบร้อยแล้ว`);
+      await onRefreshData();
+    } catch (e: any) {
+      console.error(e);
+      setGError('เกิดข้อผิดพลาดในการลบข้อมูล: ' + e.message);
+    }
+  };
 
   // รายชื่อกลุ่มเครือข่ายทั้งหมดในระบบ สำหรับแสดงใน Dropdown (เฉพาะ 14 กลุ่มมาตรฐาน)
   const availableNetworkGroups = useMemo(() => {
@@ -1327,6 +1618,16 @@ export default function AdminPanel({
               <Upload className="h-4 w-4 inline-block mr-1.5" /> จัดการข้อมูล BIGDATA
             </button>
             <button
+              onClick={() => setAdminTab('g_students')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
+                adminTab === 'g_students' 
+                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <FileSpreadsheet className="h-4 w-4 inline-block mr-1.5 text-blue-600" /> อัปโหลดข้อมูลนักเรียนตัว G
+            </button>
+            <button
               onClick={() => setAdminTab('users')}
               className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
                 adminTab === 'users' 
@@ -1605,6 +1906,336 @@ export default function AdminPanel({
                 </form>
               </div>
             </div>
+          )}
+
+          {adminTab === 'g_students' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* ส่วนบน: การลบข้อมูลตามปีการศึกษา & ฟอร์มอัปโหลดไฟล์ใหญ่ */}
+              <div className="grid gap-6 md:grid-cols-3">
+                {/* ลบข้อมูลนักเรียนตัว G รายปีการศึกษา */}
+                <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10 md:col-span-1">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
+                  </h3>
+                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                    เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลนักเรียนตัว G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร) ของทุกโรงเรียนออกทั้งหมด
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={deleteGYear}
+                          onChange={(e) => setDeleteGYear(e.target.value)}
+                          pattern="[0-9]{4}"
+                          placeholder="เช่น 2568"
+                          maxLength={4}
+                          className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGYear(deleteGYear)}
+                          disabled={isDeletingGYear || !deleteGYear}
+                          className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
+                        >
+                          {isDeletingGYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* แสดงรายการปีการศึกษาของนักเรียนตัว G ที่มีอยู่ในฐานข้อมูล */}
+                    {studentGData && studentGData.length > 0 && (() => {
+                      const yearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear))).sort().reverse();
+                      if (yearsInGDb.length > 0) {
+                        return (
+                          <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                            <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาที่มีข้อมูลตัว G (คลิกเพื่อลบ):</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {yearsInGDb.map(yr => (
+                                <button
+                                  key={yr}
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteGYear(yr);
+                                    handleDeleteGYear(yr);
+                                  }}
+                                  className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  ปี {yr}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
+                  {deleteGError && (
+                    <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
+                      {deleteGError}
+                    </p>
+                  )}
+
+                  {deleteGSuccess && (
+                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                      {deleteGSuccess}
+                    </p>
+                  )}
+                </div>
+
+                {/* อัปโหลดไฟล์ Excel / CSV รวมทุกโรงเรียนสำหรับนักเรียนตัว G */}
+                <div className="card p-6 md:col-span-2 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <div>
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                        <Upload className="h-4.5 w-4.5 text-blue-500" /> อัปโหลดข้อมูลนักเรียนตัว G (ไฟล์ Excel/CSV)
+                      </h3>
+                      <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                        ระบบรองรับไฟล์ Excel (.xlsx) และ CSV ของทั้งจังหวัด ประจำปีการศึกษาที่ระบุ
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadGTemplate}
+                      className="px-3 py-1.5 text-[11px] font-black bg-[#A0E7E5] text-[#33272A] hover:bg-[#88d9d7] rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] flex items-center gap-1.5 transition-all cursor-pointer self-start sm:self-auto"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> ดาวน์โหลดแบบฟอร์มตัวอย่าง (Excel)
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleGUploadSubmit} className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาที่จะนำเข้า</label>
+                        <input
+                          type="text"
+                          value={gUploadYear}
+                          onChange={(e) => setGUploadYear(e.target.value)}
+                          pattern="[0-9]{4}"
+                          placeholder="เช่น 2568"
+                          required
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
+                        <input
+                          type="file"
+                          id="g-upload-file-input"
+                          accept=".xlsx, .xls, .csv"
+                          onChange={handleGFileSelect}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    {gError && (
+                      <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
+                        <AlertCircle className="h-4.5 w-4.5 text-rose-600 shrink-0" />
+                        <span>{gError}</span>
+                      </div>
+                    )}
+                    {gSuccess && (
+                      <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                        {gSuccess}
+                      </div>
+                    )}
+
+                    {/* แถบอัปโหลด Progress Bar */}
+                    {(isUploadingGFile || gUploadProgress > 0) && (
+                      <div className="space-y-2.5 rounded-2xl border-2 border-[#33272A] p-4 bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[3px_3px_0px_#FFD3B6] animate-fade-in">
+                        <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className={`h-4 w-4 text-blue-500 ${isUploadingGFile ? 'animate-spin' : ''}`} />
+                            <span className="truncate max-w-[280px] sm:max-w-md">{gUploadStatusText || 'กำลังประมวลผลข้อมูล...'}</span>
+                          </div>
+                          <span className="text-xs font-black text-[#33272A] bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                            {gUploadProgress}%
+                          </span>
+                        </div>
+
+                        {/* แถบ Progress Bar */}
+                        <div className="w-full h-5 rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#150e10] overflow-hidden p-0.5 shadow-inner dark:border-[#FFD3B6]">
+                          <div
+                            className="h-full rounded-lg bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 transition-all duration-300 ease-out flex items-center justify-end pr-1"
+                            style={{ width: `${Math.max(3, gUploadProgress)}%` }}
+                          >
+                            {gUploadProgress > 15 && (
+                              <span className="text-[9px] font-black text-[#33272A] drop-shadow-sm select-none">
+                                {gUploadProgress}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[10px] font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 pt-0.5">
+                          <span>รายการที่ประมวลผลแล้ว: {gProcessedRowsCount} / {gTotalRowsCount} โรงเรียน</span>
+                          <span>ข้อมูลนักเรียนตัว G ปีการศึกษา {gUploadYear}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* แสดงตัวอย่างข้อมูล (Preview Table) */}
+                    {gPreviewData.length > 0 && (
+                      <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-black text-blue-600 dark:text-blue-400">
+                            ตัวอย่างข้อมูลที่จะนำเข้า (พบบันทึกทั้งหมด {gPreviewData.length} โรงเรียน):
+                          </h4>
+                          <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded font-black">
+                            {gPreviewData.length} แถว
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto max-h-[160px]">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b-2 border-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black bg-blue-50/50 dark:bg-slate-700">
+                                <th className="p-1.5">รหัสโรงเรียน</th>
+                                <th className="p-1.5">ชื่อสถานศึกษา</th>
+                                <th className="p-1.5 text-center">ปีการศึกษา</th>
+                                <th className="p-1.5 text-center">รวม (คน)</th>
+                                <th className="p-1.5 text-center">ชาย</th>
+                                <th className="p-1.5 text-center">หญิง</th>
+                                <th className="p-1.5">หมายเหตุ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#33272A]/10 font-bold">
+                              {gPreviewData.slice(0, 5).map((row: any, i: number) => (
+                                <tr key={i} className="hover:bg-slate-100 dark:hover:bg-slate-700/50">
+                                  <td className="p-1 font-mono text-blue-600">{String(row[0] || '')}</td>
+                                  <td className="p-1">{String(row[1] || '')}</td>
+                                  <td className="p-1 text-center">{String(row[2] || gUploadYear)}</td>
+                                  <td className="p-1 text-center font-black text-blue-600">{String(row[3] || 0)}</td>
+                                  <td className="p-1 text-center">{String(row[4] || 0)}</td>
+                                  <td className="p-1 text-center">{String(row[5] || 0)}</td>
+                                  <td className="p-1 text-slate-500">{String(row[6] || '-')}</td>
+                                </tr>
+                              ))}
+                              {gPreviewData.length > 5 && (
+                                <tr>
+                                  <td colSpan={7} className="p-1.5 text-center text-slate-500 font-semibold italic bg-slate-50 dark:bg-slate-800">
+                                    ... และอีก {gPreviewData.length - 5} รายการ ...
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        disabled={isUploadingGFile || gPreviewData.length === 0}
+                        className="btn-cute bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Upload className="h-4.5 w-4.5" />
+                        {isUploadingGFile ? 'กำลังบันทึกลงระบบ...' : 'ยืนยันนำเข้าข้อมูลนักเรียนตัว G ลงฐานข้อมูล'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* ตารางแสดงรายการข้อมูลนักเรียนรหัส G ที่อยู่ในระบบ */}
+              <div className="card p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <div>
+                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                      <Users className="h-4.5 w-4.5 text-blue-500" />
+                      ตารางข้อมูลนักเรียนตัว G ({studentGData.filter(g => g.academicYear === gYear).length} โรงเรียนในปี {gYear})
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                      สถิตินักเรียนไม่มีหลักฐานทางทะเบียนราษฎร (แยกส่วนจาก DMC)
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-1 shrink-0">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ปีการศึกษา:</label>
+                      <select
+                        value={gYear}
+                        onChange={(e) => setGYear(e.target.value)}
+                        className="rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-2 py-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+                      >
+                        <option value="2568">2568</option>
+                        <option value="2567">2567</option>
+                        <option value="2566">2566</option>
+                        <option value="2565">2565</option>
+                      </select>
+                    </div>
+
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาชื่อโรงเรียน หรือรหัส..."
+                        value={gSearchQuery}
+                        onChange={(e) => setGSearchQuery(e.target.value)}
+                        className="w-full input-cute pl-8 p-1.5 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto max-h-[500px]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FFF9F5] dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] sticky top-0">
+                        <tr>
+                          <th className="p-2">รหัส</th>
+                          <th className="p-2">ชื่อสถานศึกษา</th>
+                          <th className="p-2 text-center">ชาย</th>
+                          <th className="p-2 text-center">หญิง</th>
+                          <th className="p-2 text-center">รวม (คน)</th>
+                          <th className="p-2">หมายเหตุ</th>
+                          <th className="p-2 text-center">การจัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700 font-bold">
+                        {studentGData
+                          .filter(g => g.academicYear === gYear)
+                          .filter(g => !gSearchQuery || (g.schoolName || '').includes(gSearchQuery) || (g.schoolId || '').includes(gSearchQuery))
+                          .map((g) => (
+                            <tr key={`${g.schoolId}_${g.academicYear}`} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                              <td className="p-2 font-mono text-[11px]">{g.schoolId}</td>
+                              <td className="p-2 font-black text-[#33272A] dark:text-[#FFF9F5]">{g.schoolName}</td>
+                              <td className="p-2 text-center text-blue-600 dark:text-blue-400">{g.maleGCount || 0}</td>
+                              <td className="p-2 text-center text-pink-600 dark:text-pink-400">{g.femaleGCount || 0}</td>
+                              <td className="p-2 text-center font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                {g.totalGStudents || 0}
+                              </td>
+                              <td className="p-2 text-[10px] text-slate-500">{g.notes || '-'}</td>
+                              <td className="p-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSingleGRecord(g.schoolId, g.schoolName, g.academicYear)}
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                  title="ลบรายการโรงเรียนนี้"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        {studentGData.filter(g => g.academicYear === gYear).length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
+                              ยังไม่มีข้อมูลนักเรียนตัว G ในปีการศึกษา {gYear}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
           )}
 
           {adminTab === 'users' && (

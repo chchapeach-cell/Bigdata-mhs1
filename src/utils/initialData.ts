@@ -326,12 +326,12 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
 
 // ฟังก์ชันวิเคราะห์ขนาดสถานศึกษาตามเกณฑ์ ก.ค.ศ. (คณะกรรมการข้าราชการครูและบุคลากรทางการศึกษา)
 // - ขนาดเล็ก: นักเรียน ตั้งแต่ 119 คนลงมา
-// - ขนาดกลาง: นักเรียน ตั้งแต่ 120 – 719 คน
-// - ขนาดใหญ่: นักเรียน ตั้งแต่ 720 – 1,679 คน
+// - ขนาดกลาง: นักเรียน ตั้งแต่ 120 – 699 คน
+// - ขนาดใหญ่: นักเรียน ตั้งแต่ 700 – 1,679 คน
 // - ขนาดใหญ่พิเศษ: นักเรียน ตั้งแต่ 1,680 คนขึ้นไป
 export function getSchoolSize(studentCount: number): School['size'] {
   if (studentCount >= 1680) return 'special_large';
-  if (studentCount >= 720) return 'large';
+  if (studentCount >= 700) return 'large';
   if (studentCount >= 120) return 'medium';
   return 'small';
 }
@@ -341,9 +341,9 @@ export function getSchoolSizeLabel(size: School['size'] | string): string {
     case 'small':
       return 'ขนาดเล็ก (119 คนลงมา)';
     case 'medium':
-      return 'ขนาดกลาง (120 - 719 คน)';
+      return 'ขนาดกลาง (120 - 699 คน)';
     case 'large':
-      return 'ขนาดใหญ่ (720 - 1,679 คน)';
+      return 'ขนาดใหญ่ (700 - 1,679 คน)';
     case 'special_large':
       return 'ขนาดใหญ่พิเศษ (1,680 คนขึ้นไป)';
     default:
@@ -570,4 +570,36 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
   }
 
   return { schools, students };
+}
+
+// สร้างข้อมูลนักเรียนรหัส G ตัวอย่างหลายปีการศึกษา
+export function generateInitialStudentGData(schools: School[]) {
+  const years = ['2565', '2566', '2567', '2568'];
+  const gList: any[] = [];
+
+  schools.forEach((s, idx) => {
+    // ให้โรงเรียนในเขตชายแดน / พื้นที่ปางมะผ้า / ปาย / เมือง มีอัตราส่วนนักเรียนตัว G
+    const isBorder = s.amphoe === 'ปางมะผ้า' || s.amphoe === 'ปาย' || s.amphoe === 'เมืองแม่ฮ่องสอน';
+    const baseG = isBorder ? Math.floor(15 + (idx % 8) * 6) : Math.floor(2 + (idx % 4) * 2);
+
+    years.forEach((yr, yIdx) => {
+      const growth = 1 + yIdx * 0.12; // มีการเติบโตขึ้นตามปีการศึกษา
+      const totalG = Math.round(baseG * growth);
+      const maleG = Math.round(totalG * 0.52);
+      const femaleG = totalG - maleG;
+
+      gList.push({
+        id: `${s.id}_${yr}`,
+        schoolId: s.id,
+        schoolName: s.name,
+        academicYear: yr,
+        totalGStudents: totalG,
+        maleGCount: maleG,
+        femaleGCount: femaleG,
+        notes: isBorder ? 'นักเรียนกลุ่มไม่มีหลักฐานทางทะเบียนราษฎร (รหัส G)' : 'นักเรียนตัว G'
+      });
+    });
+  });
+
+  return gList;
 }

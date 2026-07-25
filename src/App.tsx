@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { db, auth, OperationType, handleFirestoreError } from './firebase';
 import { collection, getDocs, setDoc, doc, getDoc, query, where } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { School, StudentData, UserProfile } from './types';
+import { School, StudentData, UserProfile, StudentGData } from './types';
+import { generateInitialStudentGData } from './utils/initialData';
 
 // นำเข้า Components
 import Header from './components/Header';
@@ -42,6 +43,7 @@ export default function App() {
   // ข้อมูลสถิติหลัก
   const [schools, setSchools] = useState<School[]>([]);
   const [studentData, setStudentData] = useState<StudentData[]>([]);
+  const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
   // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
   const currentBEYear = (new Date().getFullYear() + 543).toString();
   const [academicYear, setAcademicYear] = useState<string>(currentBEYear);
@@ -166,16 +168,28 @@ export default function App() {
       } catch (e) {
         handleFirestoreError(e, OperationType.LIST, 'students');
       }
+
+      let studentsGSnapshot;
+      try {
+        studentsGSnapshot = await getDocs(collection(db, 'students_g'));
+      } catch (e) {
+        // collection may be new
+      }
       
       const schoolsList: School[] = [];
       const studentsList: StudentData[] = [];
+      const studentsGList: StudentGData[] = [];
 
-      schoolsSnapshot.forEach((doc) => {
+      schoolsSnapshot?.forEach((doc) => {
         schoolsList.push({ ...doc.data() } as School);
       });
 
-      studentsSnapshot.forEach((doc) => {
+      studentsSnapshot?.forEach((doc) => {
         studentsList.push({ ...doc.data(), id: doc.id } as StudentData);
+      });
+
+      studentsGSnapshot?.forEach((doc) => {
+        studentsGList.push({ ...doc.data(), id: doc.id } as StudentGData);
       });
 
       if (schoolsList.length === 0) {
@@ -184,6 +198,7 @@ export default function App() {
         const initial = parseInitialData('2568');
         setSchools(initial.schools);
         setStudentData(initial.students);
+        setStudentGData(generateInitialStudentGData(initial.schools));
         
         const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
         if (years.length > 0) {
@@ -198,15 +213,19 @@ export default function App() {
         return;
       }
 
-      let finalStudentsList = studentsList;
-
       setSchools(schoolsList);
       setStudentData(studentsList);
 
+      // ถ้าในคอลเลกชัน students_g ยังไม่มีข้อมูล ให้ใช้ตัวอย่างเริ่มต้น
+      if (studentsGList.length === 0) {
+        setStudentGData(generateInitialStudentGData(schoolsList));
+      } else {
+        setStudentGData(studentsGList);
+      }
+
       // ตรวจหาปีการศึกษาทั้งหมดที่มีในฐานข้อมูล
-      const years = Array.from(new Set(finalStudentsList.map(s => s.academicYear)));
+      const years = Array.from(new Set(studentsList.map(s => s.academicYear)));
       if (years.length > 0) {
-        // จัดเรียง
         years.sort((a, b) => b.localeCompare(a));
         setAvailableYears(years);
         if (years.includes(currentBEYear)) {
@@ -284,6 +303,7 @@ export default function App() {
                   <DashboardView
                     schools={schools}
                     studentData={studentData}
+                    studentGData={studentGData}
                     academicYear={academicYear}
                     setAcademicYear={setAcademicYear}
                     availableYears={availableYears}
@@ -309,6 +329,7 @@ export default function App() {
                     userProfile={userProfile}
                     schools={schools}
                     studentData={studentData}
+                    studentGData={studentGData}
                     onRefreshData={fetchAllData}
                   />
                 )}
