@@ -244,6 +244,31 @@ export default function AdminPanel({
   const [deleteGError, setDeleteGError] = useState<string>('');
   const [deleteGSuccess, setDeleteGSuccess] = useState<string>('');
 
+  // คำนวณปีการศึกษาที่มีข้อมูลนักเรียนตัว G (และปีการศึกษาทั่วไป) สำหรับตัวเลือก Dropdown
+  const gAvailableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+
+    if (studentGData && studentGData.length > 0) {
+      studentGData.forEach(g => {
+        if (g.academicYear && /^\d{4}$/.test(g.academicYear)) {
+          yearsSet.add(g.academicYear.trim());
+        }
+      });
+    }
+
+    if (studentData && studentData.length > 0) {
+      studentData.forEach(s => {
+        if (s.academicYear && /^\d{4}$/.test(s.academicYear)) {
+          yearsSet.add(s.academicYear.trim());
+        }
+      });
+    }
+
+    ['2568', '2567', '2566', '2565', '2564'].forEach(y => yearsSet.add(y));
+
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [studentGData, studentData]);
+
   // อัปเดตข้อมูลนักเรียนตัว G เมื่อเปลี่ยนโรงเรียนหรือปีการศึกษา
   useEffect(() => {
     const targetId = isSuperAdmin ? gSchoolId : userProfile.schoolId;
@@ -2460,10 +2485,9 @@ export default function AdminPanel({
                         onChange={(e) => setGYear(e.target.value)}
                         className="rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-2 py-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
                       >
-                        <option value="2568">2568</option>
-                        <option value="2567">2567</option>
-                        <option value="2566">2566</option>
-                        <option value="2565">2565</option>
+                        {gAvailableYears.map(yr => (
+                          <option key={yr} value={yr}>{yr}</option>
+                        ))}
                       </select>
                     </div>
 
