@@ -449,6 +449,11 @@ export default function AdminPanel({
 
   // ฟังก์ชันลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
   const handleDeleteGYear = async (year: string) => {
+    if (!isSuperAdmin) {
+      setDeleteGError('เฉพาะ Super Admin เท่านั้นที่มีสิทธิ์ลบข้อมูลนักเรียนตัว G รายปีการศึกษา');
+      return;
+    }
+
     if (!year || !/^[0-9]{4}$/.test(year)) {
       setDeleteGError('กรุณาระบุปีการศึกษาเป็นตัวเลข 4 หลัก เช่น 2568');
       return;
@@ -491,6 +496,11 @@ export default function AdminPanel({
 
   // ฟังก์ชันลบรายการนักเรียนตัว G แบบรายโรงเรียน
   const handleDeleteSingleGRecord = async (schoolId: string, schoolName: string, academicYear: string) => {
+    if (!isSuperAdmin) {
+      setGError('เฉพาะ Super Admin เท่านั้นที่มีสิทธิ์ลบข้อมูลนักเรียนตัว G');
+      return;
+    }
+
     if (!window.confirm(`⚠️ ยืนยันการลบข้อมูลนักเรียนตัว G ของโรงเรียน "${schoolName}" ปีการศึกษา ${academicYear}?`)) {
       return;
     }
@@ -1912,81 +1922,89 @@ export default function AdminPanel({
             <div className="space-y-6 animate-fade-in">
               {/* ส่วนบน: การลบข้อมูลตามปีการศึกษา & ฟอร์มอัปโหลดไฟล์ใหญ่ */}
               <div className="grid gap-6 md:grid-cols-3">
-                {/* ลบข้อมูลนักเรียนตัว G รายปีการศึกษา */}
-                <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10 md:col-span-1">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
-                  </h3>
-                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
-                    เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลนักเรียนตัว G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร) ของทุกโรงเรียนออกทั้งหมด
-                  </p>
+                {/* ลบข้อมูลนักเรียนตัว G รายปีการศึกษา (เฉพาะ Super Admin) */}
+                {isSuperAdmin ? (
+                  <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10 md:col-span-1">
+                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                      <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
+                    </h3>
+                    <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                      เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลนักเรียนตัว G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร) ของทุกโรงเรียนออกทั้งหมด (สิทธิ์ Super Admin)
+                    </p>
 
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={deleteGYear}
-                          onChange={(e) => setDeleteGYear(e.target.value)}
-                          pattern="[0-9]{4}"
-                          placeholder="เช่น 2568"
-                          maxLength={4}
-                          className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteGYear(deleteGYear)}
-                          disabled={isDeletingGYear || !deleteGYear}
-                          className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
-                        >
-                          {isDeletingGYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
-                        </button>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={deleteGYear}
+                            onChange={(e) => setDeleteGYear(e.target.value)}
+                            pattern="[0-9]{4}"
+                            placeholder="เช่น 2568"
+                            maxLength={4}
+                            className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGYear(deleteGYear)}
+                            disabled={isDeletingGYear || !deleteGYear}
+                            className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
+                          >
+                            {isDeletingGYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
+                          </button>
+                        </div>
                       </div>
+
+                      {/* แสดงรายการปีการศึกษาของนักเรียนตัว G ที่มีอยู่ในฐานข้อมูล */}
+                      {studentGData && studentGData.length > 0 && (() => {
+                        const yearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear))).sort().reverse();
+                        if (yearsInGDb.length > 0) {
+                          return (
+                            <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                              <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาที่มีข้อมูลตัว G (คลิกเพื่อลบ):</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {yearsInGDb.map(yr => (
+                                  <button
+                                    key={yr}
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteGYear(yr);
+                                      handleDeleteGYear(yr);
+                                    }}
+                                    className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    ปี {yr}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
-                    {/* แสดงรายการปีการศึกษาของนักเรียนตัว G ที่มีอยู่ในฐานข้อมูล */}
-                    {studentGData && studentGData.length > 0 && (() => {
-                      const yearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear))).sort().reverse();
-                      if (yearsInGDb.length > 0) {
-                        return (
-                          <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                            <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาที่มีข้อมูลตัว G (คลิกเพื่อลบ):</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {yearsInGDb.map(yr => (
-                                <button
-                                  key={yr}
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteGYear(yr);
-                                    handleDeleteGYear(yr);
-                                  }}
-                                  className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                  ปี {yr}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {deleteGError && (
+                      <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
+                        {deleteGError}
+                      </p>
+                    )}
+
+                    {deleteGSuccess && (
+                      <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                        {deleteGSuccess}
+                      </p>
+                    )}
                   </div>
-
-                  {deleteGError && (
-                    <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
-                      {deleteGError}
-                    </p>
-                  )}
-
-                  {deleteGSuccess && (
-                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
-                      {deleteGSuccess}
-                    </p>
-                  )}
-                </div>
+                ) : (
+                  <div className="card p-6 border-2 border-slate-200 bg-slate-50 dark:bg-slate-900/30 dark:border-slate-800 md:col-span-1 flex flex-col justify-center items-center text-center">
+                    <Trash2 className="h-8 w-8 text-slate-400 mb-2" />
+                    <h3 className="text-xs font-black text-slate-600 dark:text-slate-300 mb-1">ลบข้อมูลนักเรียนตัว G</h3>
+                    <p className="text-[10px] text-slate-400 font-bold">สิทธิ์ในการลบข้อมูลนักเรียนตัว G เป็นของ Super Admin เท่านั้น</p>
+                  </div>
+                )}
 
                 {/* อัปโหลดไฟล์ Excel / CSV รวมทุกโรงเรียนสำหรับนักเรียนตัว G */}
                 <div className="card p-6 md:col-span-2 space-y-4">

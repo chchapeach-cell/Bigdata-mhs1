@@ -110,5 +110,21 @@ service cloud.firestore {
       // Only Super Admin can write/update system configurations
       allow write: if isSuperAdmin();
     }
+
+    // 6. Students G Collection (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร)
+    match /students_g/{studentGDocId} {
+      // Anyone (including guests) can read/list student G statistics
+      allow read: if true;
+
+      // Super Admin or approved School Admin can create or update student G records
+      allow create, update: if isSuperAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'
+      );
+
+      // ONLY Super Admin can delete student G records
+      allow delete: if isSuperAdmin();
+    }
   }
 }
