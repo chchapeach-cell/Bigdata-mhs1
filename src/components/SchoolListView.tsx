@@ -4,7 +4,7 @@ import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTr
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 
 interface SchoolListViewProps {
   schools: School[];
@@ -35,6 +35,7 @@ export default function SchoolListView({
   const [netFilter, setNetFilter] = useState<string>('all');
   const [electricityFilter, setElectricityFilter] = useState<string>('all'); // all, yes, no
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
+  const [networkGroupFilter, setNetworkGroupFilter] = useState<string>('all'); // ตัวกรองกลุ่มโรงเรียน
   
   // ใช้ตัวกรองเริ่มต้นที่ส่งมาจากหน้าแดชบอร์ด
   useEffect(() => {
@@ -107,9 +108,12 @@ export default function SchoolListView({
       const schoolAmphoe = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
       const matchesAmphoe = amphoeFilter === 'all' || schoolAmphoe === amphoeFilter;
 
-      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity;
+      const schoolNetwork = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+      const matchesNetworkGroup = networkGroupFilter === 'all' || schoolNetwork === networkGroupFilter;
+
+      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesNetworkGroup;
     });
-  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter]);
+  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter, networkGroupFilter]);
 
   // จัดเรียงข้อมูลที่คัดกรองแล้ว
   const sortedSchools = useMemo(() => {
@@ -263,6 +267,8 @@ export default function SchoolListView({
         exportRows = schoolsWithCounts.map(s => ({
           "รหัสโรงเรียน": s.id,
           "ชื่อโรงเรียน": s.name,
+          "อำเภอ": s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe,
+          "กลุ่มโรงเรียน": s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup,
           "ขนาดสถานศึกษา": s.size === 'small' ? 'เล็ก' : s.size === 'medium' ? 'กลาง' : s.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ',
           "โรงเรียนขยายโอกาส": s.isExpansion ? 'ใช่' : 'ไม่ใช่',
           "ครูและบุคลากร (คน)": s.staffCount,
@@ -351,7 +357,7 @@ export default function SchoolListView({
         </div>
 
         {/* Filters */}
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
           {/* อำเภอ */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
@@ -359,7 +365,10 @@ export default function SchoolListView({
             </label>
             <select
               value={amphoeFilter}
-              onChange={(e) => setAmphoeFilter(e.target.value)}
+              onChange={(e) => {
+                setAmphoeFilter(e.target.value);
+                setNetworkGroupFilter('all');
+              }}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
               <option value="all">ทั้งหมด ทุกอำเภอ</option>
@@ -367,6 +376,27 @@ export default function SchoolListView({
               <option value="ขุนยวม">ขุนยวม</option>
               <option value="ปาย">ปาย</option>
               <option value="ปางมะผ้า">ปางมะผ้า</option>
+            </select>
+          </div>
+
+          {/* กลุ่มโรงเรียน */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+              <Filter className="h-3.5 w-3.5 text-purple-500" /> กลุ่มโรงเรียน
+            </label>
+            <select
+              value={networkGroupFilter}
+              onChange={(e) => setNetworkGroupFilter(e.target.value)}
+              className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+            >
+              <option value="all">ทั้งหมด ทุกกลุ่มโรงเรียน</option>
+              {SCHOOL_GROUPS_LIST
+                .filter(g => amphoeFilter === 'all' || g.amphoe === amphoeFilter || g.amphoe === 'สพป.แม่ฮ่องสอน เขต 1')
+                .map(group => (
+                  <option key={group.name} value={group.name}>
+                    {group.name}
+                  </option>
+                ))}
             </select>
           </div>
 

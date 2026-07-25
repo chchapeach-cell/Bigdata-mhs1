@@ -242,6 +242,33 @@ export default function DashboardView({
       .filter(item => item.value > 0);
   }, [schools]);
 
+  // กรองข้อมูลตามปีการศึกษาที่เลือก
+  const filteredStudents = useMemo(() => {
+    return studentData.filter(s => s.academicYear === academicYear);
+  }, [studentData, academicYear]);
+
+  // สถิติจำนวนโรงเรียนจำแนกตามกลุ่มโรงเรียน (14 กลุ่ม)
+  const networkGroupStats = useMemo(() => {
+    const counts: Record<string, { schoolCount: number; studentCount: number }> = {};
+    
+    schools.forEach(s => {
+      const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup || "อื่นๆ/ไม่ระบุ";
+      if (!counts[net]) {
+        counts[net] = { schoolCount: 0, studentCount: 0 };
+      }
+      counts[net].schoolCount++;
+
+      const st = filteredStudents.find(sd => sd.schoolId === s.id);
+      if (st) {
+        counts[net].studentCount += (st.totalStudents || 0);
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.schoolCount - a.schoolCount);
+  }, [schools, filteredStudents]);
+
   // สถิติเปรียบเทียบจำนวนนักเรียนทั้งหมดในแต่ละปีการศึกษา (ข้อ 3.2)
   const yearlyStudentsData = useMemo(() => {
     const yearlyCounts: Record<string, number> = {};
@@ -284,11 +311,6 @@ export default function DashboardView({
       }))
       .sort((a, b) => a.academicYear.localeCompare(b.academicYear));
   }, [studentData, availableYears, schools]);
-
-  // กรองข้อมูลตามปีการศึกษาที่เลือก
-  const filteredStudents = useMemo(() => {
-    return studentData.filter(s => s.academicYear === academicYear);
-  }, [studentData, academicYear]);
 
   // คํานวณสถิติภาพรวม
   const stats = useMemo(() => {
@@ -537,7 +559,7 @@ export default function DashboardView({
           </p>
         </div>
 
-        {/* ปีการศึกษา และจำนวนโรงเรียนตามปี พ.ศ. */}
+        {/* ปีการศึกษา */}
         <div className="flex flex-wrap items-center gap-2 bg-[#FFD3B6] p-2 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] w-fit">
           <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] px-1">ปีการศึกษา:</span>
           <select
@@ -549,24 +571,6 @@ export default function DashboardView({
               <option key={year} value={year}>{year}</option>
             ))}
           </select>
-
-          {/* Quick year pills with school counts */}
-          <div className="flex items-center gap-1.5 ml-1">
-            {yearlySchoolsData.map(item => (
-              <button
-                key={item.academicYear}
-                onClick={() => setAcademicYear(item.academicYear)}
-                className={`px-2.5 py-1 text-[11px] font-black rounded-xl border-2 transition-all cursor-pointer ${
-                  academicYear === item.academicYear
-                    ? 'bg-[#FF8BA7] text-[#33272A] border-[#33272A] shadow-sm'
-                    : 'bg-white text-[#33272A] border-[#33272A] hover:bg-[#A0E7E5] dark:bg-[#150e10] dark:text-[#FFF9F5] dark:border-[#FFD3B6]'
-                }`}
-                title={`คลิกเลือกดูสถิติปี พ.ศ. ${item.academicYear}`}
-              >
-                พ.ศ. {item.academicYear}: <span className="underline">{item.schoolCount} โรงเรียน</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -822,60 +826,6 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* สถิติจำนวนโรงเรียนจำแนกตามปี พ.ศ. */}
-        <div className="card p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-1">
-              <Building2 className="h-4 w-4 text-[#FF8BA7]" /> จำนวนโรงเรียนตามปี พ.ศ. (ปีการศึกษา)
-            </h3>
-            <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 mb-4 font-semibold">
-              จำนวนโรงเรียนทั้งหมดที่มีการลงบันทึกข้อมูลสถิตินักเรียนในแต่ละปีการศึกษา
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {yearlySchoolsData.map((item) => (
-              <div 
-                key={item.academicYear}
-                onClick={() => setAcademicYear(item.academicYear)}
-                className={`flex items-center justify-between p-3 rounded-2xl border-2 transition-all cursor-pointer group ${
-                  academicYear === item.academicYear
-                    ? 'bg-[#FF8BA7]/20 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A]'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-[#FF8BA7]'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-2 rounded-xl border-2 ${
-                    academicYear === item.academicYear ? 'bg-[#FF8BA7] text-[#33272A]' : 'bg-[#A0E7E5] text-[#33272A]'
-                  }`}>
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      ปีการศึกษา {item.academicYear} (พ.ศ. {item.academicYear})
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                      {academicYear === item.academicYear ? 'กำลังเลือกปีนี้อยู่' : 'คลิกเพื่อสลับดูปีนี้'}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-lg font-black text-[#FF8BA7] group-hover:scale-110 inline-block transition-transform">
-                    {item.schoolCount}
-                  </span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 ml-1">แห่ง</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-              รวมโรงเรียนในสังกัด สพป.แม่ฮ่องสอน เขต 1 ทั้งหมด {schools.length} แห่ง
-            </span>
-          </div>
-        </div>
-
         {/* กราฟแนวโน้มจำนวนนักเรียนรายปีการศึกษา */}
         <div className="card p-6 flex flex-col justify-between">
           <div>
@@ -921,6 +871,48 @@ export default function DashboardView({
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* สถิติจำนวนโรงเรียนและนักเรียนแยกตามกลุ่มโรงเรียน 14 กลุ่ม */}
+      <div className="card p-6 space-y-4">
+        <div className="flex flex-col gap-1 border-b-2 border-[#33272A]/10 pb-3 dark:border-[#FFD3B6]/10">
+          <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+            <Layers className="h-5 w-5 text-purple-500" /> 
+            ข้อมูลสารสนเทศจำแนกตามกลุ่มโรงเรียน (14 กลุ่มโรงเรียน)
+          </h3>
+          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+            แสดงสถิติจำนวนโรงเรียน และจำนวนนักเรียนรวมในแต่ละกลุ่มโรงเรียนของ สพป.แม่ฮ่องสอน เขต 1 (คลิกที่การ์ดเพื่อกรองรายชื่อ)
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {networkGroupStats.map((group, idx) => (
+            <div
+              key={idx}
+              onClick={() => onFilterNavigate?.({ netFilter: group.name })}
+              className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1.5">
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] group-hover:text-purple-600 transition-colors line-clamp-1">
+                    🏫 {group.name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mt-2">
+                  <span>สถานศึกษา:</span>
+                  <span className="font-black text-purple-600 dark:text-purple-400 text-sm">{group.schoolCount} แห่ง</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
+                  <span>นักเรียนรวม:</span>
+                  <span className="font-black text-[#FF8BA7] text-sm">{group.studentCount.toLocaleString()} คน</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-purple-500 font-bold mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-right group-hover:underline">
+                ดูโรงเรียนในกลุ่มนี้ ➡️
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

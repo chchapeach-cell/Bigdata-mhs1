@@ -1,11 +1,11 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
-import { getSchoolSize } from '../utils/initialData';
+import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils/initialData';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -213,6 +213,84 @@ export default function AdminPanel({
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
   const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs' | 'schools'>('upload');
+
+  // รายชื่อกลุ่มเครือข่ายทั้งหมดในระบบ สำหรับแสดงใน Dropdown
+  const availableNetworkGroups = useMemo(() => {
+    const defaultGroups = SCHOOL_GROUPS_LIST.map(g => g.name);
+    const schoolGroups = schools.map(s => s.networkGroup).filter(Boolean) as string[];
+    const set = new Set([...defaultGroups, ...schoolGroups]);
+    return Array.from(set).sort();
+  }, [schools]);
+
+  // สรุปข้อมูลกลุ่มเครือข่ายทั้งหมดสำหรับ Super Admin แก้ไขชื่อกลุ่ม
+  const allNetworkGroupList = useMemo(() => {
+    const groupMap: Record<string, { name: string; amphoe: string; schoolCount: number }> = {};
+
+    SCHOOL_GROUPS_LIST.forEach(g => {
+      groupMap[g.name] = { name: g.name, amphoe: g.amphoe, schoolCount: 0 };
+    });
+
+    schools.forEach(s => {
+      const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup || "กลุ่มเครือข่ายทั่วไป";
+      const amphoe = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe || "เมืองแม่ฮ่องสอน";
+      if (!groupMap[net]) {
+        groupMap[net] = { name: net, amphoe, schoolCount: 0 };
+      }
+      groupMap[net].schoolCount++;
+    });
+
+    return Object.values(groupMap).sort((a, b) => b.schoolCount - a.schoolCount);
+  }, [schools]);
+
+  // State สำหรับ Super Admin แก้ไขชื่อกลุ่มเครือข่าย
+  const [editingGroupOldName, setEditingGroupOldName] = useState<string | null>(null);
+  const [editingGroupNewName, setEditingGroupNewName] = useState<string>('');
+  const [isRenamingGroup, setIsRenamingGroup] = useState<boolean>(false);
+  const [renameGroupSuccess, setRenameGroupSuccess] = useState<string>('');
+  const [renameGroupError, setRenameGroupError] = useState<string>('');
+
+  const handleRenameNetworkGroup = async (oldName: string, newName: string) => {
+    if (!newName.trim() || oldName === newName.trim()) {
+      setEditingGroupOldName(null);
+      return;
+    }
+
+    const cleanNewName = newName.trim();
+    setIsRenamingGroup(true);
+    setRenameGroupError('');
+    setRenameGroupSuccess('');
+
+    try {
+      // ดึงโรงเรียนทั้งหมดที่อยู่ในกลุ่มเดิม
+      const affectedSchools = schools.filter(s => {
+        const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup;
+        return net === oldName;
+      });
+
+      if (affectedSchools.length === 0) {
+        setRenameGroupError(`ไม่พบโรงเรียนที่อยู่ในกลุ่ม "${oldName}"`);
+        setIsRenamingGroup(false);
+        return;
+      }
+
+      // อัปเดตข้อมูลทุกโรงเรียนใน Firestore
+      for (const school of affectedSchools) {
+        const schoolRef = doc(db, 'schools', school.id);
+        await updateDoc(schoolRef, {
+          networkGroup: cleanNewName
+        });
+      }
+
+      setRenameGroupSuccess(`เปลี่ยนชื่อกลุ่มเครือข่ายจาก "${oldName}" เป็น "${cleanNewName}" เรียบร้อยแล้ว (อัปเดตโรงเรียน ${affectedSchools.length} แห่ง)`);
+      setEditingGroupOldName(null);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to rename network group:', err);
+      setRenameGroupError('เกิดข้อผิดพลาดในการเปลี่ยนชื่อกลุ่มเครือข่าย: ' + err.message);
+    } finally {
+      setIsRenamingGroup(false);
+    }
+  };
 
   // State สำหรับ Super Admin เพิ่มโรงเรียนใหม่
   const [newSchoolId, setNewSchoolId] = useState('');
@@ -1016,13 +1094,16 @@ export default function AdminPanel({
               {/* กลุ่มเครือข่าย */}
               <div className="space-y-1">
                 <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มพัฒนาคุณภาพการศึกษา (เครือข่าย)</label>
-                <input
-                  type="text"
+                <select
                   value={editNetworkGroup}
                   onChange={(e) => setEditNetworkGroup(e.target.value)}
-                  placeholder="เช่น เครือข่ายปายสามัคคี, เครือข่ายคีรีราษฎร์"
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                >
+                  <option value="">-- เลือกกลุ่มเครือข่าย --</option>
+                  {availableNetworkGroups.map(group => (
+                    <option key={group} value={group}>{group}</option>
+                  ))}
+                </select>
               </div>
 
               {/* ระบบเน็ต */}
@@ -1778,13 +1859,16 @@ export default function AdminPanel({
 
                   <div className="space-y-1">
                     <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มเครือข่ายสถานศึกษา</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น กลุ่มเครือข่ายสถานศึกษาห้วยปูลิง"
+                    <select
                       value={newSchoolNetworkGroup}
                       onChange={(e) => setNewSchoolNetworkGroup(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    >
+                      <option value="">-- เลือกกลุ่มเครือข่าย --</option>
+                      {availableNetworkGroups.map(group => (
+                        <option key={group} value={group}>{group}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-1">
@@ -1896,6 +1980,100 @@ export default function AdminPanel({
                   </div>
                 </form>
               </div>
+
+              {/* ส่วนจัดการและแก้ไขชื่อกลุ่มเครือข่ายสถานศึกษา (เฉพาะ Super Admin) */}
+              {isSuperAdmin && (
+                <div className="card p-6 space-y-4">
+                  <div className="flex flex-col gap-1 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                      <Layers className="h-4.5 w-4.5 text-purple-500" /> จัดการและแก้ไขชื่อกลุ่มเครือข่ายสถานศึกษา
+                    </h3>
+                    <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+                      Super Admin สามารถแก้ไขชื่อกลุ่มเครือข่ายที่นี่ ระบบจะอัปเดตชื่อกลุ่มในโรงเรียนทั้งหมดที่สังกัดกลุ่มนี้ให้อัตโนมัติ
+                    </p>
+                  </div>
+
+                  {renameGroupSuccess && (
+                    <div className="p-3 bg-emerald-100 border-2 border-emerald-500 rounded-xl text-emerald-900 text-xs font-bold animate-fade-in">
+                      {renameGroupSuccess}
+                    </div>
+                  )}
+                  {renameGroupError && (
+                    <div className="p-3 bg-rose-100 border-2 border-rose-500 rounded-xl text-rose-900 text-xs font-bold animate-fade-in">
+                      {renameGroupError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {allNetworkGroupList.map((group) => {
+                      const isEditingThis = editingGroupOldName === group.name;
+                      return (
+                        <div
+                          key={group.name}
+                          className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1">
+                              <span>อำเภอ{group.amphoe}</span>
+                              <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 px-2 py-0.5 rounded-full font-black border border-purple-200 dark:border-purple-800">
+                                {group.schoolCount} โรงเรียน
+                              </span>
+                            </div>
+
+                            {isEditingThis ? (
+                              <div className="space-y-2 my-1">
+                                <input
+                                  type="text"
+                                  value={editingGroupNewName}
+                                  onChange={(e) => setEditingGroupNewName(e.target.value)}
+                                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                  placeholder="พิมพ์ชื่อกลุ่มเครือข่ายใหม่"
+                                />
+                                <div className="flex gap-1.5 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingGroupOldName(null)}
+                                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-[#33272A] dark:border-[#FFD3B6] bg-slate-100 dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] cursor-pointer"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isRenamingGroup}
+                                    onClick={() => handleRenameNetworkGroup(group.name, editingGroupNewName)}
+                                    className="px-2.5 py-1 text-[11px] font-black rounded-lg border-2 border-[#33272A] bg-purple-500 text-white hover:bg-purple-600 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {isRenamingGroup ? 'กำลังบันทึก...' : 'บันทึกชื่อใหม่'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] my-1">
+                                🏫 {group.name}
+                              </h4>
+                            )}
+                          </div>
+
+                          {!isEditingThis && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingGroupOldName(group.name);
+                                  setEditingGroupNewName(group.name);
+                                }}
+                                className="text-[11px] font-black text-purple-600 hover:text-purple-800 dark:text-purple-400 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Edit3 className="h-3 w-3" /> แก้ไขชื่อกลุ่ม
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* ตารางรายชื่อโรงเรียนทั้งหมดพร้อมปุ่มลบ */}
               <div className="card p-6 space-y-4">
