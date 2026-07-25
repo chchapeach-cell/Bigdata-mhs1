@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, dele
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
+import { getSchoolSize } from '../utils/initialData';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -674,10 +675,7 @@ export default function AdminPanel({
 
             // ตรวจสอบข้อมูลโรงเรียนพื้นฐาน ถ้ายังไม่มีให้สร้างขึ้นใหม่
             const schoolDocRef = doc(db, 'schools', schoolId);
-            let size: School['size'] = 'small';
-            if (totalStudents >= 1500) size = 'special_large';
-            else if (totalStudents >= 300) size = 'large';
-            else if (totalStudents >= 120) size = 'medium';
+            const size: School['size'] = getSchoolSize(totalStudents);
 
             // บันทึกเฉพาะข้อมูลพื้นฐานโครงสร้างแบบเบื้องต้น
             try {

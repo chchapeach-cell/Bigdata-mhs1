@@ -23,9 +23,17 @@ export default function App() {
     size?: string;
     type?: string;
     amphoe?: string;
+    netFilter?: string;
+    electricityFilter?: string;
   } | null>(null);
 
-  const handleFilterNavigate = (filters: { size?: string; type?: string; amphoe?: string }) => {
+  const handleFilterNavigate = (filters: {
+    size?: string;
+    type?: string;
+    amphoe?: string;
+    netFilter?: string;
+    electricityFilter?: string;
+  }) => {
     setInitialFilters(filters);
     setActiveTab('schools');
     setSelectedSchoolId(null); // เคลียร์สถานะการเลือกโรงเรียนรายบุคคลเพื่อเปิดหน้าตารางรายชื่อแบบกรอง

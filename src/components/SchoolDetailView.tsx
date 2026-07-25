@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, ChangeEvent } from 'react';
 import { School, StudentData, UserProfile } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
@@ -737,14 +738,14 @@ export default function SchoolDetailView({
                     onChange={(e) => setEditSize(e.target.value as School['size'])}
                     className="rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
                   >
-                    <option value="small">โรงเรียนขนาดเล็ก (&lt; 120 คน)</option>
-                    <option value="medium">โรงเรียนขนาดกลาง (120-299 คน)</option>
-                    <option value="large">โรงเรียนขนาดใหญ่</option>
-                    <option value="special_large">โรงเรียนขนาดใหญ่พิเศษ</option>
+                    <option value="small">โรงเรียนขนาดเล็ก (119 คนลงมา)</option>
+                    <option value="medium">โรงเรียนขนาดกลาง (120 - 719 คน)</option>
+                    <option value="large">โรงเรียนขนาดใหญ่ (720 - 1,679 คน)</option>
+                    <option value="special_large">โรงเรียนขนาดใหญ่พิเศษ (1,680 คนขึ้นไป)</option>
                   </select>
                 ) : (
                   <span className="font-black text-[#FF8BA7]">
-                    โรงเรียน{school.size === 'small' ? 'ขนาดเล็ก (< 120 คน)' : school.size === 'medium' ? 'ขนาดกลาง (120-299 คน)' : school.size === 'large' ? 'ขนาดใหญ่' : 'ขนาดใหญ่พิเศษ'}
+                    โรงเรียน{getSchoolSizeLabel(studentData ? getSchoolSize(studentData.totalStudents) : school.size)}
                   </span>
                 )}
               </div>

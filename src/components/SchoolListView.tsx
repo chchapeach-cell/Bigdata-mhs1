@@ -4,7 +4,7 @@ import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTr
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { getAmphoeAndNetwork } from '../utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
 
 interface SchoolListViewProps {
   schools: School[];
@@ -15,6 +15,8 @@ interface SchoolListViewProps {
     size?: string;
     type?: string;
     amphoe?: string;
+    netFilter?: string;
+    electricityFilter?: string;
   } | null;
   clearInitialFilters?: () => void;
 }
@@ -31,6 +33,7 @@ export default function SchoolListView({
   const [sizeFilter, setSizeFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all'); // all, expansion, basic
   const [netFilter, setNetFilter] = useState<string>('all');
+  const [electricityFilter, setElectricityFilter] = useState<string>('all'); // all, yes, no
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
   
   // ใช้ตัวกรองเริ่มต้นที่ส่งมาจากหน้าแดชบอร์ด
@@ -39,6 +42,8 @@ export default function SchoolListView({
       if (initialFilters.type) setTypeFilter(initialFilters.type);
       if (initialFilters.size) setSizeFilter(initialFilters.size);
       if (initialFilters.amphoe) setAmphoeFilter(initialFilters.amphoe);
+      if (initialFilters.netFilter) setNetFilter(initialFilters.netFilter);
+      if (initialFilters.electricityFilter) setElectricityFilter(initialFilters.electricityFilter);
       
       // ล้างข้อมูลการพิมพ์ค้นหา
       setSearchTerm('');
@@ -62,13 +67,16 @@ export default function SchoolListView({
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // คำนวณจำนวนนักเรียนรวมของแต่ละโรงเรียนเพื่อให้แสดงในตาราง
+  // คำนวณจำนวนนักเรียนรวมและวิเคราะห์ขนาดโรงเรียนตามเกณฑ์ ก.ค.ศ.
   const schoolsWithCounts = useMemo(() => {
     return schools.map(school => {
       const matchData = studentData.find(s => s.schoolId === school.id);
+      const studentCount = matchData ? matchData.totalStudents : 0;
+      const effectiveSize = matchData ? getSchoolSize(studentCount) : school.size;
       return {
         ...school,
-        studentCount: matchData ? matchData.totalStudents : 0,
+        size: effectiveSize,
+        studentCount,
         maleCount: matchData ? matchData.totalMale : 0,
         femaleCount: matchData ? matchData.totalFemale : 0
       };
@@ -85,13 +93,16 @@ export default function SchoolListView({
                           (typeFilter === 'expansion' && school.isExpansion) ||
                           (typeFilter === 'basic' && !school.isExpansion);
       const matchesNet = netFilter === 'all' || school.internetType === netFilter;
+      const matchesElectricity = electricityFilter === 'all' || 
+                                 (electricityFilter === 'yes' && school.electricity) ||
+                                 (electricityFilter === 'no' && !school.electricity);
       
       const schoolAmphoe = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
       const matchesAmphoe = amphoeFilter === 'all' || schoolAmphoe === amphoeFilter;
 
-      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe;
+      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity;
     });
-  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter]);
+  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter]);
 
   // จัดเรียงข้อมูลที่คัดกรองแล้ว
   const sortedSchools = useMemo(() => {
@@ -333,7 +344,7 @@ export default function SchoolListView({
         </div>
 
         {/* Filters */}
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
           {/* อำเภอ */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
@@ -362,11 +373,11 @@ export default function SchoolListView({
               onChange={(e) => setSizeFilter(e.target.value)}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
-              <option value="all">ทั้งหมด ทุกขนาด</option>
-              <option value="small">ขนาดเล็ก (&lt; 120 คน)</option>
-              <option value="medium">ขนาดกลาง (120-299 คน)</option>
-              <option value="large">ขนาดใหญ่ (300-1499 คน)</option>
-              <option value="special_large">ขนาดใหญ่พิเศษ (&gt;= 1500 คน)</option>
+              <option value="all">ทั้งหมด ทุกขนาด (ตามเกณฑ์ ก.ค.ศ.)</option>
+              <option value="small">ขนาดเล็ก (119 คนลงมา)</option>
+              <option value="medium">ขนาดกลาง (120 - 719 คน)</option>
+              <option value="large">ขนาดใหญ่ (720 - 1,679 คน)</option>
+              <option value="special_large">ขนาดใหญ่พิเศษ (1,680 คนขึ้นไป)</option>
             </select>
           </div>
 
@@ -386,10 +397,26 @@ export default function SchoolListView({
             </select>
           </div>
 
+          {/* ระบบไฟฟ้า */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+              <Filter className="h-3.5 w-3.5 text-amber-500" /> ระบบไฟฟ้า
+            </label>
+            <select
+              value={electricityFilter}
+              onChange={(e) => setElectricityFilter(e.target.value)}
+              className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+            >
+              <option value="all">ทั้งหมด (มี/ไม่มีไฟฟ้า)</option>
+              <option value="yes">⚡ มีไฟฟ้าใช้งาน</option>
+              <option value="no">🔌 ใช้โซลาร์เซลล์ / ไม่มีไฟฟ้า</option>
+            </select>
+          </div>
+
           {/* อินเทอร์เน็ต */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5 text-[#FF8BA7]" /> ระบบอินเทอร์เน็ต
+              <Filter className="h-3.5 w-3.5 text-sky-500" /> ระบบอินเทอร์เน็ต
             </label>
             <select
               value={netFilter}
@@ -397,10 +424,10 @@ export default function SchoolListView({
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
               <option value="all">ทั้งหมด ทุกประเภท</option>
-              <option value="fiber">ไฟเบอร์ออพติก (Fiber)</option>
-              <option value="satellite">ดาวเทียม (Satellite)</option>
-              <option value="sim">อินเทอร์เน็ตซิม (SIM 4G/5G)</option>
-              <option value="none">ไม่ได้ใช้/ไม่มีอินเทอร์เน็ต</option>
+              <option value="fiber">🌐 ไฟเบอร์ออพติก (Fiber)</option>
+              <option value="satellite">🛰️ ดาวเทียม (Satellite)</option>
+              <option value="sim">📱 อินเทอร์เน็ตซิม (SIM 4G/5G)</option>
+              <option value="none">❌ ไม่ได้ใช้/ไม่มีอินเทอร์เน็ต</option>
             </select>
           </div>
         </div>

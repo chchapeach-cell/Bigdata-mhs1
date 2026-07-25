@@ -50,8 +50,6 @@ body {
 }
 
 .btn-cute {
-  background-color: white;
-  color: #33272A;
   border: 2px solid #33272A;
   border-radius: 999px;
   box-shadow: 3px 3px 0px #33272A;
@@ -73,8 +71,6 @@ body {
 }
 
 .dark .btn-cute {
-  background-color: #33272A;
-  color: #FFF9F5;
   border: 2px solid #FFD3B6;
   box-shadow: 3px 3px 0px #FFD3B6;
 }

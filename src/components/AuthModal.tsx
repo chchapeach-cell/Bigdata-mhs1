@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { School, UserProfile } from '../types';
-import { CheckCircle, AlertTriangle, Mail, Shield } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn } from 'lucide-react';
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db, OperationType, handleFirestoreError } from '../firebase';
@@ -359,10 +359,10 @@ export default function AuthModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#33272A]/60 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-md card p-6 animate-zoom-in">
         {/* Modal Header */}
-        <div className="flex justify-between items-center mb-4 pb-3 border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+        <div className="flex justify-between items-center mb-3 pb-3 border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
           <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-            <Shield className="h-4.5 w-4.5 text-[#FF8BA7] animate-pulse" />
-            {isSignUpMode ? 'สมัครสิทธิ์แอดมินโรงเรียน' : 'เข้าสู่ระบบแอดมินโรงเรียน'}
+            <Shield className="h-5 w-5 text-[#FF8BA7] animate-pulse" />
+            <span>ระบบแอดมินโรงเรียน</span>
           </h3>
           <button
             onClick={onClose}
@@ -372,13 +372,51 @@ export default function AuthModal({
           </button>
         </div>
 
+        {/* ปุ่มสลับโหมดชัดเจน (Tab Switcher) */}
+        <div className="grid grid-cols-2 gap-2 mb-4 p-1 bg-[#FFF9F5] dark:bg-[#1e1518] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUpMode(false);
+              setErrorMsg('');
+              setSuccessMsg('');
+            }}
+            style={{ backgroundColor: !isSignUpMode ? '#FF8BA7' : 'transparent', color: '#33272A' }}
+            className={`py-2 px-3 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              !isSignUpMode
+                ? 'border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6]'
+                : 'dark:text-[#FFF9F5]/70 hover:bg-[#FFD3B6]/30'
+            }`}
+          >
+            <LogIn className="h-4 w-4" />
+            <span>เข้าสู่ระบบ</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUpMode(true);
+              setErrorMsg('');
+              setSuccessMsg('');
+            }}
+            style={{ backgroundColor: isSignUpMode ? '#A0E7E5' : 'rgba(160, 231, 229, 0.25)', color: '#33272A' }}
+            className={`py-2 px-3 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              isSignUpMode
+                ? 'border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6]'
+                : 'border-2 border-dashed border-[#33272A]/40 dark:border-[#FFD3B6]/40 dark:text-[#FFF9F5] hover:opacity-80'
+            }`}
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>ลงทะเบียนสมัครสิทธิ์</span>
+          </button>
+        </div>
+
         {/* ฟอร์มสลับ โหมด */}
         <div className="space-y-4">
           {/* ข้อมูลช่วยเหลือ */}
           <div className="bg-[#FFD3B6]/35 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-relaxed font-bold">
             {isSignUpMode 
-              ? 'กรอกข้อมูลจริงเพื่อขอสิทธิ์เป็นแอดมินประจำโรงเรียนของคุณ โดยต้องรอการกดยืนยันอนุมัติจาก Super Admin ก่อนเข้าสู่ระบบแก้ไขข้อมูลได้'
-              : 'สำหรับบุคคลทั่วไป สามารถเข้าดูข้อมูลและดาวน์โหลดข้อมูลนักเรียนได้ทันทีโดยไม่ต้องเข้าสู่ระบบ แต่หากต้องการแก้ไขข้อมูลโรงเรียน ต้องมีบัญชีแอดมินที่ผ่านการอนุมัติ'}
+              ? '📝 ฟอร์มลงทะเบียน: กรอกข้อมูลจริงเพื่อขอสิทธิ์เป็นแอดมินประจำโรงเรียน โดยคำร้องจะส่งไปยัง Super Admin เพื่ออนุมัติสิทธิ์'
+              : '🔑 เข้าสู่ระบบ: สำหรับแอดมินโรงเรียนที่ได้รับอนุมัติสิทธิ์แล้ว หรือใช้บัญชี Gmail ที่ได้รับสิทธิ์'}
           </div>
 
           {/* Error & Success Messages */}
@@ -401,7 +439,7 @@ export default function AuthModal({
               {/* แบบฟอร์ม Login ด้วย Email */}
               <form onSubmit={handleEmailLogin} className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
+                  <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมลแอดมิน</label>
                   <input
                     type="email"
                     required
@@ -425,13 +463,14 @@ export default function AuthModal({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black disabled:opacity-50 cursor-pointer shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6] hover:translate-y-0.5 active:translate-y-1 transition-all outline-none"
+                  className="w-full btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black disabled:opacity-50 cursor-pointer shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6] hover:translate-y-0.5 active:translate-y-1 transition-all outline-none flex items-center justify-center gap-1.5"
                 >
-                  {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วยอีเมล'}
+                  <LogIn className="h-4 w-4" />
+                  <span>{isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบด้วยอีเมล'}</span>
                 </button>
               </form>
 
-              <div className="relative flex py-2 items-center text-slate-300 dark:text-slate-700">
+              <div className="relative flex py-1 items-center text-slate-300 dark:text-slate-700">
                 <div className="flex-grow border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20"></div>
                 <span className="flex-shrink mx-3 text-[10px] font-black text-[#33272A]/50 dark:text-[#FFF9F5]/50">หรือล็อกอินด้วย</span>
                 <div className="flex-grow border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20"></div>
@@ -448,33 +487,34 @@ export default function AuthModal({
                   alt="Google"
                   className="h-4 w-4"
                 />
-                <span>Gmail (Google)</span>
+                <span>เข้าสู่ระบบด้วย Gmail (Google)</span>
               </button>
 
-              <div className="relative flex py-2 items-center text-slate-300 dark:text-slate-700">
-                <div className="flex-grow border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20"></div>
-                <span className="flex-shrink mx-3 text-[10px] font-black text-[#33272A]/50 dark:text-[#FFF9F5]/50">หรือสมัครสมาชิกขอสิทธิ์</span>
-                <div className="flex-grow border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20"></div>
+              {/* การ์ดและปุ่มลงทะเบียนโดดเด่นชัดเจน */}
+              <div className="mt-4 p-4 rounded-2xl bg-[#A0E7E5]/25 dark:bg-[#A0E7E5]/10 border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2.5 text-center shadow-sm">
+                <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  ✨ ยังไม่มีบัญชีแอดมินประจำโรงเรียน?
+                </p>
+                {isRegistrationOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSignUpMode(true);
+                      setErrorMsg('');
+                      setSuccessMsg('');
+                    }}
+                    style={{ backgroundColor: '#A0E7E5', color: '#33272A' }}
+                    className="w-full btn-cute border-2 border-[#33272A] dark:border-[#FFD3B6] px-4 py-3 text-xs font-black cursor-pointer shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6] hover:opacity-90 hover:translate-y-0.5 transition-all outline-none flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="h-4.5 w-4.5" />
+                    <span>คลิกเพื่อลงทะเบียนสมัครสิทธิ์แอดมินโรงเรียน</span>
+                  </button>
+                ) : (
+                  <div className="w-full text-center text-xs font-black text-rose-500 py-1">
+                    🚫 ขณะนี้ระบบปิดรับสมัครแอดมินโรงเรียนชั่วคราว
+                  </div>
+                )}
               </div>
-
-              {/* สลับไปหน้าสมัครสมาชิก */}
-              {isRegistrationOpen ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSignUpMode(true);
-                    setErrorMsg('');
-                    setSuccessMsg('');
-                  }}
-                  className="w-full text-center text-xs font-black text-[#FF8BA7] hover:underline cursor-pointer outline-none"
-                >
-                  ยังไม่มีสิทธิ์เข้าถึงระบบ? คลิกเพื่อสมัครสิทธิ์แอดมินโรงเรียน &rarr;
-                </button>
-              ) : (
-                <div className="w-full text-center text-xs font-black text-rose-500 py-2">
-                  🚫 ขณะนี้ระบบปิดรับสมัครแอดมินโรงเรียนชั่วคราว
-                </div>
-              )}
             </div>
           ) : (
             /* แบบฟอร์มลงทะเบียนส่งคำร้องสิทธิ์ */
@@ -553,20 +593,22 @@ export default function AuthModal({
               </div>
 
               {/* ปุ่มควบคุมสมัครสมาชิก */}
-              <div className="flex gap-2 justify-end pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsSignUpMode(false)}
-                  className="rounded-xl px-4 py-2 text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 hover:bg-[#FFD3B6]/30 cursor-pointer"
-                >
-                  กลับไปเข้าสู่ระบบ
-                </button>
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black disabled:opacity-50 cursor-pointer"
+                  style={{ backgroundColor: '#A0E7E5', color: '#33272A' }}
+                  className="w-full btn-cute border-2 border-[#33272A] dark:border-[#FFD3B6] px-5 py-3 text-xs font-black disabled:opacity-50 cursor-pointer shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6] hover:opacity-90 hover:translate-y-0.5 transition-all flex items-center justify-center gap-2"
                 >
-                  {isLoading ? 'กำลังประมวลผลคำขอ...' : 'ส่งข้อมูลเพื่อขออนุมัติ'}
+                  <UserPlus className="h-4.5 w-4.5" />
+                  <span>{isLoading ? 'กำลังประมวลผลคำขอ...' : 'ส่งข้อมูลลงทะเบียนเพื่อขออนุมัติสิทธิ์'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSignUpMode(false)}
+                  className="w-full text-center py-1.5 text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 hover:underline cursor-pointer"
+                >
+                  &larr; มีบัญชีอยู่แล้ว? กลับไปเข้าสู่ระบบ
                 </button>
               </div>
             </form>

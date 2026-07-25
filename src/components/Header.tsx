@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2 } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
@@ -192,10 +192,11 @@ export default function Header({
           ) : (
             <button
               onClick={onLoginClick}
-              className="btn-cute bg-[#FF8BA7] px-4 py-2 text-xs font-bold flex items-center gap-1.5 transition-all"
+              className="btn-cute bg-[#FF8BA7] hover:bg-[#ff7094] text-[#33272A] px-3.5 py-1.5 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A]"
+              title="เข้าสู่ระบบ / แอดมิน"
             >
               <LogIn className="h-4 w-4" />
-              <span>เข้าสู่ระบบ / สมัครสิทธิ์</span>
+              <span>เข้าสู่ระบบ</span>
             </button>
           )}
         </div>

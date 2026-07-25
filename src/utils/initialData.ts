@@ -251,6 +251,33 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
   return { amphoe: "เมืองแม่ฮ่องสอน", networkGroup: "กลุ่มเครือข่ายพัฒนาคุณภาพการศึกษาเมือง 1" };
 }
 
+// ฟังก์ชันวิเคราะห์ขนาดสถานศึกษาตามเกณฑ์ ก.ค.ศ. (คณะกรรมการข้าราชการครูและบุคลากรทางการศึกษา)
+// - ขนาดเล็ก: นักเรียน ตั้งแต่ 119 คนลงมา
+// - ขนาดกลาง: นักเรียน ตั้งแต่ 120 – 719 คน
+// - ขนาดใหญ่: นักเรียน ตั้งแต่ 720 – 1,679 คน
+// - ขนาดใหญ่พิเศษ: นักเรียน ตั้งแต่ 1,680 คนขึ้นไป
+export function getSchoolSize(studentCount: number): School['size'] {
+  if (studentCount >= 1680) return 'special_large';
+  if (studentCount >= 720) return 'large';
+  if (studentCount >= 120) return 'medium';
+  return 'small';
+}
+
+export function getSchoolSizeLabel(size: School['size'] | string): string {
+  switch (size) {
+    case 'small':
+      return 'ขนาดเล็ก (119 คนลงมา)';
+    case 'medium':
+      return 'ขนาดกลาง (120 - 719 คน)';
+    case 'large':
+      return 'ขนาดใหญ่ (720 - 1,679 คน)';
+    case 'special_large':
+      return 'ขนาดใหญ่พิเศษ (1,680 คนขึ้นไป)';
+    default:
+      return 'ไม่ระบุ';
+  }
+}
+
 // ฟังก์ชันสร้างข้อมูลโรงเรียนสุ่ม/ตั้งต้นในกรณีไม่มีฐานข้อมูล
 export function generateDefaultSchool(id: string, nameRaw: string, studentCount: number, isExpansion: boolean): School {
   const metadata = SCHOOL_METADATA_PRESETS[id] || {
@@ -263,11 +290,8 @@ export function generateDefaultSchool(id: string, nameRaw: string, studentCount:
     managerPhone: `08${Math.floor(10000000 + Math.random() * 90000000)}`
   };
 
-  // วิเคราะห์ขนาดตามจำนวนนักเรียน
-  let size: School['size'] = 'small';
-  if (studentCount >= 1500) size = 'special_large';
-  else if (studentCount >= 300) size = 'large';
-  else if (studentCount >= 120) size = 'medium';
+  // วิเคราะห์ขนาดตามเกณฑ์ ก.ค.ศ. กำหนด
+  const size = getSchoolSize(studentCount);
 
   // สุ่มระบบอินเทอร์เน็ต
   const netTypes: School['internetType'][] = ['fiber', 'satellite', 'sim', 'none'];
