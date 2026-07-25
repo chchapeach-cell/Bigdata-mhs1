@@ -21,19 +21,20 @@
 body {
   background-color: var(--bg-vibrant);
   color: var(--text-vibrant);
+  letter-spacing: 0.01em;
 }
 
 .card {
   background: white;
   border: 2px solid #33272A;
-  border-radius: 24px;
+  border-radius: 20px;
   box-shadow: 4px 4px 0px #33272A;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .card:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0px #33272A;
+  transform: none;
+  box-shadow: 4px 4px 0px #33272A;
 }
 
 .dark .card {
@@ -44,7 +45,8 @@ body {
 }
 
 .dark .card:hover {
-  box-shadow: 6px 6px 0px #FFD3B6;
+  transform: none;
+  box-shadow: 4px 4px 0px #FFD3B6;
 }
 
 .btn-cute {
@@ -53,17 +55,21 @@ body {
   border: 2px solid #33272A;
   border-radius: 999px;
   box-shadow: 3px 3px 0px #33272A;
-  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.btn-cute:hover {
+  transform: none;
 }
 
 .btn-cute:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px #33272A;
+  transform: none;
+  box-shadow: 2px 2px 0px #33272A;
 }
 
 .dark .btn-cute {

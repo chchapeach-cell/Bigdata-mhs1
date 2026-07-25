@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio } from 'lucide-react';
 import { getAmphoeAndNetwork } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -30,6 +30,9 @@ export default function DashboardView({
 }: DashboardViewProps) {
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
+  
+  // ตัวกรองแผนที่สำหรับโครงสร้างพื้นฐาน (ไฟฟ้า & อินเทอร์เน็ต)
+  const [mapInfraFilter, setMapInfraFilter] = useState<'all' | 'electricity' | 'fiber' | 'satellite' | 'sim' | 'none'>('all');
   
   // สถานะค้นหาวิชาเอกภาพรวม
   const [majorSearchQuery, setMajorSearchQuery] = useState<string>('');
@@ -308,6 +311,84 @@ export default function DashboardView({
       .sort((a, b) => b.teachersCount - a.teachersCount);
   }, [schools]);
 
+  // สถิติระบบไฟฟ้าและอินเทอร์เน็ตของสถานศึกษา
+  const infraStats = useMemo(() => {
+    let hasElectricity = 0;
+    let noElectricity = 0;
+
+    let fiber = 0;
+    let satellite = 0;
+    let sim = 0;
+    let none = 0;
+
+    const amphoeData: Record<string, {
+      total: number;
+      hasElectricity: number;
+      fiber: number;
+      satellite: number;
+      sim: number;
+      none: number;
+    }> = {
+      "เมืองแม่ฮ่องสอน": { total: 0, hasElectricity: 0, fiber: 0, satellite: 0, sim: 0, none: 0 },
+      "ขุนยวม": { total: 0, hasElectricity: 0, fiber: 0, satellite: 0, sim: 0, none: 0 },
+      "ปาย": { total: 0, hasElectricity: 0, fiber: 0, satellite: 0, sim: 0, none: 0 },
+      "ปางมะผ้า": { total: 0, hasElectricity: 0, fiber: 0, satellite: 0, sim: 0, none: 0 },
+      "อื่นๆ/ไม่ระบุ": { total: 0, hasElectricity: 0, fiber: 0, satellite: 0, sim: 0, none: 0 },
+    };
+
+    schools.forEach(s => {
+      // Electricity
+      if (s.electricity) {
+        hasElectricity++;
+      } else {
+        noElectricity++;
+      }
+
+      // Internet
+      const type = s.internetType || 'none';
+      if (type === 'fiber') fiber++;
+      else if (type === 'satellite') satellite++;
+      else if (type === 'sim') sim++;
+      else none++;
+
+      // Amphoe breakdown
+      const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe || "อื่นๆ/ไม่ระบุ";
+      const target = amphoeData[amp] || amphoeData["อื่นๆ/ไม่ระบุ"];
+      target.total++;
+      if (s.electricity) target.hasElectricity++;
+      if (type === 'fiber') target.fiber++;
+      else if (type === 'satellite') target.satellite++;
+      else if (type === 'sim') target.sim++;
+      else target.none++;
+    });
+
+    const totalSchools = schools.length || 1;
+    const connectedInternet = fiber + satellite + sim;
+
+    return {
+      hasElectricity,
+      noElectricity,
+      electricityPercent: ((hasElectricity / totalSchools) * 100).toFixed(1),
+      connectedInternet,
+      internetPercent: ((connectedInternet / totalSchools) * 100).toFixed(1),
+      fiber,
+      satellite,
+      sim,
+      none,
+      internetTypePie: [
+        { name: 'เคเบิลไฟเบอร์ออพติก (Fiber)', value: fiber, color: '#60A5FA' },
+        { name: 'จานดาวเทียม (Satellite / IPSTAR)', value: satellite, color: '#A0E7E5' },
+        { name: 'ซิมมือถือ 4G/5G (SIM)', value: sim, color: '#FFD3B6' },
+        { name: 'ไม่มีอินเทอร์เน็ต (None)', value: none, color: '#FF8BA7' }
+      ],
+      electricityPie: [
+        { name: 'มีไฟฟ้าใช้งาน', value: hasElectricity, color: '#F59E0B' },
+        { name: 'ไม่มีไฟฟ้า / ใช้โซลาร์เซลล์', value: noElectricity, color: '#94A3B8' }
+      ],
+      amphoeData
+    };
+  }, [schools]);
+
   return (
     <div className="space-y-6">
       {/* Header และปีการศึกษา */}
@@ -341,20 +422,20 @@ export default function DashboardView({
         {/* โรงเรียนทั้งหมด */}
         <div 
           onClick={() => onFilterNavigate?.({ type: 'all' })}
-          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FF8BA7] transition-all duration-300 group"
+          className="relative overflow-hidden card p-6 cursor-pointer hover:border-[#FF8BA7] transition-all duration-200 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">สถานศึกษาทั้งหมด</span>
+            <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">สถานศึกษาทั้งหมด</span>
             <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
               <Building2 className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
             <div>
-              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalSchools}</span>
-              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">โรงเรียน</span>
+              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{stats.totalSchools}</span>
+              <span className="ml-2 text-xs font-semibold text-[#33272A]/70 dark:text-[#FFF9F5]/70">โรงเรียน</span>
             </div>
-            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            <span className="text-xs font-bold text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
               ดูรายชื่อ ➡️
             </span>
           </div>
@@ -364,20 +445,20 @@ export default function DashboardView({
         {/* นักเรียนทั้งหมด */}
         <div 
           onClick={() => onFilterNavigate?.({ type: 'all' })}
-          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FFD3B6] transition-all duration-300 group"
+          className="relative overflow-hidden card p-6 cursor-pointer hover:border-[#FFD3B6] transition-all duration-200 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">นักเรียนทั้งหมด</span>
+            <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">นักเรียนทั้งหมด</span>
             <div className="rounded-2xl bg-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
               <Users className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
             <div>
-              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalStudents.toLocaleString()}</span>
-              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน (ชาย: {stats.totalMale} / หญิง: {stats.totalFemale})</span>
+              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{stats.totalStudents.toLocaleString()}</span>
+              <span className="ml-2 text-xs font-semibold text-[#33272A]/70 dark:text-[#FFF9F5]/70">คน (ชาย: {stats.totalMale} / หญิง: {stats.totalFemale})</span>
             </div>
-            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            <span className="text-xs font-bold text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
               ดูรายชื่อ ➡️
             </span>
           </div>
@@ -387,20 +468,20 @@ export default function DashboardView({
         {/* ครู/บุคลากร */}
         <div 
           onClick={() => onFilterNavigate?.({ type: 'all' })}
-          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#A0E7E5] transition-all duration-300 group"
+          className="relative overflow-hidden card p-6 cursor-pointer hover:border-[#A0E7E5] transition-all duration-200 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ครูและบุคลากร</span>
+            <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ครูและบุคลากร</span>
             <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
               <GraduationCap className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
             <div>
-              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.totalTeachers}</span>
-              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">คน</span>
+              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{stats.totalTeachers}</span>
+              <span className="ml-2 text-xs font-semibold text-[#33272A]/70 dark:text-[#FFF9F5]/70">คน</span>
             </div>
-            <span className="text-[10px] font-black text-[#A0E7E5] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            <span className="text-xs font-bold text-[#A0E7E5] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
               ดูรายชื่อ ➡️
             </span>
           </div>
@@ -410,20 +491,20 @@ export default function DashboardView({
         {/* โรงเรียนขยายโอกาส */}
         <div 
           onClick={() => onFilterNavigate?.({ type: 'expansion' })}
-          className="relative overflow-hidden card p-6 cursor-pointer hover:scale-[1.02] hover:shadow-md hover:border-[#FF8BA7] transition-all duration-300 group"
+          className="relative overflow-hidden card p-6 cursor-pointer hover:border-[#FF8BA7] transition-all duration-200 group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ขยายโอกาส (ม.1-ม.3)</span>
+            <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ขยายโอกาส (ม.1-ม.3)</span>
             <div className="rounded-2xl bg-[#FFD3B6]/80 border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
               <Award className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
             <div>
-              <span className="text-3xl font-black text-[#33272A] dark:text-[#FFF9F5]">{stats.expansionSchools}</span>
-              <span className="ml-2 text-xs font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">แห่ง</span>
+              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{stats.expansionSchools}</span>
+              <span className="ml-2 text-xs font-semibold text-[#33272A]/70 dark:text-[#FFF9F5]/70">แห่ง</span>
             </div>
-            <span className="text-[10px] font-black text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            <span className="text-xs font-bold text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
               ดูรายชื่อ ➡️
             </span>
           </div>
@@ -742,7 +823,7 @@ export default function DashboardView({
                   return filtered.map((major, idx) => (
                     <div 
                       key={idx}
-                      className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-[#33272A]/10 dark:border-[#FFD3B6]/10 hover:border-[#FF8BA7] hover:scale-[1.01] transition-all"
+                      className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-[#33272A]/10 dark:border-[#FFD3B6]/10 hover:border-[#FF8BA7] transition-all"
                     >
                       <div className="flex items-center gap-2">
                         <span className="h-5 w-5 rounded-lg bg-[#FF8BA7]/20 border border-[#FF8BA7]/50 flex items-center justify-center text-[9px] font-black text-[#FF8BA7]">
@@ -782,25 +863,104 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* แถวแผนที่ภาพรวมของแต่ละโรงเรียน (ข้อ 3.1) */}
-      <div className="card p-6 space-y-4">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-            <MapIcon className="h-5 w-5 text-[#FF8BA7]" /> 
-            แผนที่ตั้งและพิกัดภูมิศาสตร์ของทุกโรงเรียนแบบโต้ตอบ (GIS)
-          </h3>
-          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-            แสดงสถานศึกษาทั้งหมด {schools.length} แห่งในเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1 บนแผนที่เดียว คลิกที่ปักหมุดเพื่อดูข้อมูลด่วนและนำทางไปยังข้อมูลเชิงลึก
-          </p>
+      {/* แถวแผนที่ภาพรวมของแต่ละโรงเรียน + โครงสร้างพื้นฐาน (GIS Infrastructure Map) */}
+      <div className="card p-6 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b-2 border-[#33272A]/10 pb-4 dark:border-[#FFD3B6]/10">
+          <div>
+            <h3 className="text-lg font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+              <MapIcon className="h-5 w-5 text-[#FF8BA7]" /> 
+              <Zap className="h-5 w-5 text-amber-500 fill-amber-500" />
+              <Wifi className="h-5 w-5 text-sky-500" />
+              แผนที่ GIS และข้อมูลโครงสร้างพื้นฐานสถานศึกษา (ระบบไฟฟ้า & ระบบสัญญาณอินเทอร์เน็ต)
+            </h3>
+            <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
+              พิกัดตำแหน่งสถานศึกษา {schools.length} แห่ง และข้อมูลสารสนเทศสาธารณูปโภคพื้นฐาน สพป.แม่ฮ่องสอน เขต 1
+            </p>
+          </div>
+
+          {/* ปุ่มตัวกรองโครงสร้างพื้นฐานบนแผนที่ */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+            <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider mr-1">กรองหมุดบนแผนที่:</span>
+            <button
+              onClick={() => setMapInfraFilter('all')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all cursor-pointer ${
+                mapInfraFilter === 'all'
+                  ? 'bg-[#33272A] text-white border-[#33272A] dark:bg-[#FFD3B6] dark:text-[#33272A]'
+                  : 'bg-white text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
+              }`}
+            >
+              ทั้งหมด ({schools.length})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('electricity')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'electricity'
+                  ? 'bg-amber-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700'
+              }`}
+            >
+              <Zap className="h-3.5 w-3.5 fill-amber-500 text-amber-600" />
+              มีไฟฟ้า ({infraStats.hasElectricity})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('fiber')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'fiber'
+                  ? 'bg-emerald-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5 text-emerald-600" />
+              ไฟเบอร์ ({infraStats.fiber})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('satellite')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'satellite'
+                  ? 'bg-sky-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-sky-50 text-sky-900 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700'
+              }`}
+            >
+              <Radio className="h-3.5 w-3.5 text-sky-600" />
+              ดาวเทียม ({infraStats.satellite})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('sim')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'sim'
+                  ? 'bg-orange-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-orange-50 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200 dark:border-orange-700'
+              }`}
+            >
+              <Smartphone className="h-3.5 w-3.5 text-orange-600" />
+              ซิมมือถือ ({infraStats.sim})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('none')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'none'
+                  ? 'bg-rose-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-700'
+              }`}
+            >
+              <WifiOff className="h-3.5 w-3.5 text-rose-600" />
+              ไม่มีเน็ต ({infraStats.none})
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* ซีกซ้าย: รายชื่อโรงเรียนให้เลือกด่วน และแสดงข้อมูลสถานศึกษา */}
+          {/* ซีกซ้าย: รายชื่อโรงเรียนให้เลือกด่วน และแสดงข้อมูลสถานศึกษา + โครงสร้างพื้นฐาน */}
           <div className="md:col-span-1 space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase">
-                  ค้นหา/เลือกสถานศึกษาบนแผนที่
+                <label className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase flex items-center justify-between">
+                  <span>ค้นหา/เลือกสถานศึกษาบนแผนที่</span>
+                  {mapInfraFilter !== 'all' && (
+                    <span className="text-rose-500 text-[9px] font-bold">
+                      (กรองตาม: {mapInfraFilter})
+                    </span>
+                  )}
                 </label>
                 <select
                   value={selectedMapSchoolId}
@@ -808,7 +968,12 @@ export default function DashboardView({
                   className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-md"
                 >
                   <option value="">-- แสดงทั้งหมด (สำนักงานเขต สพป.มส.1) --</option>
-                  {schools.map(s => (
+                  {(mapInfraFilter === 'all' 
+                    ? schools 
+                    : mapInfraFilter === 'electricity' 
+                    ? schools.filter(s => s.electricity) 
+                    : schools.filter(s => s.internetType === mapInfraFilter)
+                  ).map(s => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe})
                     </option>
@@ -816,10 +981,10 @@ export default function DashboardView({
                 </select>
               </div>
 
-              {/* การแสดงการ์ดข้อมูลโรงเรียนย่อของแผนที่ */}
+              {/* การแสดงการ์ดข้อมูลโรงเรียนย่อของแผนที่ พร้อมข้อมูลโครงสร้างพื้นฐาน */}
               <div className="bg-[#FFF9F5] dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-md">
                 <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">
-                  {mapSchool ? "ข้อมูลสถานศึกษาที่คลิกเลือก" : "สำนักงานเขตพื้นที่การศึกษา"}
+                  {mapSchool ? "ข้อมูลสถานศึกษา & โครงสร้างพื้นฐาน" : "สำนักงานเขตพื้นที่การศึกษา"}
                 </span>
                 <div className="space-y-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
                   <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -827,21 +992,41 @@ export default function DashboardView({
                     {mapSchool ? mapSchool.name : "สพป.แม่ฮ่องสอน เขต 1"}
                   </h4>
                   {mapSchool ? (
-                    <div className="space-y-1 mt-2">
+                    <div className="space-y-2 mt-2">
+                      <div className="grid grid-cols-2 gap-2 text-[11px] p-2 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">อำเภอ</span>
+                          <span className="text-[#33272A] dark:text-[#FFF9F5] font-bold">{mapSchool.amphoe || getAmphoeAndNetwork(mapSchool.id, mapSchool.name).amphoe}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">ขนาดโรงเรียน</span>
+                          <span className="text-[#33272A] dark:text-[#FFF9F5] font-bold">โรงเรียน{mapSchool.size === 'small' ? 'ขนาดเล็ก' : mapSchool.size === 'medium' ? 'ขนาดกลาง' : 'ขนาดใหญ่'}</span>
+                        </div>
+                      </div>
+
+                      {/* ข้อมูลไฟฟ้าและเน็ตด่วน */}
+                      <div className="space-y-1.5 p-2.5 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="h-4 w-4 text-amber-500 fill-amber-500 shrink-0" />
+                          <span>ระบบไฟฟ้า:</span>
+                          <span className={`font-bold ${mapSchool.electricity ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500'}`}>
+                            {mapSchool.electricity ? '⚡ มีไฟฟ้าใช้งาน' : '🔌 ใช้โซลาร์เซลล์ / ไม่มีไฟฟ้า'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Wifi className="h-4 w-4 text-sky-500 shrink-0" />
+                          <span>อินเทอร์เน็ต:</span>
+                          <span className="font-bold text-sky-700 dark:text-sky-300">
+                            {mapSchool.internetType === 'fiber' ? '🌐 ไฟเบอร์ออพติก (Fiber)' : mapSchool.internetType === 'satellite' ? '🛰️ จานดาวเทียม (Satellite)' : mapSchool.internetType === 'sim' ? '📱 ซิมมือถือ (4G/5G)' : '❌ ไม่มีอินเทอร์เน็ต'}
+                          </span>
+                        </div>
+                      </div>
+
                       <p className="text-[#33272A]/70 dark:text-[#FFF9F5]/70 text-[11px]">
-                        อำเภอ: <span className="text-[#33272A] dark:text-[#FFF9F5]">{mapSchool.amphoe || getAmphoeAndNetwork(mapSchool.id, mapSchool.name).amphoe}</span>
+                        จำนวนครู/บุคลากร: <span className="text-[#33272A] dark:text-[#FFF9F5] font-bold">{mapSchool.staffCount || 0} คน</span>
                       </p>
                       <p className="text-[#33272A]/70 dark:text-[#FFF9F5]/70 text-[11px]">
-                        กลุ่มเครือข่าย: <span className="text-[#33272A] dark:text-[#FFF9F5]">{mapSchool.networkGroup || getAmphoeAndNetwork(mapSchool.id, mapSchool.name).networkGroup || "ไม่ระบุ"}</span>
-                      </p>
-                      <p className="text-[#33272A]/70 dark:text-[#FFF9F5]/70 text-[11px]">
-                        ขนาดโรงเรียน: <span className="text-[#33272A] dark:text-[#FFF9F5]">โรงเรียน{mapSchool.size === 'small' ? 'ขนาดเล็ก' : mapSchool.size === 'medium' ? 'ขนาดกลาง' : 'ขนาดใหญ่'}</span>
-                      </p>
-                      <p className="text-[#33272A]/70 dark:text-[#FFF9F5]/70 text-[11px]">
-                        จำนวนครูและบุคลากร: <span className="text-[#33272A] dark:text-[#FFF9F5]">{mapSchool.staffCount || 0} คน</span>
-                      </p>
-                      <p className="text-[#33272A]/70 dark:text-[#FFF9F5]/70 text-[11px]">
-                        พิกัดภูมิศาสตร์ (GIS): <span className="text-[#33272A] dark:text-[#FFF9F5] font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{mapSchool.latitude}, {mapSchool.longitude}</span>
+                        พิกัด GIS: <span className="text-[#33272A] dark:text-[#FFF9F5] font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{mapSchool.latitude}, {mapSchool.longitude}</span>
                       </p>
 
                       {onSelectSchool && (
@@ -858,8 +1043,8 @@ export default function DashboardView({
                       <p className="text-[11px] leading-relaxed text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
                         สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1 อำเภอเมืองแม่ฮ่องสอน จังหวัดแม่ฮ่องสอน 58000
                       </p>
-                      <p className="text-[10px] text-slate-400 font-bold bg-[#FFF9F5] dark:bg-slate-900 border border-dashed border-[#33272A]/20 p-2 rounded-xl text-center">
-                        💡 คลิกเลือกหมุดสีต่างๆ บนแผนที่ด้านขวา เพื่อแสดงข้อมูลสถานศึกษาด่วนรายแห่ง
+                      <p className="text-[10px] text-slate-500 font-bold bg-[#FFF9F5] dark:bg-slate-900 border border-dashed border-[#33272A]/20 p-2 rounded-xl text-center">
+                        💡 เลือกคลิกปุ่มตัวกรองไฟฟ้า/เน็ตด้านบน หรือคลิกหมุดสีบนแผนที่ เพื่อตรวจสอบโครงสร้างพื้นฐานด่วน
                       </p>
                     </div>
                   )}
@@ -893,7 +1078,7 @@ export default function DashboardView({
 
           {/* ซีกขวา: แผนที่แบบโต้ตอบ PigeonMap */}
           <div className="md:col-span-2">
-            <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-white shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[320px] md:h-[380px]">
+            <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-white shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[340px] md:h-[400px]">
               <PigeonMap
                 center={mapCenter}
                 zoom={mapZoom}
@@ -902,8 +1087,13 @@ export default function DashboardView({
                   setMapZoom(zoom);
                 }}
               >
-                {/* วาดหมุดของโรงเรียนทั้งหมด */}
-                {schools.map(school => {
+                {/* วาดหมุดของโรงเรียน (ตามตัวกรองโครงสร้างพื้นฐาน) */}
+                {(mapInfraFilter === 'all' 
+                  ? schools 
+                  : mapInfraFilter === 'electricity' 
+                  ? schools.filter(s => s.electricity) 
+                  : schools.filter(s => s.internetType === mapInfraFilter)
+                ).map(school => {
                   const lat = Number(school.latitude) || 19.3021;
                   const lng = Number(school.longitude) || 97.9654;
                   const isSelected = selectedMapSchoolId === school.id;
@@ -931,14 +1121,21 @@ export default function DashboardView({
                   );
                 })}
 
-                {/* สัญลักษณ์โอเวอร์เลย์แสดงชื่อโรงเรียนที่ถูกเลือกลอยขึ้นมาบนหัวหมุด */}
+                {/* สัญลักษณ์โอเวอร์เลย์แสดงชื่อโรงเรียนและสถานะไฟฟ้า/เน็ต ลอยขึ้นมาบนหัวหมุด */}
                 {mapSchool && (
                   <PigeonOverlay
                     anchor={[Number(mapSchool.latitude) || 19.3021, Number(mapSchool.longitude) || 97.9654]}
-                    offset={[0, -32]}
+                    offset={[0, -36]}
                   >
-                    <div className="bg-[#FFF9F5] border-2 border-[#33272A] px-2 py-1 rounded-xl text-[10px] font-black text-[#33272A] shadow-[2px_2px_0px_#33272A] dark:bg-[#1e1518] dark:text-[#FFF9F5] whitespace-nowrap z-50">
-                      📍 {mapSchool.name}
+                    <div className="bg-[#FFF9F5] border-2 border-[#33272A] px-2.5 py-1.5 rounded-xl text-[10px] font-black text-[#33272A] shadow-[2px_2px_0px_#33272A] dark:bg-[#1e1518] dark:text-[#FFF9F5] whitespace-nowrap z-50 flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1 text-slate-800 dark:text-slate-100">
+                        <span>📍 {mapSchool.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                        <span>{mapSchool.electricity ? '⚡ มีไฟฟ้า' : '🔌 โซลาร์เซลล์'}</span>
+                        <span>•</span>
+                        <span>{mapSchool.internetType === 'fiber' ? '🌐 ไฟเบอร์' : mapSchool.internetType === 'satellite' ? '🛰️ ดาวเทียม' : mapSchool.internetType === 'sim' ? '📱 ซิม' : '❌ ไม่มีเน็ต'}</span>
+                      </div>
                     </div>
                   </PigeonOverlay>
                 )}
@@ -960,16 +1157,170 @@ export default function DashboardView({
                 </div>
               </div>
             </div>
+
             <div className="flex justify-between items-center mt-1.5 px-1">
               <span className="text-[10px] text-gray-400 font-bold">💡 ใช้ปุ่มกลิ้งเม้าส์เพื่อซูมแผนที่ และลากเมาส์เพื่อเลื่อนตำแหน่งดูภาพรวมเขต สพป.มส.1</span>
-              {selectedMapSchoolId && (
+              {(selectedMapSchoolId || mapInfraFilter !== 'all') && (
                 <button
-                  onClick={() => handleSelectMapSchool('')}
+                  onClick={() => {
+                    handleSelectMapSchool('');
+                    setMapInfraFilter('all');
+                  }}
                   className="text-[10px] text-[#FF8BA7] hover:underline font-black cursor-pointer"
                 >
-                  🔄 ล้างการเลือก / กลับสู่จุดศูนย์กลางระดับเขต
+                  🔄 ล้างการเลือกตัวกรอง / กลับสู่จุดศูนย์กลางระดับเขต
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* ตารางสรุป KPI โครงสร้างพื้นฐานไฟฟ้าและอินเทอร์เน็ตที่บรรจุไว้ในส่วนแผนที่ */}
+        <div className="pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/10 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-amber-500 fill-amber-500" />
+              <Wifi className="h-4 w-4 text-sky-500" />
+              สรุปสถิติโครงสร้างพื้นฐานรวม (ไฟฟ้า & ระบบอินเทอร์เน็ต)
+            </h4>
+          </div>
+
+          {/* 4 การ์ดสรุป KPI สั้นของไฟฟ้าและเน็ต */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* มีไฟฟ้า */}
+            <div 
+              onClick={() => setMapInfraFilter('electricity')}
+              className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-700/50 flex items-center justify-between cursor-pointer hover:border-amber-500 transition-colors"
+            >
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-200">มีไฟฟ้าใช้งาน</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-amber-900 dark:text-amber-100">{infraStats.hasElectricity}</span>
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">/ {schools.length} แห่ง ({infraStats.electricityPercent}%)</span>
+                </div>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-amber-400 border-2 border-[#33272A] flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#33272A]">
+                <Zap className="h-5 w-5 text-[#33272A] fill-[#33272A]" />
+              </div>
+            </div>
+
+            {/* อินเทอร์เน็ตเชื่อมต่อ */}
+            <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/20 border-2 border-sky-300 dark:border-sky-700/50 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-sky-900 dark:text-sky-200">มีสัญญาณอินเทอร์เน็ต</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-sky-900 dark:text-sky-100">{infraStats.connectedInternet}</span>
+                  <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">/ {schools.length} แห่ง ({infraStats.internetPercent}%)</span>
+                </div>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-[#A0E7E5] border-2 border-[#33272A] flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#33272A]">
+                <Wifi className="h-5 w-5 text-[#33272A]" />
+              </div>
+            </div>
+
+            {/* ไฟเบอร์ออพติก */}
+            <div 
+              onClick={() => setMapInfraFilter('fiber')}
+              className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-700/50 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors"
+            >
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">เน็ตไฟเบอร์ (Fiber)</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{infraStats.fiber}</span>
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">แห่ง</span>
+                </div>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-emerald-300 border-2 border-[#33272A] flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#33272A]">
+                <Globe className="h-5 w-5 text-[#33272A]" />
+              </div>
+            </div>
+
+            {/* ดาวเทียม / ซิม / ไม่มี */}
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border-2 border-rose-300 dark:border-rose-700/50 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-rose-900 dark:text-rose-200">ดาวเทียม / ซิม / ไม่มีเน็ต</span>
+                <div className="text-xs font-bold text-rose-800 dark:text-rose-200 space-y-0.5 mt-0.5">
+                  <div>ดาวเทียม: {infraStats.satellite} | ซิม: {infraStats.sim}</div>
+                  <div className="text-rose-600 dark:text-rose-300">ไม่มีเน็ต: {infraStats.none} แห่ง</div>
+                </div>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-[#FF8BA7] border-2 border-[#33272A] flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#33272A]">
+                <Radio className="h-5 w-5 text-[#33272A]" />
+              </div>
+            </div>
+          </div>
+
+          {/* รายละเอียดกราฟสัดส่วนไฟฟ้า + เน็ต */}
+          <div className="grid gap-6 md:grid-cols-2 pt-1">
+            {/* กราฟประเภทอินเทอร์เน็ต */}
+            <div className="p-4 bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 rounded-2xl space-y-3">
+              <h4 className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Wifi className="h-4 w-4 text-sky-500" />
+                จำแนกประเภทสัญญาณอินเทอร์เน็ตที่ใช้งาน
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <div className="h-40 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={infraStats.internetTypePie}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={35}
+                        outerRadius={55}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {infraStats.internetTypePie.map((entry, idx) => (
+                          <Cell key={`net-${idx}`} fill={entry.color} stroke="#33272A" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-1.5 text-xs font-semibold text-[#33272A] dark:text-[#FFF9F5]">
+                  {infraStats.internetTypePie.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-full border border-[#33272A]" style={{ backgroundColor: item.color }}></span>
+                        <span className="text-slate-800 dark:text-slate-200 text-[11px]">{item.name}</span>
+                      </div>
+                      <span className="font-bold text-[#33272A] dark:text-[#FFF9F5] text-[11px]">{item.value} แห่ง</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* สถิติจำแนกตามอำเภอ */}
+            <div className="p-4 bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 rounded-2xl space-y-3">
+              <h4 className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-amber-500" />
+                สถานะไฟฟ้าและอินเทอร์เน็ตรายอำเภอ
+              </h4>
+              <div className="space-y-2 text-xs font-semibold">
+                {Object.entries(infraStats.amphoeData)
+                  .filter(([_, data]) => data.total > 0)
+                  .map(([ampName, ampData]) => (
+                    <div key={ampName} className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+                        <span className="font-bold text-[#33272A] dark:text-[#FFF9F5] text-[11px]">อำเภอ {ampName}</span>
+                        <span className="text-[10px] text-slate-500 font-semibold">รวม {ampData.total} โรงเรียน</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] pt-0.5 text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-1">
+                          <Zap className="h-3 w-3 text-amber-500 shrink-0" />
+                          <span>ไฟฟ้า: <strong>{ampData.hasElectricity}</strong> / {ampData.total} แห่ง</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Wifi className="h-3 w-3 text-sky-500 shrink-0" />
+                          <span>ไฟเบอร์: <strong>{ampData.fiber}</strong> | ดาวเทียม: <strong>{ampData.satellite}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
         </div>
@@ -985,7 +1336,7 @@ export default function DashboardView({
           {insights.map((insight, idx) => (
             <div
               key={idx}
-              className="flex gap-3 rounded-2xl bg-white border-2 border-[#33272A] p-4 dark:border-[#FFD3B6] dark:bg-[#150e10] shadow-sm hover:translate-y-[-2px] transition-all duration-200"
+              className="flex gap-3 rounded-2xl bg-white border-2 border-[#33272A] p-4 dark:border-[#FFD3B6] dark:bg-[#150e10] shadow-sm transition-all duration-200"
             >
               <div className="mt-0.5 text-[#FF8BA7] dark:text-[#FF8BA7] shrink-0">
                 <CheckCircle className="h-5 w-5" />
@@ -1042,7 +1393,7 @@ export default function DashboardView({
         {/* คู่มือคำแนะนำการติดตั้งสำหรับระบบปฏิบัติการต่าง ๆ */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* iOS Safari */}
-          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm transition-transform">
             <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
               <span className="px-2 py-0.5 text-[9px] font-black bg-[#FF8BA7] text-[#33272A] border border-[#33272A] rounded-md">iOS</span>
               <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับ iPhone / iPad (Safari)</h4>
@@ -1056,7 +1407,7 @@ export default function DashboardView({
           </div>
 
           {/* Android Chrome */}
-          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm transition-transform">
             <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
               <span className="px-2 py-0.5 text-[9px] font-black bg-[#A0E7E5] text-[#33272A] border border-[#33272A] rounded-md">Android</span>
               <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับมือถือ Android (Chrome)</h4>
@@ -1070,7 +1421,7 @@ export default function DashboardView({
           </div>
 
           {/* Desktop/PC/Mac */}
-          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm hover:translate-y-[-2px] transition-transform">
+          <div className="p-4 bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl space-y-2.5 shadow-sm transition-transform">
             <div className="flex items-center gap-2 border-b border-[#33272A]/10 pb-2 dark:border-slate-800">
               <span className="px-2 py-0.5 text-[9px] font-black bg-[#FFD3B6] text-[#33272A] border border-[#33272A] rounded-md">Desktop</span>
               <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">สำหรับคอมพิวเตอร์ PC / Mac</h4>

@@ -311,16 +311,17 @@ export default function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-20 md:pb-4">
-        <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-[11px] font-bold text-[#33272A] dark:text-[#FFF9F5] gap-2 text-center md:text-left">
+      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 md:pb-6">
+        <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-xs sm:text-sm font-medium text-[#33272A] dark:text-[#FFF9F5] gap-3 text-center md:text-left">
           <div className="flex items-center gap-1.5 justify-center">
-            <Award className="h-4 w-4 text-[#FF8BA7]" />
-            <span>MHS1 BIGDATA &copy; 2026 ระบบสารสนเทศนักเรียนรายบุคคล สพป.แม่ฮ่องสอน เขต 1</span>
+            <Award className="h-4 w-4 text-[#FF8BA7] shrink-0" />
+            <span className="font-bold">MHS1 BIGDATA &copy; 2026 ระบบสารสนเทศนักเรียนรายบุคคล สพป.แม่ฮ่องสอน เขต 1</span>
           </div>
-          <div className="flex items-center gap-1.5 justify-center">
-            <span>พัฒนาขึ้นด้วย</span>
-            <Heart className="h-3 w-3 text-[#FF8BA7] fill-[#FF8BA7]" />
-            <span>เพื่อความโปร่งใส ปรับปรุงคุณภาพ และความปลอดภัยของข้อมูลสถานศึกษา</span>
+          <div className="flex flex-wrap items-center gap-1.5 justify-center md:justify-end text-[#33272A] dark:text-[#FFF9F5]">
+            <span>พัฒนาขึ้นโดย</span>
+            <span className="font-bold text-[#FF8BA7] dark:text-[#FF8BA7]">นักวิเคราะห์นโยบายและแผน นายภูชิชย์ ชาติเวียง</span>
+            <span>และ</span>
+            <span className="font-bold text-[#14B8A6] dark:text-[#A0E7E5]">เจ้าหน้าที่ ICT นางสาวชนัญชิตา ไพศาล</span>
           </div>
         </div>
       </footer>
