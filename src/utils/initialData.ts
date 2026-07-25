@@ -233,21 +233,21 @@ export const MAJOR_SUBJECTS_LIST = [
 export const SCHOOL_GROUPS_LIST = [
   { name: "กลุ่มโรงเรียนสิงหนาทราชาลัย", amphoe: "เมืองแม่ฮ่องสอน" },
   { name: "กลุ่มโรงเรียนไตรมิตร", amphoe: "เมืองแม่ฮ่องสอน" },
-  { name: "กลุ่มโรงเรียนพุฒผาลิตาดี", amphoe: "เมืองแม่ฮ่องสอน" },
+  { name: "กลุ่มโรงเรียนภูผาลีลาวดี", amphoe: "เมืองแม่ฮ่องสอน" },
   { name: "กลุ่มโรงเรียนห้วยโป่ง", amphoe: "เมืองแม่ฮ่องสอน" },
   { name: "กลุ่มโรงเรียนขุนยวม - แม่เงา", amphoe: "ขุนยวม" },
   { name: "กลุ่มโรงเรียนแม่อูคอ - แม่ยวมน้อย", amphoe: "ขุนยวม" },
   { name: "กลุ่มโรงเรียนเมืองปอน - แม่กิ๊", amphoe: "ขุนยวม" },
-  { name: "กลุ่มโรงเรียนปายมิถิลา", amphoe: "ปาย" },
+  { name: "กลุ่มโรงเรียนปายมัชฌิมา", amphoe: "ปาย" },
   { name: "กลุ่มโรงเรียนสายเหนือสัมพันธ์", amphoe: "ปาย" },
   { name: "กลุ่มโรงเรียนสายใต้", amphoe: "ปาย" },
   { name: "กลุ่มโรงเรียนโป่งสา", amphoe: "ปาย" },
-  { name: "กลุ่มโรงเรียนกลุ่มน้ำปาง", amphoe: "ปางมะผ้า" },
-  { name: "กลุ่มโรงเรียนกลุ่มน้ำของ", amphoe: "ปางมะผ้า" },
+  { name: "กลุ่มโรงเรียนลุ่มน้ำลาง", amphoe: "ปางมะผ้า" },
+  { name: "กลุ่มโรงเรียนลุ่มน้ำของ", amphoe: "ปางมะผ้า" },
   { name: "กลุ่มโรงเรียนเขตพื้นที่การศึกษา", amphoe: "สพป.แม่ฮ่องสอน เขต 1" }
 ];
 
-// ฟังก์ชันวิเคราะห์อำเภอและกลุ่มโรงเรียนตั้งต้นตามรายชื่อโรงเรียนตามโครงสร้าง สพป.แม่ฮ่องสอน เขต 1
+// ฟังก์ชันวิเคราะห์อำเภอและกลุ่มโรงเรียนตั้งต้นตามโครงสร้าง สพป.แม่ฮ่องสอน เขต 1
 export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string; networkGroup: string } {
   const n = name || "";
 
@@ -266,14 +266,14 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
     return { amphoe: "ขุนยวม", networkGroup: "กลุ่มโรงเรียนขุนยวม - แม่เงา" };
   }
 
-  // 4. กลุ่มโรงเรียนกลุ่มน้ำปาง (ปางมะผ้า)
+  // 4. กลุ่มโรงเรียนลุ่มน้ำลาง (ปางมะผ้า)
   if (n.includes("กิ๊ดสามสิบ") || n.includes("ถ้ำลอด") || n.includes("นาหกหลวง") || n.includes("ศูนย์ปางมะผ้า") || n.includes("ลุกป่าก๊อ") || n.includes("น้ำริน") || n.includes("เมืองแพม") || n.includes("ผามอญ") || n.includes("ห้วยแห้ง")) {
-    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนกลุ่มน้ำปาง" };
+    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนลุ่มน้ำลาง" };
   }
 
-  // 5. กลุ่มโรงเรียนกลุ่มน้ำของ (ปางมะผ้า)
+  // 5. กลุ่มโรงเรียนลุ่มน้ำของ (ปางมะผ้า)
   if (n.includes("แม่ละนา") || n.includes("นาปู่ป้อม") || n.includes("ปางถาม") || n.includes("จ่าโบ่") || n.includes("ห้วยเฮี๊ยะ") || n.includes("ยาป่าแหน") || n.includes("น้ำฮูผาเสื่อ") || n.includes("ซอลแบะ") || n.includes("ปางบอน") || n.includes("พุฒหลวง") || n.includes("พุ่งสาแล")) {
-    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนกลุ่มน้ำของ" };
+    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนลุ่มน้ำของ" };
   }
 
   // 6. กลุ่มโรงเรียนสายใต้ (ปาย)
@@ -291,9 +291,9 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
     return { amphoe: "ปาย", networkGroup: "กลุ่มโรงเรียนโป่งสา" };
   }
 
-  // 9. กลุ่มโรงเรียนปายมิถิลา (ปาย)
+  // 9. กลุ่มโรงเรียนปายมัชฌิมา (ปาย)
   if (n.includes("ปาย") || n.includes("แม่ปิง") || n.includes("น้ำฮู้") || n.includes("ใหม่สวรรค์") || n.includes("แม่ฮี้") || id === "58010129") {
-    return { amphoe: "ปาย", networkGroup: "กลุ่มโรงเรียนปายมิถิลา" };
+    return { amphoe: "ปาย", networkGroup: "กลุ่มโรงเรียนปายมัชฌิมา" };
   }
 
   // 10. กลุ่มโรงเรียนห้วยโป่ง (เมืองแม่ฮ่องสอน)
@@ -301,9 +301,9 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
     return { amphoe: "เมืองแม่ฮ่องสอน", networkGroup: "กลุ่มโรงเรียนห้วยโป่ง" };
   }
 
-  // 11. กลุ่มโรงเรียนพุฒผาลิตาดี (เมืองแม่ฮ่องสอน)
+  // 11. กลุ่มโรงเรียนภูผาลีลาวดี (เมืองแม่ฮ่องสอน)
   if (n.includes("หมอกจำแป่") || n.includes("ร่มเกล้าปางตอง") || n.includes("ห้วยผา") || n.includes("ไทยรัฐวิทยา 99") || n.includes("นาป่าแปก") || n.includes("รักไทย") || n.includes("ห้วยมะเขือส้ม") || n.includes("ห้วยซาน") || n.includes("แม่สะงา") || n.includes("ห้วยโป่งอ่อน") || n.includes("นาปลาจาด") || n.includes("ห้วยผึ้ง") || n.includes("ผาฮาน") || id === "58010001" || id === "58010012" || id === "58010016" || id === "58010018" || id === "58010020") {
-    return { amphoe: "เมืองแม่ฮ่องสอน", networkGroup: "กลุ่มโรงเรียนพุฒผาลิตาดี" };
+    return { amphoe: "เมืองแม่ฮ่องสอน", networkGroup: "กลุ่มโรงเรียนภูผาลีลาวดี" };
   }
 
   // 12. กลุ่มโรงเรียนสิงหนาทราชาลัย (เมืองแม่ฮ่องสอน)
@@ -318,7 +318,7 @@ export function getAmphoeAndNetwork(id: string, name: string): { amphoe: string;
 
   // 14. ปางมะผ้า fallback
   if (n.includes("ปางมะผ้า") || id === "58010019" || id === "58010152") {
-    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนกลุ่มน้ำปาง" };
+    return { amphoe: "ปางมะผ้า", networkGroup: "กลุ่มโรงเรียนลุ่มน้ำลาง" };
   }
 
   return { amphoe: "เมืองแม่ฮ่องสอน", networkGroup: "กลุ่มโรงเรียนสิงหนาทราชาลัย" };

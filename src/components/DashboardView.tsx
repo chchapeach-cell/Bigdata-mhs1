@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio } from 'lucide-react';
-import { getAmphoeAndNetwork, getSchoolSize } from '../utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
 interface DashboardViewProps {
@@ -249,10 +249,14 @@ export default function DashboardView({
 
   // สถิติจำนวนโรงเรียนจำแนกตามกลุ่มโรงเรียน (14 กลุ่ม)
   const networkGroupStats = useMemo(() => {
+    const validGroupNames = new Set(SCHOOL_GROUPS_LIST.map(g => g.name));
     const counts: Record<string, { schoolCount: number; studentCount: number }> = {};
     
     schools.forEach(s => {
-      const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup || "อื่นๆ/ไม่ระบุ";
+      let net = s.networkGroup;
+      if (!net || !validGroupNames.has(net)) {
+        net = getAmphoeAndNetwork(s.id, s.name).networkGroup;
+      }
       if (!counts[net]) {
         counts[net] = { schoolCount: 0, studentCount: 0 };
       }
@@ -871,48 +875,6 @@ export default function DashboardView({
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* สถิติจำนวนโรงเรียนและนักเรียนแยกตามกลุ่มโรงเรียน 14 กลุ่ม */}
-      <div className="card p-6 space-y-4">
-        <div className="flex flex-col gap-1 border-b-2 border-[#33272A]/10 pb-3 dark:border-[#FFD3B6]/10">
-          <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-            <Layers className="h-5 w-5 text-purple-500" /> 
-            ข้อมูลสารสนเทศจำแนกตามกลุ่มโรงเรียน (14 กลุ่มโรงเรียน)
-          </h3>
-          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-            แสดงสถิติจำนวนโรงเรียน และจำนวนนักเรียนรวมในแต่ละกลุ่มโรงเรียนของ สพป.แม่ฮ่องสอน เขต 1 (คลิกที่การ์ดเพื่อกรองรายชื่อ)
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {networkGroupStats.map((group, idx) => (
-            <div
-              key={idx}
-              onClick={() => onFilterNavigate?.({ netFilter: group.name })}
-              className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1.5">
-                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] group-hover:text-purple-600 transition-colors line-clamp-1">
-                    🏫 {group.name}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mt-2">
-                  <span>สถานศึกษา:</span>
-                  <span className="font-black text-purple-600 dark:text-purple-400 text-sm">{group.schoolCount} แห่ง</span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mt-1">
-                  <span>นักเรียนรวม:</span>
-                  <span className="font-black text-[#FF8BA7] text-sm">{group.studentCount.toLocaleString()} คน</span>
-                </div>
-              </div>
-              <div className="text-[10px] text-purple-500 font-bold mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-right group-hover:underline">
-                ดูโรงเรียนในกลุ่มนี้ ➡️
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 

@@ -214,16 +214,14 @@ export default function AdminPanel({
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
   const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs' | 'schools'>('upload');
 
-  // รายชื่อกลุ่มเครือข่ายทั้งหมดในระบบ สำหรับแสดงใน Dropdown
+  // รายชื่อกลุ่มเครือข่ายทั้งหมดในระบบ สำหรับแสดงใน Dropdown (เฉพาะ 14 กลุ่มมาตรฐาน)
   const availableNetworkGroups = useMemo(() => {
-    const defaultGroups = SCHOOL_GROUPS_LIST.map(g => g.name);
-    const schoolGroups = schools.map(s => s.networkGroup).filter(Boolean) as string[];
-    const set = new Set([...defaultGroups, ...schoolGroups]);
-    return Array.from(set).sort();
-  }, [schools]);
+    return SCHOOL_GROUPS_LIST.map(g => g.name).sort();
+  }, []);
 
-  // สรุปข้อมูลกลุ่มเครือข่ายทั้งหมดสำหรับ Super Admin แก้ไขชื่อกลุ่ม
+  // สรุปข้อมูลกลุ่มเครือข่ายทั้งหมดสำหรับ Super Admin แก้ไขชื่อกลุ่ม (จำกัดเฉพาะ 14 กลุ่มมาตรฐาน)
   const allNetworkGroupList = useMemo(() => {
+    const validGroupNames = new Set(SCHOOL_GROUPS_LIST.map(g => g.name));
     const groupMap: Record<string, { name: string; amphoe: string; schoolCount: number }> = {};
 
     SCHOOL_GROUPS_LIST.forEach(g => {
@@ -231,12 +229,13 @@ export default function AdminPanel({
     });
 
     schools.forEach(s => {
-      const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup || "กลุ่มเครือข่ายทั่วไป";
-      const amphoe = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe || "เมืองแม่ฮ่องสอน";
-      if (!groupMap[net]) {
-        groupMap[net] = { name: net, amphoe, schoolCount: 0 };
+      let net = s.networkGroup;
+      if (!net || !validGroupNames.has(net)) {
+        net = getAmphoeAndNetwork(s.id, s.name).networkGroup;
       }
-      groupMap[net].schoolCount++;
+      if (groupMap[net]) {
+        groupMap[net].schoolCount++;
+      }
     });
 
     return Object.values(groupMap).sort((a, b) => b.schoolCount - a.schoolCount);

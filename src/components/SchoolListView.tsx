@@ -108,7 +108,11 @@ export default function SchoolListView({
       const schoolAmphoe = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
       const matchesAmphoe = amphoeFilter === 'all' || schoolAmphoe === amphoeFilter;
 
-      const schoolNetwork = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+      const validGroupNames = new Set(SCHOOL_GROUPS_LIST.map(g => g.name));
+      let schoolNetwork = school.networkGroup;
+      if (!schoolNetwork || !validGroupNames.has(schoolNetwork)) {
+        schoolNetwork = getAmphoeAndNetwork(school.id, school.name).networkGroup;
+      }
       const matchesNetworkGroup = networkGroupFilter === 'all' || schoolNetwork === networkGroupFilter;
 
       return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesNetworkGroup;
@@ -379,17 +383,17 @@ export default function SchoolListView({
             </select>
           </div>
 
-          {/* กลุ่มโรงเรียน */}
+          {/* กลุ่มเครือข่าย */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5 text-purple-500" /> กลุ่มโรงเรียน
+              <Filter className="h-3.5 w-3.5 text-purple-500" /> กลุ่มเครือข่าย
             </label>
             <select
               value={networkGroupFilter}
               onChange={(e) => setNetworkGroupFilter(e.target.value)}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
-              <option value="all">ทั้งหมด ทุกกลุ่มโรงเรียน</option>
+              <option value="all">ทั้งหมด ทุกกลุ่มเครือข่าย</option>
               {SCHOOL_GROUPS_LIST
                 .filter(g => amphoeFilter === 'all' || g.amphoe === amphoeFilter || g.amphoe === 'สพป.แม่ฮ่องสอน เขต 1')
                 .map(group => (
