@@ -397,17 +397,40 @@ export default function AdminPanel({
         if (!schId) continue;
 
         const schName = String(row[1] || schId).trim();
-        const yr = String(row[2] || gUploadYear || gYear).trim();
-        let totalG = Number(row[3]) || 0;
-        let maleG = Number(row[4]) || 0;
-        let femaleG = Number(row[5]) || 0;
-        const notesStr = String(row[6] || '').trim();
+        const col2 = String(row[2] || '').trim();
+        const isCol2Year = /^(20|25)\d{2}$/.test(col2);
+
+        let yr = '';
+        let totalG = 0;
+        let maleG = 0;
+        let femaleG = 0;
+        let notesStr = '';
+
+        if (isCol2Year) {
+          // รูปแบบ 7 คอลัมน์: [รหัสโรงเรียน, ชื่อโรงเรียน, ปีการศึกษา, รวม, ชาย, หญิง, หมายเหตุ]
+          yr = col2;
+          totalG = Number(row[3]) || 0;
+          maleG = Number(row[4]) || 0;
+          femaleG = Number(row[5]) || 0;
+          notesStr = String(row[6] || '').trim();
+        } else {
+          // รูปแบบ 6 คอลัมน์ (หรือคอลัมน์ index 2 เป็นจำนวนนักเรียน/รหัสอื่น)
+          yr = (gUploadYear && /^\d{4}$/.test(gUploadYear.trim())) ? gUploadYear.trim() : (gYear || '2568');
+          totalG = Number(row[2]) || 0;
+          maleG = Number(row[3]) || 0;
+          femaleG = Number(row[4]) || 0;
+          notesStr = String(row[5] || '').trim();
+        }
 
         if (totalG === 0 && (maleG > 0 || femaleG > 0)) {
           totalG = maleG + femaleG;
         }
 
-        setGUploadStatusText(`กำลังบันทึก: ${schName} (${i + 1}/${total})`);
+        if (!/^\d{4}$/.test(yr)) {
+          yr = (gUploadYear && /^\d{4}$/.test(gUploadYear.trim())) ? gUploadYear.trim() : '2568';
+        }
+
+        setGUploadStatusText(`กำลังบันทึก: ${schName} (ปี ${yr}) [${i + 1}/${total}]`);
 
         const docId = `${schId}_${yr}`;
         await setDoc(doc(db, 'students_g', docId), {
@@ -454,12 +477,12 @@ export default function AdminPanel({
       return;
     }
 
-    if (!year || !/^[0-9]{4}$/.test(year)) {
-      setDeleteGError('กรุณาระบุปีการศึกษาเป็นตัวเลข 4 หลัก เช่น 2568');
+    if (!year) {
+      setDeleteGError('กรุณาระบุหรือเลือกปีการศึกษาที่ต้องการลบ');
       return;
     }
 
-    if (!window.confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบข้อมูลนักเรียนตัว G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร) ทั้งหมดของปีการศึกษา ${year}? การดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) {
+    if (!window.confirm(`⚠️ คุณแน่ใจหรือไม่ที่จะลบข้อมูลนักเรียนตัว G ทั้งหมดของปีการศึกษา "${year}"? การดำเนินการนี้ไม่สามารถย้อนกลับได้!`)) {
       return;
     }
 
@@ -468,27 +491,67 @@ export default function AdminPanel({
     setDeleteGSuccess('');
 
     try {
-      const q = query(collection(db, 'students_g'), where('academicYear', '==', year));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setDeleteGError(`ไม่พบข้อมูลนักเรียนตัว G ของปีการศึกษา ${year} ในฐานข้อมูล`);
-        setIsDeletingGYear(false);
-        return;
-      }
+      const querySnapshot = await getDocs(collection(db, 'students_g'));
 
       let deletedCount = 0;
       for (const docSnap of querySnapshot.docs) {
-        await deleteDoc(doc(db, 'students_g', docSnap.id));
-        deletedCount++;
+        const dData = docSnap.data();
+        const dYear = String(dData.academicYear || '').trim();
+        const docId = docSnap.id;
+
+        // ลบถ้าตรงกับปีการศึกษา หรือ docId ลงท้ายด้วย _year หรือ docId เท่ากับ year
+        if (dYear === year || docId.endsWith(`_${year}`) || docId === year) {
+          await deleteDoc(doc(db, 'students_g', docId));
+          deletedCount++;
+        }
       }
 
-      setDeleteGSuccess(`ลบข้อมูลนักเรียนตัว G ปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
-      setDeleteGYear('');
-      await onRefreshData();
+      if (deletedCount === 0) {
+        setDeleteGError(`ไม่พบข้อมูลนักเรียนตัว G ของปีการศึกษา ${year} ในฐานข้อมูล`);
+      } else {
+        setDeleteGSuccess(`ลบข้อมูลนักเรียนตัว G ปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
+        setDeleteGYear('');
+        await onRefreshData();
+      }
     } catch (err: any) {
       console.error(err);
       setDeleteGError('เกิดข้อผิดพลาดในการลบข้อมูลนักเรียนตัว G: ' + err.message);
+    } finally {
+      setIsDeletingGYear(false);
+    }
+  };
+
+  // ฟังก์ชันล้างข้อมูลปีการศึกษาที่ไม่ถูกต้อง (เช่น รหัสโรงเรียนที่ถูกบันทึกเป็นปีการศึกษา)
+  const handleCleanCorruptGData = async () => {
+    if (!isSuperAdmin) return;
+    if (!window.confirm('⚠️ คุณต้องการลบข้อมูลนักเรียนตัว G ที่มีปีการศึกษาไม่ถูกต้อง (เช่น รหัสโรงเรียน 58010162) ทั้งหมดออกจากฐานข้อมูลใช่หรือไม่?')) {
+      return;
+    }
+
+    setIsDeletingGYear(true);
+    setDeleteGError('');
+    setDeleteGSuccess('');
+
+    try {
+      const querySnapshot = await getDocs(collection(db, 'students_g'));
+      let deletedCount = 0;
+
+      for (const docSnap of querySnapshot.docs) {
+        const dData = docSnap.data();
+        const dYear = String(dData.academicYear || '').trim();
+
+        // ถ้าปีการศึกษาไม่ได้มี 4 หลัก (เช่น เป็นรหัสโรงเรียน 8 หลัก)
+        if (!dYear || !/^\d{4}$/.test(dYear)) {
+          await deleteDoc(doc(db, 'students_g', docSnap.id));
+          deletedCount++;
+        }
+      }
+
+      setDeleteGSuccess(`ล้างข้อมูลปีการศึกษาที่ไม่ถูกต้องสำเร็จแล้ว ทั้งหมด ${deletedCount} รายการ`);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error(err);
+      setDeleteGError('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
     } finally {
       setIsDeletingGYear(false);
     }
@@ -1958,31 +2021,63 @@ export default function AdminPanel({
 
                       {/* แสดงรายการปีการศึกษาของนักเรียนตัว G ที่มีอยู่ในฐานข้อมูล */}
                       {studentGData && studentGData.length > 0 && (() => {
-                        const yearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear))).sort().reverse();
-                        if (yearsInGDb.length > 0) {
-                          return (
-                            <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                              <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาที่มีข้อมูลตัว G (คลิกเพื่อลบ):</span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {yearsInGDb.map(yr => (
-                                  <button
-                                    key={yr}
-                                    type="button"
-                                    onClick={() => {
-                                      setDeleteGYear(yr);
-                                      handleDeleteGYear(yr);
-                                    }}
-                                    className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                    ปี {yr}
-                                  </button>
-                                ))}
+                        const validYearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear)))
+                          .filter(yr => yr && /^\d{4}$/.test(yr))
+                          .sort()
+                          .reverse();
+                        const invalidYearsInGDb = Array.from(new Set(studentGData.map(d => d.academicYear)))
+                          .filter(yr => yr && !/^\d{4}$/.test(yr));
+
+                        return (
+                          <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10 space-y-2">
+                            {validYearsInGDb.length > 0 && (
+                              <div>
+                                <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">
+                                  ปีการศึกษาที่มีข้อมูลตัว G (คลิกเพื่อลบ):
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {validYearsInGDb.map(yr => (
+                                    <button
+                                      key={yr}
+                                      type="button"
+                                      onClick={() => {
+                                        setDeleteGYear(yr);
+                                        handleDeleteGYear(yr);
+                                      }}
+                                      className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      ปี {yr}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        }
-                        return null;
+                            )}
+
+                            {invalidYearsInGDb.length > 0 && (
+                              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                                  <span>⚠️ พบข้อมูลปีการศึกษาผิดพลาด {invalidYearsInGDb.length} รายการ</span>
+                                  <button
+                                    type="button"
+                                    onClick={handleCleanCorruptGData}
+                                    disabled={isDeletingGYear}
+                                    className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[9px] font-black cursor-pointer transition-colors"
+                                  >
+                                    ล้างข้อมูลที่ไม่ถูกต้องทั้งหมด
+                                  </button>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {invalidYearsInGDb.map(invYr => (
+                                    <span key={invYr} className="px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-[9px] font-mono text-amber-900 dark:text-amber-100">
+                                      {invYr}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
                       })()}
                     </div>
 

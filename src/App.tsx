@@ -188,8 +188,23 @@ export default function App() {
         studentsList.push({ ...doc.data(), id: doc.id } as StudentData);
       });
 
-      studentsGSnapshot?.forEach((doc) => {
-        studentsGList.push({ ...doc.data(), id: doc.id } as StudentGData);
+      studentsGSnapshot?.forEach((docSnap) => {
+        const data = docSnap.data() as StudentGData;
+        let year = data.academicYear;
+
+        // ถ้า academicYear ไม่เป็นตัวเลข 4 หลัก ให้ลองดึงปีจาก doc.id (เช่น 1058000001_2568)
+        if (!year || !/^\d{4}$/.test(year)) {
+          const parts = docSnap.id.split('_');
+          if (parts.length > 1 && /^\d{4}$/.test(parts[parts.length - 1])) {
+            year = parts[parts.length - 1];
+          }
+        }
+
+        studentsGList.push({
+          ...data,
+          id: docSnap.id,
+          academicYear: year || data.academicYear || 'ไม่ระบุ'
+        });
       });
 
       if (schoolsList.length === 0) {
