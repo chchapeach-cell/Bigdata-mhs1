@@ -86,8 +86,15 @@ export default function SchoolListView({
   // คัดกรองข้อมูลโรงเรียน
   const filteredSchools = useMemo(() => {
     return schoolsWithCounts.filter(school => {
-      const matchesSearch = school.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            school.id.includes(searchTerm);
+      const q = searchTerm.toLowerCase();
+      const matchesClassroom = school.classrooms && school.classrooms.some(c => 
+        c.name.toLowerCase().includes(q) ||
+        (c.teacherName && c.teacherName.toLowerCase().includes(q)) ||
+        (c.gradeLevel && c.gradeLevel.toLowerCase().includes(q))
+      );
+      const matchesSearch = school.name.toLowerCase().includes(q) ||
+                            school.id.includes(searchTerm) ||
+                            matchesClassroom;
       const matchesSize = sizeFilter === 'all' || school.size === sizeFilter;
       const matchesType = typeFilter === 'all' || 
                           (typeFilter === 'expansion' && school.isExpansion) ||
@@ -547,12 +554,21 @@ export default function SchoolListView({
                     <tr key={school.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10">
                       <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
                       <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        <button 
-                          onClick={() => onSelectSchool(school.id)}
-                          className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
-                        >
-                          {school.name}
-                        </button>
+                        <div className="flex flex-col">
+                          <button 
+                            onClick={() => onSelectSchool(school.id)}
+                            className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
+                          >
+                            {school.name}
+                          </button>
+                          {school.classrooms && school.classrooms.length > 0 && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
+                                📚 {school.classrooms.length} ห้องเรียน
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3">
                         <div className="text-[13px] font-black text-[#33272A] dark:text-[#FFF9F5]">{amp}</div>

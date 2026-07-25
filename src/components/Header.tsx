@@ -28,9 +28,14 @@ export default function Header({
   return (
     <header className="sticky top-0 z-40 w-full border-b-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] backdrop-blur-md transition-colors duration-300">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        {/* LOGO */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden group cursor-pointer transition-transform duration-200 hover:scale-105">
+        {/* LOGO (Clickable to Home/Dashboard) */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('dashboard')}
+          className="flex items-center gap-3 cursor-pointer text-left focus:outline-none group transition-transform active:scale-95"
+          title="กลับสู่หน้าหลัก / ภาพรวมระบบ"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden transition-transform duration-200 group-hover:scale-105">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="h-8 w-8">
               {/* Stacked Database disks */}
               <g transform="translate(8, 12) scale(0.72)">
@@ -54,12 +59,12 @@ export default function Header({
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+            <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 group-hover:text-[#FF8BA7] transition-colors">
               BigData <span className="text-[#FF8BA7]">Mhs1</span>
             </h1>
             <p className="text-[9px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">สพป.แม่ฮ่องสอน เขต 1</p>
           </div>
-        </div>
+        </button>
 
         {/* Navigation Tabs */}
         <nav className="hidden md:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">

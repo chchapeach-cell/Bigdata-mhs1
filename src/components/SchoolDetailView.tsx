@@ -1,12 +1,12 @@
-import { useState, useMemo, useEffect, ChangeEvent } from 'react';
-import { School, StudentData, UserProfile } from '../types';
+import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
+import { School, StudentData, UserProfile, ClassroomItem } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
-  Database, Wifi, Cpu, Layers, Eye
+  Database, Wifi, Cpu, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -45,6 +45,10 @@ export default function SchoolDetailView({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // สถานะความคืบหน้าการอัปโหลดรูปภาพ
+  const [imageUploadProgress, setImageUploadProgress] = useState<number | null>(null);
+  const [imageUploadStatus, setImageUploadStatus] = useState<string>('');
 
   // ตรวจสอบสิทธิ์การเข้าถึงข้อมูลเฉพาะ (เบอร์โทรศัพท์ผู้บริหาร)
   const hasAdminAccess = useMemo(() => {
@@ -101,19 +105,160 @@ export default function SchoolDetailView({
     } else {
       setEditMajorsWithStaff([]);
     }
+
+    setClassrooms(school.classrooms || []);
   }, [school]);
+
+  // สถานะข้อมูลห้องเรียน / ชั้นเรียน
+  const [classrooms, setClassrooms] = useState<ClassroomItem[]>(school.classrooms || []);
+  const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
+  const [editingClassroom, setEditingClassroom] = useState<ClassroomItem | null>(null);
+  const [classroomSearch, setClassroomSearch] = useState('');
+
+  // ฟอร์มข้อมูลห้องเรียน
+  const [cName, setCName] = useState('');
+  const [cGradeLevel, setCGradeLevel] = useState('ม.1');
+  const [cStudentCount, setCStudentCount] = useState('');
+  const [cTeacherName, setCTeacherName] = useState('');
+  const [cNotes, setCNotes] = useState('');
+  const [isSavingClassroom, setIsSavingClassroom] = useState(false);
+
+  // ฟังก์ชันสำหรับ Super Admin ลบโรงเรียน
+  const handleDeleteSchool = async () => {
+    if (!window.confirm(`⚠️ ยืนยันการลบโรงเรียน "${school.name}" (รหัส ${school.id}) ออกจากระบบ?\n\nการลบข้อมูลนี้จะส่งผลถาวรและไม่สามารถกู้คืนได้`)) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'schools', school.id));
+      alert(`ลบโรงเรียน "${school.name}" เรียบร้อยแล้ว`);
+      await onRefreshData();
+      onBack();
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาดในการลบโรงเรียน');
+    }
+  };
+
+  // เปิดโมดอลเพิ่ม/แก้ไขห้องเรียน
+  const handleOpenClassroomModal = (item?: ClassroomItem) => {
+    if (item) {
+      setEditingClassroom(item);
+      setCName(item.name);
+      setCGradeLevel(item.gradeLevel || 'ม.1');
+      setCStudentCount(item.studentCount !== undefined ? String(item.studentCount) : '');
+      setCTeacherName(item.teacherName || '');
+      setCNotes(item.notes || '');
+    } else {
+      setEditingClassroom(null);
+      setCName('');
+      setCGradeLevel('ม.1');
+      setCStudentCount('');
+      setCTeacherName('');
+      setCNotes('');
+    }
+    setIsClassroomModalOpen(true);
+  };
+
+  // บันทึกห้องเรียน
+  const handleSaveClassroom = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!cName.trim()) {
+      alert('กรุณาระบุชื่อห้องเรียน/ชั้นเรียน');
+      return;
+    }
+
+    setIsSavingClassroom(true);
+    try {
+      let updatedList: ClassroomItem[] = [...(school.classrooms || [])];
+      
+      const newClassroomObj: ClassroomItem = {
+        id: editingClassroom ? editingClassroom.id : `c-${Date.now()}`,
+        name: cName.trim(),
+        gradeLevel: cGradeLevel,
+        studentCount: cStudentCount ? Number(cStudentCount) : 0,
+        teacherName: cTeacherName.trim(),
+        notes: cNotes.trim()
+      };
+
+      if (editingClassroom) {
+        updatedList = updatedList.map(item => item.id === editingClassroom.id ? newClassroomObj : item);
+      } else {
+        updatedList.push(newClassroomObj);
+      }
+
+      const schoolRef = doc(db, 'schools', school.id);
+      await setDoc(schoolRef, { classrooms: updatedList }, { merge: true });
+      
+      setClassrooms(updatedList);
+      setIsClassroomModalOpen(false);
+      setSuccessMsg('บันทึกข้อมูลห้องเรียนเรียบร้อยแล้ว!');
+      await onRefreshData();
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลห้องเรียน');
+    } finally {
+      setIsSavingClassroom(false);
+    }
+  };
+
+  // ลบห้องเรียน
+  const handleDeleteClassroom = async (classroomId: string) => {
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบห้องเรียนนี้ออกจากโรงเรียนของคุณ?')) return;
+
+    try {
+      const updatedList = (school.classrooms || []).filter(c => c.id !== classroomId);
+      const schoolRef = doc(db, 'schools', school.id);
+      await setDoc(schoolRef, { classrooms: updatedList }, { merge: true });
+      
+      setClassrooms(updatedList);
+      setSuccessMsg('ลบห้องเรียนเรียบร้อยแล้ว!');
+      await onRefreshData();
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาดในการลบห้องเรียน');
+    }
+  };
+
+  // คัดกรองห้องเรียนตามการค้นหา
+  const filteredClassrooms = useMemo(() => {
+    if (!classroomSearch.trim()) return classrooms;
+    const q = classroomSearch.toLowerCase();
+    return classrooms.filter(c => 
+      c.name.toLowerCase().includes(q) ||
+      (c.gradeLevel && c.gradeLevel.toLowerCase().includes(q)) ||
+      (c.teacherName && c.teacherName.toLowerCase().includes(q)) ||
+      (c.notes && c.notes.toLowerCase().includes(q))
+    );
+  }, [classrooms, classroomSearch]);
 
   const handleLocalImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImageUploadProgress(10);
+    setImageUploadStatus('กำลังอ่านไฟล์รูปภาพ...');
+
     const reader = new FileReader();
+    reader.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        setImageUploadProgress(pct);
+      }
+    };
     reader.onload = (evt) => {
       const result = evt.target?.result as string;
       if (result) {
+        setImageUploadProgress(100);
+        setImageUploadStatus('อัปโหลดรูปภาพเสร็จสิ้น!');
         setEditImageUrl(result);
         setSuccessMsg('อัปโหลดรูปภาพสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => setSuccessMsg(''), 4000);
+        setTimeout(() => {
+          setImageUploadProgress(null);
+          setImageUploadStatus('');
+          setSuccessMsg('');
+        }, 3500);
       }
     };
     reader.readAsDataURL(file);
@@ -123,13 +268,28 @@ export default function SchoolDetailView({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImageUploadProgress(10);
+    setImageUploadStatus('กำลังอ่านไฟล์รูปตราโรงเรียน...');
+
     const reader = new FileReader();
+    reader.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        setImageUploadProgress(pct);
+      }
+    };
     reader.onload = (evt) => {
       const result = evt.target?.result as string;
       if (result) {
+        setImageUploadProgress(100);
+        setImageUploadStatus('อัปโหลดรูปตราโรงเรียนเสร็จสิ้น!');
         setEditLogoUrl(result);
         setSuccessMsg('อัปโหลดรูปตราโรงเรียนสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => setSuccessMsg(''), 4000);
+        setTimeout(() => {
+          setImageUploadProgress(null);
+          setImageUploadStatus('');
+          setSuccessMsg('');
+        }, 3500);
       }
     };
     reader.readAsDataURL(file);
@@ -139,13 +299,28 @@ export default function SchoolDetailView({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImageUploadProgress(10);
+    setImageUploadStatus('กำลังอ่านไฟล์รูปภาพผู้บริหาร...');
+
     const reader = new FileReader();
+    reader.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        setImageUploadProgress(pct);
+      }
+    };
     reader.onload = (evt) => {
       const result = evt.target?.result as string;
       if (result) {
+        setImageUploadProgress(100);
+        setImageUploadStatus('อัปโหลดรูปภาพผู้บริหารเสร็จสิ้น!');
         setEditDirectorImageUrl(result);
         setSuccessMsg('อัปโหลดรูปภาพผู้บริหารสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => setSuccessMsg(''), 4000);
+        setTimeout(() => {
+          setImageUploadProgress(null);
+          setImageUploadStatus('');
+          setSuccessMsg('');
+        }, 3500);
       }
     };
     reader.readAsDataURL(file);
@@ -286,41 +461,55 @@ export default function SchoolDetailView({
           <span>ย้อนกลับไปยังรายชื่อโรงเรียน</span>
         </button>
 
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                <span>แก้ไขข้อมูลหน้านี้</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {userProfile?.role === 'super_admin' && (
+            <button
+              type="button"
+              onClick={handleDeleteSchool}
+              className="btn-cute bg-rose-500 text-white px-3 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer hover:bg-rose-600 transition-colors"
+              title="ลบโรงเรียนนี้ออกจากฐานข้อมูล"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>ลบโรงเรียนออก</span>
+            </button>
+          )}
+
+          {canEdit && (
+            <div>
+              {!isEditing ? (
                 <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  onClick={() => setIsEditing(true)}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer"
                 >
-                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                  <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                  <Edit2 className="h-3.5 w-3.5" />
+                  <span>แก้ไขข้อมูลหน้านี้</span>
                 </button>
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setErrorMsg('');
-                  }}
-                  disabled={isSaving}
-                  className="btn-cute bg-slate-200 text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:bg-slate-700 dark:text-white"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  <span>ยกเลิก</span>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setErrorMsg('');
+                    }}
+                    disabled={isSaving}
+                    className="btn-cute bg-slate-200 text-[#33272A] px-4 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:bg-slate-700 dark:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    <span>ยกเลิก</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ข้อความแจ้งสถานะสำเร็จ / ข้อผิดพลาด */}
@@ -517,6 +706,27 @@ export default function SchoolDetailView({
                   </button>
                 )}
               </div>
+
+              {/* แถบ Progress Bar สำหรับการอัปโหลดรูปภาพ */}
+              {imageUploadProgress !== null && (
+                <div className="w-full max-w-md mx-auto p-3 rounded-xl bg-white border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] space-y-1.5 animate-fade-in text-left">
+                  <div className="flex justify-between items-center text-xs font-black text-[#33272A]">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="h-3.5 w-3.5 text-[#FF8BA7] animate-spin" />
+                      {imageUploadStatus || 'กำลังอัปโหลดรูปภาพ...'}
+                    </span>
+                    <span className="bg-[#A0E7E5] px-2 py-0.5 rounded text-[10px] font-black border border-[#33272A]">
+                      {imageUploadProgress}%
+                    </span>
+                  </div>
+                  <div className="w-full h-3.5 rounded-lg border-2 border-[#33272A] bg-slate-100 overflow-hidden p-0.5">
+                    <div
+                      className="h-full rounded-md bg-gradient-to-r from-[#FF8BA7] to-[#A0E7E5] transition-all duration-200"
+                      style={{ width: `${Math.max(5, imageUploadProgress)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {activeImageTab === 'cover' && (
                 <div className="w-full max-w-md space-y-3 text-center">
@@ -1208,6 +1418,253 @@ export default function SchoolDetailView({
             </div>
           </div>
         </div>
+
+        {/* ส่วนจัดการชื่อห้องเรียน / ชั้นเรียน (Requirement 4) */}
+        <div className="card p-6 space-y-4 border-2 border-[#33272A] dark:border-[#FFD3B6]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4">
+            <div>
+              <h3 className="text-md font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-[#FF8BA7]" /> รายชื่อห้องเรียน / ชั้นเรียน ({classrooms.length} ห้อง)
+              </h3>
+              <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                การจัดการและค้นหารายชื่อห้องเรียนเฉพาะของ {school.name}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* ค้นหาห้องเรียน */}
+              <div className="relative min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อห้องเรียน/ครูประจำชั้น..."
+                  value={classroomSearch}
+                  onChange={(e) => setClassroomSearch(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#1e1518] dark:border-[#FFD3B6] dark:text-white pl-8 pr-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                />
+                {classroomSearch && (
+                  <button 
+                    onClick={() => setClassroomSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* ปุ่มเพิ่มชื่อห้องเรียน */}
+              {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenClassroomModal()}
+                  className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3.5 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-[#86d8d6] transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>เพิ่มชื่อห้องเรียนใหม่</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* รายการห้องเรียนแบบการ์ด/กริด */}
+          {filteredClassrooms.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {filteredClassrooms.map((c) => (
+                <div 
+                  key={c.id} 
+                  className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex flex-col justify-between space-y-2 group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-[#FF8BA7] text-[#33272A] border border-[#33272A] shadow-xs">
+                        {c.gradeLevel || 'ไม่ระบุชั้น'}
+                      </span>
+                      {c.studentCount !== undefined && c.studentCount > 0 && (
+                        <span className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] bg-[#A0E7E5] dark:bg-emerald-900/60 px-2 py-0.5 rounded-full border border-[#33272A]">
+                          {c.studentCount} คน
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] mt-2 group-hover:text-[#FF8BA7] transition-colors">
+                      {c.name}
+                    </h4>
+                    {c.teacherName && (
+                      <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1">
+                        <Users className="h-3 w-3 text-amber-500" />
+                        ครูประจำชั้น: {c.teacherName}
+                      </p>
+                    )}
+                    {c.notes && (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 italic">
+                        "{c.notes}"
+                      </p>
+                    )}
+                  </div>
+
+                  {/* ปุ่มจัดการแก้ไข/ลบห้องเรียน */}
+                  {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenClassroomModal(c)}
+                        className="p-1 px-2 text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 rounded-lg hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <Edit2 className="h-3 w-3" /> แก้ไข
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClassroom(c.id)}
+                        className="p-1 px-2 text-[10px] font-black bg-rose-100 text-rose-900 border border-rose-400 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <Trash2 className="h-3 w-3" /> ลบ
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
+              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40 text-[#FF8BA7]" />
+              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                {classroomSearch ? `ไม่พบชื่อห้องเรียนที่ตรงกับ "${classroomSearch}"` : "ยังไม่มีการเพิ่มรายชื่อห้องเรียนของโรงเรียนนี้"}
+              </p>
+              {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && !classroomSearch && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenClassroomModal()}
+                  className="mt-3 btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-1.5 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>เพิ่มห้องเรียนแรกของโรงเรียนนี้</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Modal เพิ่ม/แก้ไขชื่อห้องเรียน */}
+        {isClassroomModalOpen && (
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="relative max-w-md w-full bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-up">
+              <div className="flex items-center justify-between border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3">
+                <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-[#FF8BA7]" />
+                  {editingClassroom ? 'แก้ไขชื่อห้องเรียน' : 'เพิ่มชื่อห้องเรียนใหม่'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsClassroomModalOpen(false)}
+                  className="p-1 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveClassroom} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                    ชื่อห้องเรียน/ชั้นเรียน <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ม.1/1, ป.1/1 (ห้องเรียนภาษาอังกฤษ), อ.2/1"
+                    value={cName}
+                    onChange={(e) => setCName(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                      ระดับชั้น
+                    </label>
+                    <select
+                      value={cGradeLevel}
+                      onChange={(e) => setCGradeLevel(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none cursor-pointer"
+                    >
+                      <option value="อ.1">อนุบาล 1 (อ.1)</option>
+                      <option value="อ.2">อนุบาล 2 (อ.2)</option>
+                      <option value="อ.3">อนุบาล 3 (อ.3)</option>
+                      <option value="ป.1">ประถมศึกษาปีที่ 1 (ป.1)</option>
+                      <option value="ป.2">ประถมศึกษาปีที่ 2 (ป.2)</option>
+                      <option value="ป.3">ประถมศึกษาปีที่ 3 (ป.3)</option>
+                      <option value="ป.4">ประถมศึกษาปีที่ 4 (ป.4)</option>
+                      <option value="ป.5">ประถมศึกษาปีที่ 5 (ป.5)</option>
+                      <option value="ป.6">ประถมศึกษาปีที่ 6 (ป.6)</option>
+                      <option value="ม.1">มัธยมศึกษาปีที่ 1 (ม.1)</option>
+                      <option value="ม.2">มัธยมศึกษาปีที่ 2 (ม.2)</option>
+                      <option value="ม.3">มัธยมศึกษาปีที่ 3 (ม.3)</option>
+                      <option value="อื่นๆ">อื่นๆ</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                      จำนวนนักเรียน (คน)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="เช่น 25"
+                      value={cStudentCount}
+                      onChange={(e) => setCStudentCount(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                    ชื่อครูประจำชั้น
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ครูสมชาย ใจดี"
+                    value={cTeacherName}
+                    onChange={(e) => setCTeacherName(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                    หมายเหตุ/คำอธิบายเพิ่มเติม
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="เช่น ห้องเรียนโครงการพิเศษ, ห้องเรียนวิทย์-คณิต"
+                    value={cNotes}
+                    onChange={(e) => setCNotes(e.target.value)}
+                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsClassroomModalOpen(false)}
+                    disabled={isSavingClassroom}
+                    className="px-4 py-2 text-xs font-black text-slate-600 bg-slate-200 rounded-xl hover:bg-slate-300 cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingClassroom}
+                    className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingClassroom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    <span>{isSavingClassroom ? 'กำลังบันทึก...' : 'บันทึกห้องเรียน'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Lightbox Modal for Expanded Photo */}

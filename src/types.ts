@@ -3,6 +3,15 @@ export interface MajorSubject {
   teachersCount: number;
 }
 
+export interface ClassroomItem {
+  id: string; // รหัสห้องเรียน
+  name: string; // ชื่อห้องเรียน/ชั้นเรียน เช่น "ม.1/1", "ป.1/1 (ห้องเรียนเน้นอังกฤษ)", "อ.2/1"
+  gradeLevel?: string; // ระดับชั้น เช่น "ม.1", "ป.1", "อ.2"
+  studentCount?: number; // จำนวนนักเรียนในห้องนี้
+  teacherName?: string; // ครูประจำชั้น
+  notes?: string; // หมายเหตุเพิ่มเติม
+}
+
 export interface School {
   id: string; // รหัสโรงเรียน 8 หลัก เช่น 58010001
   name: string;
@@ -14,6 +23,7 @@ export interface School {
   staffCount: number; // จำนวนครู/บุคลากร
   majorSubjects: string[]; // วิชาเอกที่มีในโรงเรียน (คั่นหรือเก็บแบบ string)
   majorSubjectsWithStaff?: MajorSubject[]; // วิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
+  classrooms?: ClassroomItem[]; // รายชื่อห้องเรียน/ชั้นเรียนในโรงเรียน
   directorPhone: string; // เบอร์โทรศัพท์ผู้บริหาร
   schoolPhone: string; // เบอร์โรงเรียน
   imageUrl: string; // รูปภาพโรงเรียน

@@ -212,12 +212,105 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs'>('upload');
+  const [adminTab, setAdminTab] = useState<'upload' | 'users' | 'logs' | 'schools'>('upload');
+
+  // State สำหรับ Super Admin เพิ่มโรงเรียนใหม่
+  const [newSchoolId, setNewSchoolId] = useState('');
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolAmphoe, setNewSchoolAmphoe] = useState('เมืองแม่ฮ่องสอน');
+  const [newSchoolNetworkGroup, setNewSchoolNetworkGroup] = useState('');
+  const [newSchoolSize, setNewSchoolSize] = useState<School['size']>('small');
+  const [newSchoolIsExpansion, setNewSchoolIsExpansion] = useState(false);
+  const [newSchoolElectricity, setNewSchoolElectricity] = useState(true);
+  const [newSchoolInternet, setNewSchoolInternet] = useState<School['internetType']>('fiber');
+  const [newSchoolStaffCount, setNewSchoolStaffCount] = useState(5);
+  const [newSchoolDirectorPhone, setNewSchoolDirectorPhone] = useState('');
+  const [newSchoolPhone, setNewSchoolPhone] = useState('');
+  const [newSchoolImageUrl, setNewSchoolImageUrl] = useState('');
+  const [newSchoolLat, setNewSchoolLat] = useState('19.3000');
+  const [newSchoolLng, setNewSchoolLng] = useState('97.9000');
+  const [isAddingSchool, setIsAddingSchool] = useState(false);
+  const [addSchoolError, setAddSchoolError] = useState('');
+  const [addSchoolSuccess, setAddSchoolSuccess] = useState('');
+
+  // ฟังก์ชันเพิ่มโรงเรียนใหม่
+  const handleAddSchoolSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newSchoolId.trim() || !newSchoolName.trim()) {
+      setAddSchoolError('กรุณาระบุรหัสสถานศึกษาและชื่อสถานศึกษา');
+      return;
+    }
+
+    setIsAddingSchool(true);
+    setAddSchoolError('');
+    setAddSchoolSuccess('');
+
+    try {
+      const cleanId = newSchoolId.trim();
+      const schoolRef = doc(db, 'schools', cleanId);
+      
+      const newSchoolObj: School = {
+        id: cleanId,
+        name: newSchoolName.trim(),
+        district: 'สพป.แม่ฮ่องสอน เขต 1',
+        amphoe: newSchoolAmphoe,
+        networkGroup: newSchoolNetworkGroup.trim() || `เครือข่าย ${newSchoolAmphoe}`,
+        size: newSchoolSize === 'extra_large' ? 'special_large' : newSchoolSize,
+        isExpansion: newSchoolIsExpansion,
+        electricity: newSchoolElectricity,
+        internetType: newSchoolInternet,
+        staffCount: Number(newSchoolStaffCount) || 0,
+        majorSubjects: [],
+        directorPhone: newSchoolDirectorPhone.trim(),
+        schoolPhone: newSchoolPhone.trim(),
+        imageUrl: newSchoolImageUrl.trim() || 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80',
+        latitude: parseFloat(newSchoolLat) || 19.3,
+        longitude: parseFloat(newSchoolLng) || 97.9,
+        classrooms: []
+      };
+
+      await setDoc(schoolRef, newSchoolObj, { merge: true });
+
+      setAddSchoolSuccess(`เพิ่มโรงเรียน "${newSchoolName}" (รหัส ${cleanId}) เข้าสู่ระบบเรียบร้อยแล้ว!`);
+      setNewSchoolId('');
+      setNewSchoolName('');
+      setNewSchoolNetworkGroup('');
+      setNewSchoolDirectorPhone('');
+      setNewSchoolPhone('');
+      setNewSchoolImageUrl('');
+
+      await onRefreshData();
+    } catch (err: any) {
+      console.error(err);
+      setAddSchoolError('เกิดข้อผิดพลาดในการเพิ่มโรงเรียน: ' + err.message);
+    } finally {
+      setIsAddingSchool(false);
+    }
+  };
+
+  // ฟังก์ชันลบโรงเรียน
+  const handleDeleteSchoolAdmin = async (schoolId: string, schoolName: string) => {
+    if (!window.confirm(`⚠️ ยืนยันการลบโรงเรียน "${schoolName}" (รหัส ${schoolId}) ออกจากระบบ?\n\nการลบนี้จะมีผลถาวรและไม่สามารถเรียกคืนได้`)) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'schools', schoolId));
+      alert(`ลบโรงเรียน "${schoolName}" เรียบร้อยแล้ว`);
+      await onRefreshData();
+    } catch (e: any) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาดในการลบโรงเรียน: ' + e.message);
+    }
+  };
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [uploadYear, setUploadYear] = useState('2568');
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('');
+  const [processedRowsCount, setProcessedRowsCount] = useState(0);
+  const [totalRowsCount, setTotalRowsCount] = useState(0);
   const [previewData, setPreviewData] = useState<any[]>([]);
 
   // State สำหรับการลบข้อมูลรายปีการศึกษา
@@ -550,6 +643,9 @@ export default function AdminPanel({
     setIsUploading(true);
     setUploadError('');
     setUploadSuccess('');
+    setUploadProgress(0);
+    setProcessedRowsCount(0);
+    setUploadStatusText('กำลังเตรียมข้อมูลไฟล์...');
 
     try {
       // ดึง input file
@@ -561,20 +657,33 @@ export default function AdminPanel({
         return;
       }
 
+      setUploadStatusText('กำลังเปิดและอ่านโครงสร้างไฟล์...');
       const workbook = await parseFileWithEncoding(file);
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[];
 
+      // กรองเฉพาะแถวที่มีข้อมูลสมบูรณ์
+      const validRows = rows.slice(1).filter(r => r && r.length >= 15 && r[2]);
+      const totalValid = validRows.length;
+      setTotalRowsCount(totalValid);
+
+      if (totalValid === 0) {
+        setUploadError('ไม่พบข้อมูลโรงเรียนที่สมบูรณ์ในไฟล์ หรือรูปแบบคอลัมน์ไม่ถูกต้อง');
+        setIsUploading(false);
+        return;
+      }
+
       let processedCount = 0;
 
       // วนลูปบันทึกข้อมูลโรงเรียนแต่ละแห่ง
-      for (let i = 1; i < rows.length; i++) {
-            const parts = rows[i];
-            if (parts.length < 15 || !parts[2]) continue; // ข้ามแถวที่ข้อมูลไม่ครบ
-
+      for (let i = 0; i < validRows.length; i++) {
+            const parts = validRows[i];
             const schoolId = String(parts[2]).trim();
             const schoolNameRaw = String(parts[3] || '').trim();
+            const cleanSchoolName = schoolNameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || schoolNameRaw;
+
+            setUploadStatusText(`กำลังบันทึก: ${cleanSchoolName} (${i + 1}/${totalValid})`);
 
             // พาร์สข้อมูลรายชั้น (ตามดัชนีคอลัมน์)
             const k1_male = Number(parts[4]) || 0;
@@ -648,7 +757,7 @@ export default function AdminPanel({
             try {
               await setDoc(studentDocRef, {
                 schoolId,
-                schoolName: schoolNameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || schoolNameRaw,
+                schoolName: cleanSchoolName,
                 academicYear: uploadYear,
                 grades: {
                   "อ.1": { male: k1_male, female: k1_female, total: k1_total, rooms: k1_rooms },
@@ -681,7 +790,7 @@ export default function AdminPanel({
             try {
               await setDoc(schoolDocRef, {
                 id: schoolId,
-                name: schoolNameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || schoolNameRaw,
+                name: cleanSchoolName,
                 district: "สพป.แม่ฮ่องสอน เขต 1",
                 size,
                 isExpansion,
@@ -701,8 +810,18 @@ export default function AdminPanel({
             }
 
             processedCount++;
+            const pct = Math.round((processedCount / totalValid) * 100);
+            setProcessedRowsCount(processedCount);
+            setUploadProgress(pct);
+
+            // หน่วงเวลาเล็กน้อยเพื่อให้ React อัปเดต UI Progress Bar ได้อย่างสมูท
+            if (i % 2 === 0 || i === validRows.length - 1) {
+              await new Promise(r => setTimeout(r, 15));
+            }
           }
 
+          setUploadProgress(100);
+          setUploadStatusText(`นำเข้าสถิตินักเรียนสำเร็จสมบูรณ์ ทั้งหมด ${processedCount} โรงเรียน!`);
           setUploadSuccess(`นำเข้าสถิตินักเรียนเรียบร้อยแล้ว จำนวน ${processedCount} โรงเรียน ประจำปีการศึกษา ${uploadYear}`);
           setPreviewData([]);
           await onRefreshData();
@@ -1144,13 +1263,23 @@ export default function AdminPanel({
             </button>
             <button
               onClick={() => setAdminTab('logs')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
                 adminTab === 'logs' 
                   ? 'bg-[#FFD3B6] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                   : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
               }`}
             >
               <History className="h-4 w-4 inline-block mr-1.5" /> ประวัติการดาวน์โหลด
+            </button>
+            <button
+              onClick={() => setAdminTab('schools')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
+                adminTab === 'schools' 
+                  ? 'bg-[#FFAAA5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <Building className="h-4 w-4 inline-block mr-1.5" /> เพิ่ม/จัดการรายชื่อโรงเรียน ({schools.length})
             </button>
           </div>
 
@@ -1324,6 +1453,40 @@ export default function AdminPanel({
                       {uploadSuccess}
                     </div>
                   )}
+                  {/* แถบอัปโหลด Progress Bar */}
+                  {(isUploading || uploadProgress > 0) && (
+                    <div className="space-y-2.5 rounded-2xl border-2 border-[#33272A] p-4 bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[3px_3px_0px_#FFD3B6] animate-fade-in">
+                      <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className={`h-4 w-4 text-[#FF8BA7] ${isUploading ? 'animate-spin' : ''}`} />
+                          <span className="truncate max-w-[280px] sm:max-w-md">{uploadStatusText || 'กำลังประมวลผลการอัปโหลด...'}</span>
+                        </div>
+                        <span className="text-xs font-black text-[#33272A] bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                          {uploadProgress}%
+                        </span>
+                      </div>
+
+                      {/* แถบ Progress Bar สไตล์ Cute Neo-brutalism */}
+                      <div className="w-full h-5 rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#150e10] overflow-hidden p-0.5 shadow-inner dark:border-[#FFD3B6]">
+                        <div
+                          className="h-full rounded-lg bg-gradient-to-r from-[#FF8BA7] via-[#FFD3B6] to-[#A0E7E5] transition-all duration-300 ease-out flex items-center justify-end pr-1"
+                          style={{ width: `${Math.max(3, uploadProgress)}%` }}
+                        >
+                          {uploadProgress > 15 && (
+                            <span className="text-[9px] font-black text-[#33272A] drop-shadow-sm select-none">
+                              {uploadProgress}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 pt-0.5">
+                        <span>รายการที่ประมวลผลแล้ว: {processedRowsCount} / {totalRowsCount} โรงเรียน</span>
+                        <span>สถิตินักเรียน ปีการศึกษา {uploadYear}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {previewData.length > 0 && (
                     <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
                       <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
@@ -1555,6 +1718,223 @@ export default function AdminPanel({
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'schools' && (
+            <div className="space-y-6">
+              {/* ฟอร์มเพิ่มโรงเรียนใหม่ */}
+              <div className="card p-6 bg-[#FFF9F5] dark:bg-[#1e1518]">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> เพิ่มข้อมูลสถานศึกษาใหม่เข้าสู่ระบบ
+                </h3>
+
+                <form onSubmit={handleAddSchoolSubmit} className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      รหัสสถานศึกษา (8 หลัก) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น 10580101"
+                      value={newSchoolId}
+                      onChange={(e) => setNewSchoolId(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      ชื่อสถานศึกษา <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น โรงเรียนบ้านห้วยเสือร้อง"
+                      value={newSchoolName}
+                      onChange={(e) => setNewSchoolName(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อำเภอ</label>
+                    <select
+                      value={newSchoolAmphoe}
+                      onChange={(e) => setNewSchoolAmphoe(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    >
+                      <option value="เมืองแม่ฮ่องสอน">เมืองแม่ฮ่องสอน</option>
+                      <option value="ขุนยวม">ขุนยวม</option>
+                      <option value="ปาย">ปาย</option>
+                      <option value="แม่สะเรียง">แม่สะเรียง</option>
+                      <option value="แม่ลาน้อย">แม่ลาน้อย</option>
+                      <option value="สบเมย">สบเมย</option>
+                      <option value="ปางมะผ้า">ปางมะผ้า</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มเครือข่ายสถานศึกษา</label>
+                    <input
+                      type="text"
+                      placeholder="เช่น กลุ่มเครือข่ายสถานศึกษาห้วยปูลิง"
+                      value={newSchoolNetworkGroup}
+                      onChange={(e) => setNewSchoolNetworkGroup(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ขนาดโรงเรียน</label>
+                    <select
+                      value={newSchoolSize}
+                      onChange={(e) => setNewSchoolSize(e.target.value as School['size'])}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    >
+                      <option value="small">เล็ก (1 - 120 คน)</option>
+                      <option value="medium">กลาง (121 - 300 คน)</option>
+                      <option value="large">ใหญ่ (301 - 1,499 คน)</option>
+                      <option value="extra_large">ใหญ่พิเศษ (1,500 คนขึ้นไป)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ประเภทโรงเรียน</label>
+                    <select
+                      value={newSchoolIsExpansion ? 'true' : 'false'}
+                      onChange={(e) => setNewSchoolIsExpansion(e.target.value === 'true')}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    >
+                      <option value="false">ขยายโอกาส: ไม่ใช่ (สอนถึง ป.6)</option>
+                      <option value="true">ขยายโอกาส: ใช่ (สอนถึง ม.3)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ต</label>
+                    <select
+                      value={newSchoolInternet}
+                      onChange={(e) => setNewSchoolInternet(e.target.value as School['internetType'])}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    >
+                      <option value="fiber">Fiber Optic</option>
+                      <option value="satellite">ดาวเทียม</option>
+                      <option value="sim">SIM 4G/5G</option>
+                      <option value="none">ไม่มีอินเทอร์เน็ต</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากร (คน)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newSchoolStaffCount}
+                      onChange={(e) => setNewSchoolStaffCount(Number(e.target.value))}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์โรงเรียน</label>
+                    <input
+                      type="text"
+                      placeholder="เช่น 053-611234"
+                      value={newSchoolPhone}
+                      onChange={(e) => setNewSchoolPhone(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ผู้บริหาร</label>
+                    <input
+                      type="text"
+                      placeholder="เช่น 081-2345678"
+                      value={newSchoolDirectorPhone}
+                      onChange={(e) => setNewSchoolDirectorPhone(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">URL รูปภาพโรงเรียน</label>
+                    <input
+                      type="text"
+                      placeholder="https://..."
+                      value={newSchoolImageUrl}
+                      onChange={(e) => setNewSchoolImageUrl(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-3">
+                    {addSchoolSuccess && (
+                      <div className="p-3 bg-emerald-100 border-2 border-emerald-500 rounded-xl text-emerald-900 text-xs font-bold">
+                        {addSchoolSuccess}
+                      </div>
+                    )}
+                    {addSchoolError && (
+                      <div className="p-3 bg-rose-100 border-2 border-rose-500 rounded-xl text-rose-900 text-xs font-bold">
+                        {addSchoolError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-3 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isAddingSchool}
+                      className="btn-cute bg-[#A0E7E5] text-[#33272A] px-6 py-2.5 text-xs font-black flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>{isAddingSchool ? 'กำลังบันทึกโรงเรียน...' : 'เพิ่มโรงเรียนเข้าสู่ระบบ'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* ตารางรายชื่อโรงเรียนทั้งหมดพร้อมปุ่มลบ */}
+              <div className="card p-6 space-y-4">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> ตารางรายชื่อโรงเรียนในระบบทั้งหมด ({schools.length} แห่ง)
+                </h3>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                        <th className="p-3">รหัสโรงเรียน</th>
+                        <th className="p-3">ชื่อสถานศึกษา</th>
+                        <th className="p-3">อำเภอ</th>
+                        <th className="p-3 text-center">ครู (คน)</th>
+                        <th className="p-3 text-center">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-bold">
+                      {schools.map((s) => (
+                        <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
+                          <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
+                          <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
+                          <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
+                          <td className="p-3 text-center">{s.staffCount}</td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
+                              className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="h-3 w-3" /> ลบโรงเรียน
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
