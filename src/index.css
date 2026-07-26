@@ -23,14 +23,14 @@ body {
   color: var(--text-vibrant);
   letter-spacing: 0.01em;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
   margin: 0;
   padding: 0;
 }
 
 html, #root {
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .card {

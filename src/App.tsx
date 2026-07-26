@@ -334,7 +334,7 @@ export default function App() {
   ) || studentData.find(s => s.schoolId === selectedSchoolId) || null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant dark:bg-[#150e10] dark:text-rose-100 transition-colors duration-300 grid-pattern w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant dark:bg-[#150e10] dark:text-rose-100 transition-colors duration-300 grid-pattern w-full max-w-full overflow-x-clip">
       {/* HEADER */}
       <Header
         userProfile={userProfile}

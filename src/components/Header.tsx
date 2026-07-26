@@ -32,7 +32,7 @@ export default function Header({
   availableYears
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-40 w-full border-b-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] backdrop-blur-md transition-colors duration-300">
+    <header className="sticky top-0 z-50 w-full border-b-2 border-[#33272A] bg-white/95 dark:border-[#FFD3B6] dark:bg-[#1e1518]/95 backdrop-blur-md shadow-md transition-colors duration-300">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 w-full max-w-full overflow-hidden">
         {/* LOGO (Clickable to Home/Dashboard) */}
         <button
