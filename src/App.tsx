@@ -31,6 +31,7 @@ import SchoolDetailView from './components/SchoolDetailView';
 import AdminPanel from './components/AdminPanel';
 import AuthModal from './components/AuthModal';
 import InfrastructureView from './components/InfrastructureView';
+import VisitorCounter from './components/VisitorCounter';
 
 import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle } from 'lucide-react';
 
@@ -333,7 +334,7 @@ export default function App() {
   ) || studentData.find(s => s.schoolId === selectedSchoolId) || null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant dark:bg-[#150e10] dark:text-rose-100 transition-colors duration-300 grid-pattern">
+    <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant dark:bg-[#150e10] dark:text-rose-100 transition-colors duration-300 grid-pattern w-full max-w-full overflow-x-hidden">
       {/* HEADER */}
       <Header
         userProfile={userProfile}
@@ -440,7 +441,7 @@ export default function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 lg:pb-6">
+      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 xl:pb-6">
         <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-xs sm:text-sm font-medium text-[#33272A] dark:text-[#FFF9F5] gap-3 text-center md:text-left">
           <div className="flex items-center gap-1.5 justify-center">
             <Award className="h-4 w-4 text-[#FF8BA7] shrink-0" />
@@ -452,6 +453,11 @@ export default function App() {
             <span>และ</span>
             <span className="font-bold text-[#14B8A6] dark:text-[#A0E7E5]">เจ้าหน้าที่ ICT นางสาวชนัญชิตา ไพศาล</span>
           </div>
+        </div>
+
+        {/* VISITOR COUNTER */}
+        <div className="mx-auto max-w-7xl px-4 pt-3 mt-3 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/20 flex justify-center items-center">
+          <VisitorCounter />
         </div>
       </footer>
 

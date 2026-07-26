@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { School, UserProfile } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock } from 'lucide-react';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 interface InfrastructureViewProps {
@@ -338,6 +339,55 @@ export default function InfrastructureView({
     document.body.removeChild(link);
   };
 
+  // ฟังก์ชันดาวน์โหลด PDF
+  const handleExportPdf = async () => {
+    if (!canDownload) {
+      alert('การดาวน์โหลดข้อมูลถูกปิดใช้งานชั่วคราวโดย Super Admin');
+      return;
+    }
+    if (filteredSchools.length === 0) {
+      alert('ไม่มีข้อมูลโรงเรียนสำหรับดาวน์โหลด');
+      return;
+    }
+
+    const headers = ['ลำดับ', 'รหัสโรงเรียน', 'ชื่อโรงเรียน', 'อำเภอ', 'ระบบไฟฟ้า', 'เน็ต', 'ครูวิชาเอก', 'บุคลากร'];
+    const rows = filteredSchools.map((s, idx) => {
+      let elecText = 'มีไฟฟ้าถาวร';
+      if (s.electricity === 'solar') elecText = 'โซลาร์เซลล์';
+      else if (s.electricity === 'hybrid') elecText = 'ผสมผสาน';
+      else if (s.electricity === 'none' || s.electricity === false) elecText = 'ไม่มีไฟฟ้า';
+
+      let netText = 'Fiber';
+      if (s.internetType === 'satellite') netText = 'ดาวเทียม';
+      else if (s.internetType === 'sim') netText = 'SIM 4G';
+      else if (s.internetType === 'none') netText = 'ไม่มีเน็ต';
+
+      const majorsText = s.majorSubjects?.length 
+        ? s.majorSubjects.join(', ')
+        : s.majorSubjectsWithStaff?.map(m => `เอก${m.name}`).join(', ') || '-';
+
+      return [
+        idx + 1,
+        s.id,
+        s.name,
+        s.amphoe || 'เมืองแม่ฮ่องสอน',
+        elecText,
+        netText,
+        majorsText,
+        `${s.staffCount || 0} คน`
+      ];
+    });
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    await generatePdfReport({
+      title: 'รายงานข้อมูลโครงสร้างพื้นฐานและครูวิชาเอก',
+      subtitle: `จำนวนโรงเรียน ${filteredSchools.length} แห่ง (สพป.แม่ฮ่องสอน เขต 1)`,
+      headers,
+      rows,
+      filename: `Infrastructure_MHS1_${dateStr}.pdf`
+    });
+  };
+
   return (
     <div className="space-y-5 animate-fade-in pb-12">
       {/* Header Banner & Mode Switcher */}
@@ -364,7 +414,16 @@ export default function InfrastructureView({
               className="btn-cute bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black text-xs px-3.5 py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
             >
               <FileSpreadsheet className="h-4 w-4 shrink-0" />
-              <span>โหลด Excel ({filteredSchools.length})</span>
+              <span>Excel ({filteredSchools.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="btn-cute bg-[#FF8BA7] hover:bg-rose-300 text-[#33272A] font-black text-xs px-3.5 py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+            >
+              <FileText className="h-4 w-4 shrink-0" />
+              <span>PDF ({filteredSchools.length})</span>
             </button>
 
             <button

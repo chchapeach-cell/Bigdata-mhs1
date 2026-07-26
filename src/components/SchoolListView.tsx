@@ -4,6 +4,7 @@ import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTr
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
+import { generatePdfReport } from '../utils/exportPdf';
 import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 
 interface SchoolListViewProps {
@@ -109,6 +110,7 @@ export default function SchoolListView({
   const [downloadPurpose, setDownloadPurpose] = useState('');
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
 
   // คำนวณจำนวนนักเรียนรวมและวิเคราะห์ขนาดโรงเรียนตามเกณฑ์ ก.ค.ศ. ตามปีการศึกษาที่เลือก
   const schoolsWithCounts = useMemo(() => {
@@ -359,17 +361,48 @@ export default function SchoolListView({
         }));
       }
 
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "รายงานนักเรียน MHS1");
+      if (exportFormat === 'pdf') {
+        const title = downloadTarget && downloadTarget.id === 'filtered'
+          ? 'รายงานสารสนเทศสถานศึกษา (คัดกรองตามเงื่อนไข)'
+          : downloadTarget && downloadTarget.id !== ''
+          ? `รายงานสารสนเทศโรงเรียน ${downloadTarget.name}`
+          : 'รายงานสารสนเทศสถานศึกษาทั้งหมด สพป.แม่ฮ่องสอน เขต 1';
+        
+        const headers = exportRows.length > 0 ? Object.keys(exportRows[0]) : [];
+        const rows: (string | number)[][] = exportRows.map(r => 
+          Object.values(r).map(val => (typeof val === 'number' || typeof val === 'string' ? val : String(val ?? '')))
+        );
+        const baseFilename = downloadTarget && downloadTarget.id === 'filtered'
+          ? `MHS1_StudentData_Filtered_${new Date().toISOString().slice(0, 10)}`
+          : downloadTarget && downloadTarget.id !== ''
+          ? `MHS1_StudentData_${downloadTarget.id}_${downloadTarget.name.replace(/\s+/g, '')}`
+          : `MHS1_StudentData_AllSchools`;
 
-      const filename = downloadTarget && downloadTarget.id === 'filtered'
-        ? `MHS1_StudentData_Filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
-        : (downloadTarget && downloadTarget.id !== '')
-        ? `MHS1_StudentData_${downloadTarget.id}_${downloadTarget.name.replace(/\s+/g, '')}.xlsx`
-        : `MHS1_StudentData_AllSchools.xlsx`;
+        await generatePdfReport({
+          title,
+          subtitle: `ปีการศึกษา ${academicYear || '2568'}`,
+          requesterInfo: {
+            name: downloadName,
+            email: downloadEmail,
+            purpose: downloadPurpose
+          },
+          headers,
+          rows,
+          filename: `${baseFilename}.pdf`
+        });
+      } else {
+        const ws = XLSX.utils.json_to_sheet(exportRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "รายงานนักเรียน MHS1");
 
-      XLSX.writeFile(wb, filename);
+        const filename = downloadTarget && downloadTarget.id === 'filtered'
+          ? `MHS1_StudentData_Filtered_${new Date().toISOString().slice(0, 10)}.xlsx`
+          : (downloadTarget && downloadTarget.id !== '')
+          ? `MHS1_StudentData_${downloadTarget.id}_${downloadTarget.name.replace(/\s+/g, '')}.xlsx`
+          : `MHS1_StudentData_AllSchools.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+      }
 
       // สำเร็จ
       setIsDownloadModalOpen(false);
@@ -953,6 +986,43 @@ export default function SchoolListView({
             </p>
 
             <form onSubmit={handleConfirmDownload} className="space-y-4">
+              {/* เลือกรูปแบบไฟล์ */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รูปแบบไฟล์สำหรับดาวน์โหลด</label>
+                <div className="flex gap-2">
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${
+                    exportFormat === 'excel'
+                      ? 'bg-[#A0E7E5] border-[#33272A] text-[#33272A] shadow-sm'
+                      : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-[#33272A] dark:text-[#FFF9F5]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="excel"
+                      checked={exportFormat === 'excel'}
+                      onChange={() => setExportFormat('excel')}
+                      className="hidden"
+                    />
+                    <span>📊 ไฟล์ Excel (.xlsx)</span>
+                  </label>
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${
+                    exportFormat === 'pdf'
+                      ? 'bg-[#FF8BA7] border-[#33272A] text-[#33272A] shadow-sm'
+                      : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-[#33272A] dark:text-[#FFF9F5]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="pdf"
+                      checked={exportFormat === 'pdf'}
+                      onChange={() => setExportFormat('pdf')}
+                      className="hidden"
+                    />
+                    <span>📄 ไฟล์ PDF (.pdf)</span>
+                  </label>
+                </div>
+              </div>
+
               {/* ชื่อ */}
               <div className="space-y-1">
                 <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อ-นามสกุลผู้ขอเข้าถึงข้อมูล</label>

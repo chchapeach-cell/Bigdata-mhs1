@@ -33,16 +33,16 @@ export default function Header({
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 w-full border-b-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] backdrop-blur-md transition-colors duration-300">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 w-full max-w-full overflow-hidden">
         {/* LOGO (Clickable to Home/Dashboard) */}
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className="flex items-center gap-3 cursor-pointer text-left focus:outline-none group transition-transform active:scale-95"
+          className="flex items-center gap-2 sm:gap-3 cursor-pointer text-left focus:outline-none group transition-transform active:scale-95 shrink min-w-0"
           title="กลับสู่หน้าหลัก / ภาพรวมระบบ"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden transition-transform duration-200 group-hover:scale-105">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="h-8 w-8">
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden transition-transform duration-200 group-hover:scale-105 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="h-7 w-7 sm:h-8 sm:w-8">
               {/* Stacked Database disks */}
               <g transform="translate(8, 12) scale(0.72)">
                 {/* Bottom Disk */}
@@ -64,16 +64,16 @@ export default function Header({
               <circle cx="78" cy="60" r="8" fill="#A0E7E5" stroke="#33272A" strokeWidth="5" />
             </svg>
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 group-hover:text-[#FF8BA7] transition-colors">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1 group-hover:text-[#FF8BA7] transition-colors truncate">
               BigData <span className="text-[#FF8BA7]">Mhs1</span>
             </h1>
-            <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">สพป.แม่ฮ่องสอน เขต 1</p>
+            <p className="text-[10px] sm:text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold truncate">สพป.แม่ฮ่องสอน เขต 1</p>
           </div>
         </button>
 
-        {/* Navigation Tabs - Shown on large screens (Desktop), on mobile/tablet uses bottom icon bar */}
-        <nav className="hidden lg:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
+        {/* Navigation Tabs - Shown on large desktop screens, on mobile/tablet landscape uses bottom icon bar */}
+        <nav className="hidden xl:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 ${
@@ -174,32 +174,6 @@ export default function Header({
             </button>
           </div>
 
-          {/* Academic Year Selector Badge */}
-          {setAcademicYear && availableYears && availableYears.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-[#FFF9F5] dark:bg-[#1e1518] px-2.5 py-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5] shadow-xs">
-              <GraduationCap className="h-4 w-4 text-amber-500 shrink-0" />
-              <span className="hidden md:inline">ปีการศึกษา:</span>
-              <select
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                className="bg-transparent font-black cursor-pointer focus:outline-none text-[#33272A] dark:text-[#FFF9F5]"
-              >
-                {availableYears.map(yr => (
-                  <option key={yr} value={yr} className="dark:bg-[#1e1518] dark:text-[#FFF9F5]">{yr}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Dark mode toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className="rounded-xl p-1.5 sm:p-2 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-amber-300 transition-colors duration-200 cursor-pointer shrink-0"
-            aria-label="Toggle theme"
-          >
-            {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-
           {/* User Section (Desktop & Mobile) */}
           {userProfile ? (
             <div className="flex items-center gap-2">
@@ -238,7 +212,7 @@ export default function Header({
       </div>
 
       {/* Mobile & Tablet Bottom Tab Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
+      <div className="xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
         {/* Tab 1: ภาพรวม */}
         <button
           onClick={() => setActiveTab('dashboard')}

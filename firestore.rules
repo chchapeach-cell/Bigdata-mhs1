@@ -126,5 +126,11 @@ service cloud.firestore {
       // ONLY Super Admin can delete student G records
       allow delete: if isSuperAdmin();
     }
+
+    // 7. System Stats Collection (Visitor Count)
+    match /system_stats/{statId} {
+      // Anyone can read or update visitor statistics
+      allow read, write: if true;
+    }
   }
 }

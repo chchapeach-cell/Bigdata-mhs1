@@ -3,6 +3,7 @@ import { School, StudentData, UserProfile, ClassroomItem, StudentGData } from '.
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
+import { generatePdfReport } from '../utils/exportPdf';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
@@ -650,6 +651,42 @@ export default function SchoolDetailView({
     return levels.length > 0 ? levels.join(", ") : "ไม่ระบุชั้นเรียน";
   }, [school, effectiveStudentData]);
 
+  // ฟังก์ชันดาวน์โหลด PDF สรุปข้อมูลโรงเรียนนี้
+  const handleExportSchoolPdf = async () => {
+    const headers = ['ระดับชั้น', 'ชาย (คน)', 'หญิง (คน)', 'รวมทั้งหมด (คน)', 'จำนวนห้องเรียน'];
+    let rows: (string | number)[][] = [];
+
+    if (effectiveStudentData?.grades) {
+      const GRADE_ORDER = [
+        "อ.1", "อ.2", "อ.3",
+        "ป.1", "ป.2", "ป.3", "ป.4", "ป.5", "ป.6",
+        "ม.1", "ม.2", "ม.3"
+      ];
+      rows = GRADE_ORDER
+        .filter(grade => effectiveStudentData.grades[grade] !== undefined)
+        .map(grade => [
+          grade,
+          effectiveStudentData.grades[grade].male,
+          effectiveStudentData.grades[grade].female,
+          effectiveStudentData.grades[grade].total,
+          effectiveStudentData.grades[grade].rooms || 1
+        ]);
+    }
+
+    await generatePdfReport({
+      title: `รายงานข้อมูลนักเรียน - โรงเรียน${school.name} (รหัส ${school.id})`,
+      subtitle: `ปีการศึกษา ${selectedYear} | สพป.แม่ฮ่องสอน เขต 1`,
+      requesterInfo: {
+        name: userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'ผู้ใช้งานระบบ',
+        email: userProfile ? userProfile.email : '-',
+        purpose: 'พิมพ์รายงานสรุปข้อมูลโรงเรียนรายบุคคล'
+      },
+      headers,
+      rows,
+      filename: `Report_School_${school.id}_${selectedYear}.pdf`
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* ปุ่มย้อนกลับ และ ปุ่มจัดการแก้ไข */}
@@ -662,7 +699,17 @@ export default function SchoolDetailView({
           <span>ย้อนกลับไปยังรายชื่อโรงเรียน</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportSchoolPdf}
+            className="btn-cute bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] px-3 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer border-2 border-[#33272A] shadow-sm"
+            title="ดาวน์โหลดรายงานสรุปของโรงเรียนเป็นไฟล์ PDF"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span>พิมพ์ / โหลด PDF</span>
+          </button>
+
           {userProfile?.role === 'super_admin' && (
             <button
               type="button"
