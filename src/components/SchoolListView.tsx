@@ -27,6 +27,9 @@ interface SchoolListViewProps {
     electricityOptions?: { id: string; label: string }[];
     internetOptions?: { id: string; label: string }[];
   };
+  academicYear?: string;
+  setAcademicYear?: (year: string) => void;
+  availableYears?: string[];
 }
 
 export default function SchoolListView({
@@ -36,7 +39,10 @@ export default function SchoolListView({
   userProfile,
   initialFilters,
   clearInitialFilters,
-  systemConfig
+  systemConfig,
+  academicYear,
+  setAcademicYear,
+  availableYears
 }: SchoolListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
@@ -104,10 +110,13 @@ export default function SchoolListView({
   const [downloadError, setDownloadError] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // คำนวณจำนวนนักเรียนรวมและวิเคราะห์ขนาดโรงเรียนตามเกณฑ์ ก.ค.ศ.
+  // คำนวณจำนวนนักเรียนรวมและวิเคราะห์ขนาดโรงเรียนตามเกณฑ์ ก.ค.ศ. ตามปีการศึกษาที่เลือก
   const schoolsWithCounts = useMemo(() => {
     return schools.map(school => {
-      const matchData = studentData.find(s => s.schoolId === school.id);
+      const matchData = studentData.find(s => 
+        s.schoolId === school.id && 
+        (academicYear ? String(s.academicYear).trim() === String(academicYear).trim() : true)
+      );
       const studentCount = matchData ? matchData.totalStudents : 0;
       const effectiveSize = matchData ? getSchoolSize(studentCount) : school.size;
       return {
@@ -118,7 +127,7 @@ export default function SchoolListView({
         femaleCount: matchData ? matchData.totalFemale : 0
       };
     });
-  }, [schools, studentData]);
+  }, [schools, studentData, academicYear]);
 
   // คัดกรองข้อมูลโรงเรียน
   const filteredSchools = useMemo(() => {
@@ -426,7 +435,23 @@ export default function SchoolListView({
         </div>
 
         {/* Dropdown Filters Grid - ออกแบบให้พอดีขอบจอมือถือและเดสก์ท็อป ไม่ยืดล้น */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+          {/* ปีการศึกษา */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+              <GraduationCap className="h-3.5 w-3.5 text-amber-500" /> ปีการศึกษา
+            </label>
+            <select
+              value={academicYear || '2568'}
+              onChange={(e) => setAcademicYear && setAcademicYear(e.target.value)}
+              className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] focus:ring-2 focus:ring-[#FF8BA7] cursor-pointer"
+            >
+              {(availableYears && availableYears.length > 0 ? availableYears : ['2568', '2567', '2566', '2565']).map(yr => (
+                <option key={yr} value={yr}>ปีการศึกษา {yr}</option>
+              ))}
+            </select>
+          </div>
+
           {/* อำเภอ */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">

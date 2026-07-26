@@ -2074,51 +2074,43 @@ export default function AdminPanel({
           {adminTab === 'upload' && (
             <div className="grid gap-6 md:grid-cols-3">
               <div className="md:col-span-1 flex flex-col gap-6">
-                {/* นโยบายระบบ */}
-                <div className="card p-6">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Shield className="h-4.5 w-4.5 text-[#FF8BA7]" /> นโยบายระบบ
-                  </h3>
-                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
-                    จัดการสิทธิ์การสมัครสมาชิกและการเข้าถึงของแอดมินระดับโรงเรียน
+                {/* สรุปสถานะการตั้งค่าระบบ (รวมศูนย์ไว้ที่แท็บตั้งค่าระบบ) */}
+                <div className="card p-6 bg-white dark:bg-[#1e1518]">
+                  <div className="flex items-center justify-between mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-[#FF8BA7]" /> สถานะนโยบายระบบ
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('settings')}
+                      className="text-xs font-black text-[#FF8BA7] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Settings className="h-3.5 w-3.5" /> ตั้งค่าระบบ
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed mb-4">
+                    นโยบายการทำงานและสิทธิ์ถูกปรับแต่งรวมกันในแท็บตั้งค่าระบบ:
                   </p>
-                  <div className="space-y-3">
-                    <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมิน</span>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                        disabled={isSavingSettings}
-                        className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                          allowSchoolAdminRegistration 
-                            ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                            : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                        }`}
-                      >
-                        {isSavingSettings ? 'บันทึก...' : allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
-                      </button>
+                  <div className="space-y-2.5">
+                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">การดาวน์โหลดข้อมูลระบบ</span>
+                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowDataDownload ? 'bg-emerald-300 text-emerald-950' : 'bg-rose-200 text-rose-950'}`}>
+                        {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
+                      </span>
                     </div>
-                    <div className="p-2.5 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 คนต่อโรงเรียน</span>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                        disabled={isSavingSettings}
-                        className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
-                          restrictOneAdminPerSchool 
-                            ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_0px_#33272A]' 
-                            : 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
-                        }`}
-                      >
-                        {isSavingSettings ? 'บันทึก...' : restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                      </button>
+                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รับสมัครแอดมินโรงเรียน</span>
+                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowSchoolAdminRegistration ? 'bg-emerald-300 text-emerald-950' : 'bg-slate-200 text-slate-700'}`}>
+                        {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 แอดมินต่อโรงเรียน</span>
+                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${restrictOneAdminPerSchool ? 'bg-[#FF8BA7] text-[#33272A]' : 'bg-slate-200 text-slate-700'}`}>
+                        {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : '🔓 หลายคนได้'}
+                      </span>
                     </div>
                   </div>
-                  {settingsSuccess && (
-                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
-                      {settingsSuccess}
-                    </p>
-                  )}
                 </div>
 
                 {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
@@ -3237,77 +3229,80 @@ export default function AdminPanel({
                   </h4>
 
                   {/* 1. เปิด/ปิด การดาวน์โหลดข้อมูล */}
-                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
-                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        เปิด/ปิด การดาวน์โหลดข้อมูลระบบ (Export Files)
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        เปิด/ปิด การดาวน์โหลดข้อมูลระบบทั้งหมด (Export Data)
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {allowDataDownload
-                          ? '✓ อนุญาตให้ผู้ใช้ทั่วไปดาวน์โหลดไฟล์รายงาน Excel/CSV ได้'
-                          : '❌ ปิดใช้งานการดาวน์โหลด (เฉพาะ Super Admin ดาวน์โหลดได้)'}
+                          ? '✓ เปิดใช้งาน: ผู้ใช้งานทุกคนสามารถดาวน์โหลดไฟล์ Excel/CSV ได้'
+                          : '❌ ปิดใช้งาน: ไม่อนุญาตให้ดาวน์โหลด (ยกเว้น Super Admin)'}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setAllowDataDownload(!allowDataDownload)}
-                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                      onClick={() => handleToggleSetting('allowDataDownload', !allowDataDownload)}
+                      disabled={isSavingSettings}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
                         allowDataDownload
                           ? 'bg-emerald-400 text-emerald-950 shadow-[2px_2px_0px_#33272A]'
                           : 'bg-rose-200 text-rose-950 shadow-[2px_2px_0px_#33272A]'
                       }`}
                     >
-                      {allowDataDownload ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                      {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
                     </button>
                   </div>
 
                   {/* 2. จำกัด 1 แอดมินต่อโรงเรียน */}
-                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
-                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
                         นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {restrictOneAdminPerSchool
-                          ? '✓ โรงเรียนที่มีแอดมินแล้ว จะไม่เปิดให้ผู้อื่นลงทะเบียนซ้ำ'
-                          : '🔓 อนุญาตให้มีแอดมินหลายคนต่อโรงเรียน'}
+                          ? '✓ โรงเรียนที่มีแอดมินแล้ว จะปิดไม่ให้ผู้อื่นสมัครซ้ำ'
+                          : '🔓 อนุญาตให้มีแอดมินหลายคนต่อหนึ่งโรงเรียนได้'}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setRestrictOneAdminPerSchool(!restrictOneAdminPerSchool)}
-                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                      onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
+                      disabled={isSavingSettings}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
                         restrictOneAdminPerSchool
                           ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
                           : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
                       }`}
                     >
-                      {restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                      {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : 'ปิดใช้งาน'}
                     </button>
                   </div>
 
                   {/* 3. เปิด/ปิด การรับสมัครแอดมินโรงเรียน */}
-                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
-                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
                         ระบบเปิดรับสมัครแอดมินโรงเรียนใหม่
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {allowSchoolAdminRegistration
-                          ? '✓ ผู้ใช้งานสามารถลงทะเบียนขอสิทธิ์ School Admin ได้'
-                          : '❌ ปิดรับสมัครแอดมินใหม่ชั่วคราว'}
+                          ? '✓ เปิดรับสมัคร: สมาชิกใหม่ลงทะเบียนขอสิทธิ์ School Admin ได้'
+                          : '❌ ปิดรับสมัคร: ปิดรับการลงทะเบียนแอดมินโรงเรียนชั่วคราว'}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setAllowSchoolAdminRegistration(!allowSchoolAdminRegistration)}
-                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                      onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                      disabled={isSavingSettings}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
                         allowSchoolAdminRegistration
-                          ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                          ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_#33272A]'
                           : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
                       }`}
                     >
-                      {allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
+                      {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
                     </button>
                   </div>
                 </div>

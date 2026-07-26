@@ -26,6 +26,9 @@ interface SchoolDetailViewProps {
     electricityOptions?: { id: string; label: string }[];
     internetOptions?: { id: string; label: string }[];
   };
+  academicYear?: string;
+  setAcademicYear?: (year: string) => void;
+  availableYears?: string[];
 }
 
 export default function SchoolDetailView({
@@ -36,7 +39,10 @@ export default function SchoolDetailView({
   onBack,
   userProfile,
   onRefreshData,
-  isDarkMode = false
+  isDarkMode = false,
+  academicYear,
+  setAcademicYear,
+  availableYears
 }: SchoolDetailViewProps) {
   const isSuperAdmin = userProfile?.role === 'super_admin';
   const isSchoolAdmin = userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id;
@@ -535,9 +541,33 @@ export default function SchoolDetailView({
     return `https://maps.google.com/maps?q=${lat},${lng}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
   }, [school.latitude, school.longitude, isEditing, editLatitude, editLongitude]);
 
+  // สถานะปีการศึกษาที่กำลังดูในหน้ารายละเอียดโรงเรียน
+  const [selectedYear, setSelectedYear] = useState<string>(
+    academicYear || studentData?.academicYear || '2568'
+  );
+
+  useEffect(() => {
+    if (academicYear) {
+      setSelectedYear(academicYear);
+    } else if (studentData?.academicYear) {
+      setSelectedYear(studentData.academicYear);
+    }
+  }, [academicYear, studentData?.academicYear]);
+
+  // ดึงข้อมูลนักเรียนทั่วไปของโรงเรียนนี้ตามปีการศึกษาที่เลือก
+  const effectiveStudentData = useMemo(() => {
+    if (allStudentData && allStudentData.length > 0) {
+      const match = allStudentData.find(
+        s => s.schoolId === school.id && String(s.academicYear).trim() === String(selectedYear).trim()
+      );
+      if (match) return match;
+    }
+    return studentData;
+  }, [allStudentData, school.id, selectedYear, studentData]);
+
   // จัดหมวดหมู่กราฟนักเรียนแยกชาย-หญิง เรียงลำดับจากอนุบาล -> ประถม -> มัธยม
   const chartData = useMemo(() => {
-    if (!studentData || !studentData.grades) return [];
+    if (!effectiveStudentData || !effectiveStudentData.grades) return [];
     
     const GRADE_ORDER = [
       "อ.1", "อ.2", "อ.3",
@@ -546,14 +576,14 @@ export default function SchoolDetailView({
     ];
 
     return GRADE_ORDER
-      .filter(grade => studentData.grades[grade] !== undefined)
+      .filter(grade => effectiveStudentData.grades[grade] !== undefined)
       .map(grade => ({
         name: grade,
-        ชาย: studentData.grades[grade].male,
-        หญิง: studentData.grades[grade].female,
-        รวม: studentData.grades[grade].total
+        ชาย: effectiveStudentData.grades[grade].male,
+        หญิง: effectiveStudentData.grades[grade].female,
+        รวม: effectiveStudentData.grades[grade].total
       }));
-  }, [studentData]);
+  }, [effectiveStudentData]);
 
   // คำนวณแนวโน้มจำนวนนักเรียนรายปีการศึกษาของโรงเรียนนี้
   const schoolTrendData = useMemo(() => {
@@ -593,23 +623,32 @@ export default function SchoolDetailView({
     }));
   }, [allStudentGData, school.id, school.name]);
 
-  // ข้อมูลนักเรียนตัว G ปีล่าสุดของโรงเรียนนี้
-  const latestSchoolGData = useMemo(() => {
-    if (schoolGTrendData.length === 0) return null;
-    return schoolGTrendData[schoolGTrendData.length - 1];
-  }, [schoolGTrendData]);
+  // ข้อมูลนักเรียนตัว G ตรงตามปีการศึกษาที่เลือก
+  const effectiveGData = useMemo(() => {
+    if (allStudentGData && allStudentGData.length > 0) {
+      const match = allStudentGData.find(
+        g => (g.schoolId === school.id || (g.schoolName && g.schoolName === school.name)) &&
+             String(g.academicYear).trim() === String(selectedYear).trim()
+      );
+      if (match) return match;
+    }
+    if (schoolGTrendData.length > 0) {
+      return schoolGTrendData[schoolGTrendData.length - 1];
+    }
+    return null;
+  }, [allStudentGData, school.id, school.name, selectedYear, schoolGTrendData]);
 
   // คำนวณประเภทช่วงชั้นเรียน
   const schoolLevelsText = useMemo(() => {
     let levels = [];
-    if (studentData) {
-      const g = studentData.grades;
+    if (effectiveStudentData) {
+      const g = effectiveStudentData.grades;
       if (g["อ.1"]?.total > 0 || g["อ.2"]?.total > 0 || g["อ.3"]?.total > 0) levels.push("ระดับปฐมวัย (อนุบาล)");
       if (g["ป.1"]?.total > 0 || g["ป.2"]?.total > 0 || g["ป.3"]?.total > 0 || g["ป.4"]?.total > 0 || g["ป.5"]?.total > 0 || g["ป.6"]?.total > 0) levels.push("ระดับประถมศึกษา (ป.1 - ป.6)");
       if (school.isExpansion) levels.push("ระดับมัธยมศึกษาตอนต้น (ม.1 - ม.3)");
     }
-    return levels.join(", ");
-  }, [school, studentData]);
+    return levels.length > 0 ? levels.join(", ") : "ไม่ระบุชั้นเรียน";
+  }, [school, effectiveStudentData]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1469,13 +1508,33 @@ export default function SchoolDetailView({
 
         {/* แผนภูมิแสดงนักเรียน */}
         <div className="lg:col-span-2 card p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-              <Grid className="h-4 w-4 text-[#FF8BA7]" /> จำนวนนักเรียนแต่ละระดับชั้นเรียน
-            </h3>
-            <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
-              ปีการศึกษา {studentData?.academicYear || "-"} | ครอบคลุม: {schoolLevelsText}
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3">
+            <div>
+              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Grid className="h-4 w-4 text-[#FF8BA7]" /> จำนวนนักเรียนแต่ละระดับชั้นเรียน
+              </h3>
+              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                ข้อมูลครอบคลุม: {schoolLevelsText}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                <GraduationCap className="h-3.5 w-3.5 text-amber-500" /> ปีการศึกษา:
+              </span>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedYear(val);
+                  if (setAcademicYear) setAcademicYear(val);
+                }}
+                className="bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-xl px-2.5 py-1 text-xs font-black cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+              >
+                {(availableYears && availableYears.length > 0 ? availableYears : ['2568', '2567', '2566', '2565']).map(yr => (
+                  <option key={yr} value={yr}>ปีการศึกษา {yr}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="h-64 w-full text-[10px] font-bold mt-4">
@@ -1503,7 +1562,7 @@ export default function SchoolDetailView({
               </ResponsiveContainer>
             ) : (
               <div className="h-full w-full flex items-center justify-center text-slate-400 font-bold">
-                ไม่พบข้อมูลนักเรียน
+                ไม่พบข้อมูลนักเรียนปีการศึกษา {selectedYear}
               </div>
             )}
           </div>
@@ -1511,23 +1570,23 @@ export default function SchoolDetailView({
           {/* สถิติรวดเร็ว */}
           <div className="mt-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs font-black">
             <div className="bg-[#A0E7E5]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
-              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">ชายทั้งหมด</span>
-              <span className="text-sm font-black">{studentData?.totalMale || 0} คน</span>
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">ชายทั้งหมด ({selectedYear})</span>
+              <span className="text-sm font-black">{effectiveStudentData?.totalMale || 0} คน</span>
             </div>
             <div className="bg-[#FF8BA7]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
-              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">หญิงทั้งหมด</span>
-              <span className="text-sm font-black">{studentData?.totalFemale || 0} คน</span>
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">หญิงทั้งหมด ({selectedYear})</span>
+              <span className="text-sm font-black">{effectiveStudentData?.totalFemale || 0} คน</span>
             </div>
             <div className="bg-[#FFD3B6]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
-              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">นักเรียนรวม</span>
-              <span className="text-sm font-black">{studentData?.totalStudents || 0} คน</span>
+              <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">นักเรียนรวม ({selectedYear})</span>
+              <span className="text-sm font-black">{effectiveStudentData?.totalStudents || 0} คน</span>
             </div>
             <div className="bg-amber-100 dark:bg-amber-950/60 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
               <span className="block text-[10px] text-amber-800 dark:text-amber-200 font-extrabold flex items-center justify-center gap-1">
-                <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" /> นักเรียนตัว G รวม
+                <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" /> นักเรียนตัว G ({selectedYear})
               </span>
               <span className="text-sm font-black text-amber-900 dark:text-amber-100">
-                {latestSchoolGData ? latestSchoolGData.นักเรียนตัวGรวม : 0} คน
+                {effectiveGData ? (effectiveGData.totalGStudents || effectiveGData.นักเรียนตัวGรวม || 0) : 0} คน
               </span>
             </div>
           </div>

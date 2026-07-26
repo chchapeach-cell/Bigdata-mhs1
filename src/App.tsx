@@ -328,7 +328,9 @@ export default function App() {
   };
 
   const selectedSchool = schools.find(s => s.id === selectedSchoolId);
-  const selectedSchoolStudent = studentData.find(s => s.schoolId === selectedSchoolId && s.academicYear === academicYear) || null;
+  const selectedSchoolStudent = studentData.find(
+    s => s.schoolId === selectedSchoolId && String(s.academicYear).trim() === String(academicYear).trim()
+  ) || studentData.find(s => s.schoolId === selectedSchoolId) || null;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant dark:bg-[#150e10] dark:text-rose-100 transition-colors duration-300 grid-pattern">
@@ -346,6 +348,9 @@ export default function App() {
         }}
         fontSize={fontSize}
         setFontSize={setFontSize}
+        academicYear={academicYear}
+        setAcademicYear={setAcademicYear}
+        availableYears={availableYears}
       />
 
       {/* MAIN CONTENT AREA */}
@@ -371,6 +376,9 @@ export default function App() {
                 onRefreshData={fetchAllData}
                 isDarkMode={isDarkMode}
                 systemConfig={systemConfig}
+                academicYear={academicYear}
+                setAcademicYear={setAcademicYear}
+                availableYears={availableYears}
               />
             ) : (
               <>
@@ -397,6 +405,9 @@ export default function App() {
                     initialFilters={initialFilters}
                     clearInitialFilters={() => setInitialFilters(null)}
                     systemConfig={systemConfig}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
                   />
                 )}
 

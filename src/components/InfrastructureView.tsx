@@ -468,20 +468,15 @@ export default function InfrastructureView({
             </div>
 
             {/* Type selections */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                { id: 'has_electric', label: '🔌 ไฟฟ้าถาวร' },
-                { id: 'solar', label: '☀️ โซลาร์เซลล์' },
-                { id: 'hybrid', label: '⚡☀️ ผสมผสาน' },
-                { id: 'none', label: '❌ ไม่มีไฟฟ้า' },
-              ].map(item => {
+            <div className="grid grid-cols-2 gap-2">
+              {electricityTypeList.map(item => {
                 const isSelected = electricSelected.includes(item.id);
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => toggleElectricType(item.id)}
-                    className={`px-2 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
+                    className={`px-2.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
                       isSelected
                         ? electricMode === 'include'
                           ? 'bg-amber-300 text-amber-950 border-[#33272A]'
@@ -489,13 +484,13 @@ export default function InfrastructureView({
                         : 'bg-white dark:bg-[#1a1214] text-slate-500 border-slate-300 dark:border-slate-700 opacity-60'
                     }`}
                   >
-                    {isSelected ? <CheckSquare className="h-3.5 w-3.5 shrink-0 text-[#33272A]" /> : <Square className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                    {isSelected ? <CheckSquare className="h-4 w-4 shrink-0 text-[#33272A]" /> : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
                     <span className="truncate">{item.label}</span>
                   </button>
                 );
               })}
             </div>
-            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
               {electricMode === 'include' ? '✓ แสดงโรงเรียนที่อยู่ในประเภทที่เลือก' : '❌ ไม่แสดงโรงเรียนในประเภทที่เลือก'}
             </p>
           </div>
@@ -536,20 +531,15 @@ export default function InfrastructureView({
             </div>
 
             {/* Type selections */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                { id: 'fiber', label: '🌐 Fiber' },
-                { id: 'satellite', label: '🛰️ ดาวเทียม' },
-                { id: 'sim', label: '📱 SIM 4G' },
-                { id: 'none', label: '❌ ไม่มีเน็ต' },
-              ].map(item => {
+            <div className="grid grid-cols-2 gap-2">
+              {internetTypeList.map(item => {
                 const isSelected = internetSelected.includes(item.id);
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => toggleInternetType(item.id)}
-                    className={`px-2 py-1.5 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
+                    className={`px-2.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
                       isSelected
                         ? internetMode === 'include'
                           ? 'bg-sky-200 text-sky-950 border-[#33272A]'
@@ -557,7 +547,7 @@ export default function InfrastructureView({
                         : 'bg-white dark:bg-[#1a1214] text-slate-500 border-slate-300 dark:border-slate-700 opacity-60'
                     }`}
                   >
-                    {isSelected ? <CheckSquare className="h-3.5 w-3.5 shrink-0 text-[#33272A]" /> : <Square className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                    {isSelected ? <CheckSquare className="h-4 w-4 shrink-0 text-[#33272A]" /> : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
                     <span className="truncate">{item.label}</span>
                   </button>
                 );

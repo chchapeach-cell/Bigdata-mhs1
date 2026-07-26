@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
@@ -12,6 +12,9 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   fontSize: 'small' | 'medium' | 'large' | 'xlarge';
   setFontSize: (size: 'small' | 'medium' | 'large' | 'xlarge') => void;
+  academicYear?: string;
+  setAcademicYear?: (year: string) => void;
+  availableYears?: string[];
 }
 
 export default function Header({
@@ -23,7 +26,10 @@ export default function Header({
   activeTab,
   setActiveTab,
   fontSize,
-  setFontSize
+  setFontSize,
+  academicYear,
+  setAcademicYear,
+  availableYears
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 w-full border-b-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] backdrop-blur-md transition-colors duration-300">
@@ -59,10 +65,10 @@ export default function Header({
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 group-hover:text-[#FF8BA7] transition-colors">
+            <h1 className="text-xl font-black tracking-tight text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 group-hover:text-[#FF8BA7] transition-colors">
               BigData <span className="text-[#FF8BA7]">Mhs1</span>
             </h1>
-            <p className="text-[9px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">สพป.แม่ฮ่องสอน เขต 1</p>
+            <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">สพป.แม่ฮ่องสอน เขต 1</p>
           </div>
         </button>
 
@@ -168,6 +174,23 @@ export default function Header({
             </button>
           </div>
 
+          {/* Academic Year Selector Badge */}
+          {setAcademicYear && availableYears && availableYears.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-[#FFF9F5] dark:bg-[#1e1518] px-2.5 py-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5] shadow-xs">
+              <GraduationCap className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="hidden md:inline">ปีการศึกษา:</span>
+              <select
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                className="bg-transparent font-black cursor-pointer focus:outline-none text-[#33272A] dark:text-[#FFF9F5]"
+              >
+                {availableYears.map(yr => (
+                  <option key={yr} value={yr} className="dark:bg-[#1e1518] dark:text-[#FFF9F5]">{yr}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Dark mode toggle */}
           <button
             onClick={toggleDarkMode}
@@ -182,10 +205,10 @@ export default function Header({
             <div className="flex items-center gap-2">
               {/* Profile Badge (Hidden on mobile to prevent overflow, shown on sm and up) */}
               <div className="hidden sm:flex flex-col items-end text-right">
-                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] max-w-[180px] truncate">
+                <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] max-w-[200px] truncate">
                   {userProfile.firstName} {userProfile.lastName}
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6] max-w-[180px] truncate mt-0.5">
+                <span className="text-xs px-2 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6] max-w-[200px] truncate mt-0.5">
                   {userProfile.role === 'super_admin' ? 'Super Admin' : `แอดมิน: ${userProfile.schoolName || 'โรงเรียน'}`}
                   {userProfile.status === 'pending' && ' (รออนุมัติ)'}
                 </span>
@@ -194,7 +217,7 @@ export default function Header({
               {/* Logout Button in top header (hidden on mobile, accessible via bottom bar on mobile) */}
               <button
                 onClick={onLogout}
-                className="hidden sm:flex btn-cute bg-[#FF8BA7] px-3 py-1.5 text-[10px] font-black transition-all items-center gap-1 cursor-pointer shrink-0"
+                className="hidden sm:flex btn-cute bg-[#FF8BA7] px-3.5 py-1.5 text-xs font-black transition-all items-center gap-1 cursor-pointer shrink-0"
                 title="ออกจากระบบ"
               >
                 <LogOut className="h-3.5 w-3.5 shrink-0" />
