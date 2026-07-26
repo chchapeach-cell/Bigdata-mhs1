@@ -3,13 +3,35 @@ export interface MajorSubject {
   teachersCount: number;
 }
 
+export interface BranchGradeData {
+  male: number;
+  female: number;
+  total: number;
+}
+
 export interface ClassroomItem {
-  id: string; // รหัสห้องเรียน
-  name: string; // ชื่อห้องเรียน/ชั้นเรียน เช่น "ม.1/1", "ป.1/1 (ห้องเรียนเน้นอังกฤษ)", "อ.2/1"
-  gradeLevel?: string; // ระดับชั้น เช่น "ม.1", "ป.1", "อ.2"
-  studentCount?: number; // จำนวนนักเรียนในห้องนี้
-  teacherName?: string; // ครูประจำชั้น
-  notes?: string; // หมายเหตุเพิ่มเติม
+  id: string; // รหัสห้องเรียน/สาขา
+  name: string; // ชื่อห้องเรียนย่อย/สาขาโรงเรียนเล็ก เช่น "ห้องเรียนย่อยสาขาบ้านห้วยฮี้"
+  gradeLevel?: string; // ระดับชั้นที่เปิดสอน เช่น "อ.1 - ป.6"
+  studentCount?: number; // จำนวนนักเรียนในห้องนี้/สาขานี้
+  maleCount?: number; // จำนวนนักเรียนชาย
+  femaleCount?: number; // จำนวนนักเรียนหญิง
+  staffCount?: number; // จำนวนครู/บุคลากรประจำสาขา
+  teacherName?: string; // ครูประจำชั้น/ครูผู้ดูแลสาขา
+  phone?: string; // เบอร์โทรศัพท์ติดต่อ
+  electricity?: 'has_electric' | 'solar' | 'hybrid' | 'none' | boolean; // ระบบไฟฟ้า
+  solarKw?: string; // กำลังผลิตโซลาร์เซลล์ (kW)
+  hasSolarBattery?: boolean; // มีแบตเตอรี่สำรองหรือไม่
+  solarBatteryCapacity?: string; // รายละเอียด/ความจุแบตเตอรี่
+  internetType?: 'satellite' | 'fiber' | 'sim' | 'none'; // ระบบอินเทอร์เน็ต
+  distanceFromMainSchool?: string; // ระยะทางจากโรงเรียนหลัก (กม. / ลักษณะเส้นทาง)
+  latitude?: number; // ละติจูด
+  longitude?: number; // ลองจิจูด
+  gradesBreakdown?: {
+    [gradeKey: string]: BranchGradeData;
+  };
+  notes?: string; // หมายเหตุเพิ่มเติม/สภาพพื้นที่ห่างไกล
+  isRemoteBranch?: boolean; // เป็นโรงเรียนสาขา/ห้องเรียนย่อยในพื้นที่ห่างไกลหรือไม่
 }
 
 export interface School {
@@ -18,8 +40,11 @@ export interface School {
   district: string; // เช่น สพป.แม่ฮ่องสอน เขต 1
   amphoe?: string; // เพิ่มอำเภอ
   networkGroup?: string; // เพิ่มกลุ่มเครือข่าย
-  internetType: 'satellite' | 'fiber' | 'sim' | 'none'; // ระบบเน็ต: ดาวเทียม, ไฟเบอร์, ซิม, ไม่ได้ใช้
-  electricity: boolean; // มีไฟฟ้าใช้งานหรือไม่
+  internetType: string; // ระบบเน็ต: ดาวเทียม, ไฟเบอร์, ซิม, ไม่ได้ใช้ หรือประเภทอื่นๆ
+  electricity: string | boolean; // ระบบไฟฟ้า
+  solarKw?: string; // กำลังผลิตโซลาร์เซลล์ (kW)
+  hasSolarBattery?: boolean; // มีแบตเตอรี่สำรองหรือไม่
+  solarBatteryCapacity?: string; // รายละเอียด/ความจุแบตเตอรี่
   staffCount: number; // จำนวนครู/บุคลากร
   majorSubjects: string[]; // วิชาเอกที่มีในโรงเรียน (คั่นหรือเก็บแบบ string)
   majorSubjectsWithStaff?: MajorSubject[]; // วิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
@@ -33,6 +58,7 @@ export interface School {
   longitude: number;
   size: 'small' | 'medium' | 'large' | 'special_large'; // ขนาดโรงเรียน (วิเคราะห์จากจำนวนนักเรียน)
   isExpansion: boolean; // โรงเรียนขยายโอกาส (มีนักเรียน ม.1 - ม.3)
+  specialHighlights?: string; // ความพิเศษ / จุดเด่นของโรงเรียน
 }
 
 export interface GradeData {
@@ -89,3 +115,17 @@ export interface DownloadLog {
   purpose: string;
   timestamp: any;
 }
+
+export interface InfrastructureOption {
+  id: string;
+  label: string;
+}
+
+export interface SystemConfig {
+  allowDataDownload: boolean; // เปิด-ปิดระบบดาวน์โหลดข้อมูล
+  restrictOneAdminPerSchool: boolean;
+  allowSchoolAdminRegistration: boolean;
+  electricityOptions: InfrastructureOption[];
+  internetOptions: InfrastructureOption[];
+}
+

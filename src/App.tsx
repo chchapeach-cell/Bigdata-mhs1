@@ -2,8 +2,26 @@ import { useState, useEffect } from 'react';
 import { db, auth, OperationType, handleFirestoreError } from './firebase';
 import { collection, getDocs, setDoc, doc, getDoc, query, where } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { School, StudentData, UserProfile, StudentGData } from './types';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig } from './types';
 import { generateInitialStudentGData } from './utils/initialData';
+
+const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
+  allowDataDownload: true,
+  restrictOneAdminPerSchool: true,
+  allowSchoolAdminRegistration: true,
+  electricityOptions: [
+    { id: 'has_electric', label: '🔌 ไฟฟ้าถาวร' },
+    { id: 'solar', label: '☀️ โซลาร์เซลล์' },
+    { id: 'hybrid', label: '⚡☀️ ผสมผสาน' },
+    { id: 'none', label: '❌ ไม่มีไฟฟ้า' },
+  ],
+  internetOptions: [
+    { id: 'fiber', label: '🌐 Fiber Optic' },
+    { id: 'satellite', label: '🛰️ ดาวเทียม' },
+    { id: 'sim', label: '📱 SIM 4G/5G' },
+    { id: 'none', label: '❌ ไม่มีเน็ต' },
+  ],
+};
 
 // นำเข้า Components
 import Header from './components/Header';
@@ -12,6 +30,7 @@ import SchoolListView from './components/SchoolListView';
 import SchoolDetailView from './components/SchoolDetailView';
 import AdminPanel from './components/AdminPanel';
 import AuthModal from './components/AuthModal';
+import InfrastructureView from './components/InfrastructureView';
 
 import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle } from 'lucide-react';
 
@@ -26,6 +45,7 @@ export default function App() {
     amphoe?: string;
     netFilter?: string;
     electricityFilter?: string;
+    majorSubjectFilter?: string;
   } | null>(null);
 
   const handleFilterNavigate = (filters: {
@@ -34,6 +54,7 @@ export default function App() {
     amphoe?: string;
     netFilter?: string;
     electricityFilter?: string;
+    majorSubjectFilter?: string;
   }) => {
     setInitialFilters(filters);
     setActiveTab('schools');
@@ -44,6 +65,7 @@ export default function App() {
   const [schools, setSchools] = useState<School[]>([]);
   const [studentData, setStudentData] = useState<StudentData[]>([]);
   const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
   const currentBEYear = (new Date().getFullYear() + 543).toString();
   const [academicYear, setAcademicYear] = useState<string>(currentBEYear);
@@ -155,6 +177,23 @@ export default function App() {
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
+      // ดึงนโยบายและค่าตั้งค่าระบบ
+      try {
+        const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          setSystemConfig({
+            allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
+            restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
+            allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
+            electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
+            internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+          });
+        }
+      } catch (e) {
+        console.error('Error fetching system config:', e);
+      }
+
       let schoolsSnapshot;
       try {
         schoolsSnapshot = await getDocs(collection(db, 'schools'));
@@ -252,6 +291,25 @@ export default function App() {
 
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Fallback to initial preset data if network or Firestore fails
+      if (schools.length === 0) {
+        const { parseInitialData } = await import('./utils/initialData');
+        const initial = parseInitialData('2568');
+        setSchools(initial.schools);
+        setStudentData(initial.students);
+        setStudentGData(generateInitialStudentGData(initial.schools));
+        
+        const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
+        if (years.length > 0) {
+          years.sort((a, b) => b.localeCompare(a));
+          setAvailableYears(years);
+          if (years.includes(currentBEYear)) {
+            setAcademicYear(currentBEYear);
+          } else {
+            setAcademicYear(years[0]);
+          }
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +349,7 @@ export default function App() {
       />
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-grow mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 pb-20 md:pb-8">
+      <main className="flex-grow mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 pb-20 lg:pb-8">
         {isLoading ? (
           <div className="flex h-96 flex-col items-center justify-center gap-3">
             <RefreshCw className="h-10 w-10 text-rose-500 animate-spin" />
@@ -307,10 +365,12 @@ export default function App() {
                 school={selectedSchool}
                 studentData={selectedSchoolStudent}
                 allStudentData={studentData}
+                allStudentGData={studentGData}
                 onBack={() => setSelectedSchoolId(null)}
                 userProfile={userProfile}
                 onRefreshData={fetchAllData}
                 isDarkMode={isDarkMode}
+                systemConfig={systemConfig}
               />
             ) : (
               <>
@@ -336,6 +396,19 @@ export default function App() {
                     onSelectSchool={(id) => setSelectedSchoolId(id)}
                     initialFilters={initialFilters}
                     clearInitialFilters={() => setInitialFilters(null)}
+                    systemConfig={systemConfig}
+                  />
+                )}
+
+                {activeTab === 'infrastructure' && (
+                  <InfrastructureView
+                    schools={schools}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                    systemConfig={systemConfig}
+                    userProfile={userProfile}
                   />
                 )}
 
@@ -346,6 +419,7 @@ export default function App() {
                     studentData={studentData}
                     studentGData={studentGData}
                     onRefreshData={fetchAllData}
+                    systemConfig={systemConfig}
                   />
                 )}
               </>
@@ -355,7 +429,7 @@ export default function App() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 md:pb-6">
+      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 lg:pb-6">
         <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-xs sm:text-sm font-medium text-[#33272A] dark:text-[#FFF9F5] gap-3 text-center md:text-left">
           <div className="flex items-center gap-1.5 justify-center">
             <Award className="h-4 w-4 text-[#FF8BA7] shrink-0" />

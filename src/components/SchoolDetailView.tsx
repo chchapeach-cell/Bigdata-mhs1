@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, ClassroomItem } from '../types';
+import { School, StudentData, UserProfile, ClassroomItem, StudentGData } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
-  Database, Wifi, Cpu, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles
+  Database, Wifi, Cpu, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -14,16 +14,25 @@ interface SchoolDetailViewProps {
   school: School;
   studentData: StudentData | null;
   allStudentData?: StudentData[];
+  allStudentGData?: StudentGData[];
   onBack: () => void;
   userProfile: UserProfile | null;
   onRefreshData: () => Promise<void>;
   isDarkMode?: boolean;
+  systemConfig?: {
+    allowDataDownload?: boolean;
+    restrictOneAdminPerSchool?: boolean;
+    allowSchoolAdminRegistration?: boolean;
+    electricityOptions?: { id: string; label: string }[];
+    internetOptions?: { id: string; label: string }[];
+  };
 }
 
 export default function SchoolDetailView({
   school,
   studentData,
   allStudentData = [],
+  allStudentGData = [],
   onBack,
   userProfile,
   onRefreshData,
@@ -59,12 +68,25 @@ export default function SchoolDetailView({
   }, [userProfile, school.id]);
 
   // ฟอร์มข้อมูลแก้ไข
+  const getInitialElectricity = (elec: any): 'has_electric' | 'solar' | 'hybrid' | 'none' => {
+    if (typeof elec === 'boolean') {
+      return elec ? 'has_electric' : 'solar';
+    }
+    if (elec === 'has_electric' || elec === 'solar' || elec === 'hybrid' || elec === 'none') {
+      return elec;
+    }
+    return 'has_electric';
+  };
+
   const [editName, setEditName] = useState(school.name);
   const [editNetworkGroup, setEditNetworkGroup] = useState(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
   const [editDirectorPhone, setEditDirectorPhone] = useState(school.directorPhone || '');
   const [editSchoolPhone, setEditSchoolPhone] = useState(school.schoolPhone || '');
   const [editInternetType, setEditInternetType] = useState<School['internetType']>(school.internetType || 'none');
-  const [editElectricity, setEditElectricity] = useState(school.electricity);
+  const [editElectricity, setEditElectricity] = useState<'has_electric' | 'solar' | 'hybrid' | 'none'>(getInitialElectricity(school.electricity));
+  const [editSolarKw, setEditSolarKw] = useState<string>(school.solarKw || '');
+  const [editHasSolarBattery, setEditHasSolarBattery] = useState<boolean>(!!school.hasSolarBattery);
+  const [editSolarBatteryCapacity, setEditSolarBatteryCapacity] = useState<string>(school.solarBatteryCapacity || '');
   const [editStaffCount, setEditStaffCount] = useState(school.staffCount);
   const [editMajorsStr, setEditMajorsStr] = useState(school.majorSubjects ? school.majorSubjects.join(', ') : '');
   const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
@@ -77,6 +99,7 @@ export default function SchoolDetailView({
   const [editIsExpansion, setEditIsExpansion] = useState(school.isExpansion);
   const [editLogoUrl, setEditLogoUrl] = useState(school.logoUrl || '');
   const [editDirectorImageUrl, setEditDirectorImageUrl] = useState(school.directorImageUrl || '');
+  const [editSpecialHighlights, setEditSpecialHighlights] = useState(school.specialHighlights || '');
   const [adminViewType, setAdminViewType] = useState<'logo' | 'director'>('logo');
   const [activeImageTab, setActiveImageTab] = useState<'cover' | 'logo' | 'director'>('cover');
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
@@ -88,12 +111,16 @@ export default function SchoolDetailView({
     setEditDirectorPhone(school.directorPhone || '');
     setEditSchoolPhone(school.schoolPhone || '');
     setEditInternetType(school.internetType || 'none');
-    setEditElectricity(school.electricity);
+    setEditElectricity(getInitialElectricity(school.electricity));
+    setEditSolarKw(school.solarKw || '');
+    setEditHasSolarBattery(!!school.hasSolarBattery);
+    setEditSolarBatteryCapacity(school.solarBatteryCapacity || '');
     setEditStaffCount(school.staffCount);
     setEditMajorsStr(school.majorSubjects ? school.majorSubjects.join(', ') : '');
     setEditImageUrl(school.imageUrl || '');
     setEditLogoUrl(school.logoUrl || '');
     setEditDirectorImageUrl(school.directorImageUrl || '');
+    setEditSpecialHighlights(school.specialHighlights || '');
     setEditLatitude(school.latitude || 19.3);
     setEditLongitude(school.longitude || 97.9);
     setEditSize(school.size || 'small');
@@ -111,19 +138,66 @@ export default function SchoolDetailView({
     setClassrooms(school.classrooms || []);
   }, [school]);
 
-  // สถานะข้อมูลห้องเรียน / ชั้นเรียน
+  // สถานะข้อมูลห้องเรียน / ชั้นเรียน / โรงเรียนสาขาห่างไกล
   const [classrooms, setClassrooms] = useState<ClassroomItem[]>(school.classrooms || []);
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
   const [editingClassroom, setEditingClassroom] = useState<ClassroomItem | null>(null);
   const [classroomSearch, setClassroomSearch] = useState('');
+  const [viewingBranchDetail, setViewingBranchDetail] = useState<ClassroomItem | null>(null);
 
-  // ฟอร์มข้อมูลห้องเรียน
+  // ฟอร์มข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล
+  const [cIsRemoteBranch, setCIsRemoteBranch] = useState(false);
   const [cName, setCName] = useState('');
-  const [cGradeLevel, setCGradeLevel] = useState('ม.1');
+  const [cGradeLevel, setCGradeLevel] = useState('อ.1 - ป.6');
   const [cStudentCount, setCStudentCount] = useState('');
+  const [cMaleCount, setCMaleCount] = useState('');
+  const [cFemaleCount, setCFemaleCount] = useState('');
+  const [cStaffCount, setCStaffCount] = useState('');
   const [cTeacherName, setCTeacherName] = useState('');
+  const [cPhone, setCPhone] = useState('');
+  const [cElectricity, setCElectricity] = useState<'has_electric' | 'solar' | 'hybrid' | 'none'>('has_electric');
+  const [cSolarKw, setCSolarKw] = useState('');
+  const [cHasSolarBattery, setCHasSolarBattery] = useState(false);
+  const [cSolarBatteryCapacity, setCSolarBatteryCapacity] = useState('');
+  const [cInternetType, setCInternetType] = useState<'fiber' | 'satellite' | 'sim' | 'none'>('fiber');
+  const [cDistanceFromMainSchool, setCDistanceFromMainSchool] = useState('');
+  const [cLatitude, setCLatitude] = useState('');
+  const [cLongitude, setCLongitude] = useState('');
   const [cNotes, setCNotes] = useState('');
+  const [cGradesBreakdown, setCGradesBreakdown] = useState<{ [gradeKey: string]: { male: number; female: number; total: number } }>({});
+  const [modalActiveTab, setModalActiveTab] = useState<'basic' | 'students'>('basic');
   const [isSavingClassroom, setIsSavingClassroom] = useState(false);
+
+  // คำนวณสรุปสถิติแยกต่างหากระหว่าง "ข้อมูลโรงเรียนหลัก" vs "ข้อมูลห้องเรียนย่อย" vs "รวมทั้งสิ้น"
+  const remoteBranchStats = useMemo(() => {
+    const branches = classrooms.filter(c => c.isRemoteBranch);
+    const standardRooms = classrooms.filter(c => !c.isRemoteBranch);
+
+    const branchCount = branches.length;
+    const totalBranchStudents = branches.reduce((sum, b) => sum + (b.studentCount || 0), 0);
+    const totalBranchMale = branches.reduce((sum, b) => sum + (b.maleCount || 0), 0);
+    const totalBranchFemale = branches.reduce((sum, b) => sum + (b.femaleCount || 0), 0);
+    const totalBranchStaff = branches.reduce((sum, b) => sum + (b.staffCount || 0), 0);
+
+    const mainSchoolStudents = studentData ? studentData.totalStudents : 0;
+    const mainSchoolMale = studentData ? studentData.totalMale : 0;
+    const mainSchoolFemale = studentData ? studentData.totalFemale : 0;
+
+    return {
+      branches,
+      standardRooms,
+      branchCount,
+      totalBranchStudents,
+      totalBranchMale,
+      totalBranchFemale,
+      totalBranchStaff,
+      mainSchoolStudents,
+      mainSchoolMale,
+      mainSchoolFemale,
+      grandTotalStudents: mainSchoolStudents + totalBranchStudents,
+      grandTotalStaff: school.staffCount + totalBranchStaff
+    };
+  }, [classrooms, studentData, school]);
 
   // ฟังก์ชันสำหรับ Super Admin ลบโรงเรียน
   const handleDeleteSchool = async () => {
@@ -141,31 +215,64 @@ export default function SchoolDetailView({
     }
   };
 
-  // เปิดโมดอลเพิ่ม/แก้ไขห้องเรียน
+  // เปิดโมดอลเพิ่ม/แก้ไขห้องเรียนย่อย
   const handleOpenClassroomModal = (item?: ClassroomItem) => {
     if (item) {
       setEditingClassroom(item);
-      setCName(item.name);
-      setCGradeLevel(item.gradeLevel || 'ม.1');
+      setCIsRemoteBranch(item.isRemoteBranch ?? true);
+      setCName(item.name || '');
+      setCGradeLevel(item.gradeLevel || 'อ.1 - ป.6');
       setCStudentCount(item.studentCount !== undefined ? String(item.studentCount) : '');
+      setCMaleCount(item.maleCount !== undefined ? String(item.maleCount) : '');
+      setCFemaleCount(item.femaleCount !== undefined ? String(item.femaleCount) : '');
+      setCStaffCount(item.staffCount !== undefined ? String(item.staffCount) : '');
       setCTeacherName(item.teacherName || '');
+      setCPhone(item.phone || '');
+      setCElectricity(
+        typeof item.electricity === 'boolean'
+          ? (item.electricity ? 'has_electric' : 'none')
+          : (item.electricity || 'has_electric')
+      );
+      setCSolarKw(item.solarKw || '');
+      setCHasSolarBattery(item.hasSolarBattery || false);
+      setCSolarBatteryCapacity(item.solarBatteryCapacity || '');
+      setCInternetType(item.internetType || 'fiber');
+      setCDistanceFromMainSchool(item.distanceFromMainSchool || '');
+      setCLatitude(item.latitude !== undefined ? String(item.latitude) : '');
+      setCLongitude(item.longitude !== undefined ? String(item.longitude) : '');
       setCNotes(item.notes || '');
+      setCGradesBreakdown(item.gradesBreakdown || {});
     } else {
       setEditingClassroom(null);
+      setCIsRemoteBranch(true);
       setCName('');
-      setCGradeLevel('ม.1');
+      setCGradeLevel('อ.1 - ป.6');
       setCStudentCount('');
+      setCMaleCount('');
+      setCFemaleCount('');
+      setCStaffCount('');
       setCTeacherName('');
+      setCPhone('');
+      setCElectricity('has_electric');
+      setCSolarKw('');
+      setCHasSolarBattery(false);
+      setCSolarBatteryCapacity('');
+      setCInternetType('fiber');
+      setCDistanceFromMainSchool('');
+      setCLatitude('');
+      setCLongitude('');
       setCNotes('');
+      setCGradesBreakdown({});
     }
+    setModalActiveTab('basic');
     setIsClassroomModalOpen(true);
   };
 
-  // บันทึกห้องเรียน
+  // บันทึกห้องเรียนย่อย
   const handleSaveClassroom = async (e: FormEvent) => {
     e.preventDefault();
     if (!cName.trim()) {
-      alert('กรุณาระบุชื่อห้องเรียน/ชั้นเรียน');
+      alert('กรุณาระบุชื่อห้องเรียนย่อย');
       return;
     }
 
@@ -173,13 +280,31 @@ export default function SchoolDetailView({
     try {
       let updatedList: ClassroomItem[] = [...(school.classrooms || [])];
       
+      const calcMale = cMaleCount ? Number(cMaleCount) : 0;
+      const calcFemale = cFemaleCount ? Number(cFemaleCount) : 0;
+      const calcTotal = cStudentCount ? Number(cStudentCount) : (calcMale + calcFemale);
+
       const newClassroomObj: ClassroomItem = {
         id: editingClassroom ? editingClassroom.id : `c-${Date.now()}`,
         name: cName.trim(),
-        gradeLevel: cGradeLevel,
-        studentCount: cStudentCount ? Number(cStudentCount) : 0,
+        gradeLevel: cGradeLevel.trim(),
+        studentCount: calcTotal,
+        maleCount: calcMale,
+        femaleCount: calcFemale,
+        staffCount: cStaffCount ? Number(cStaffCount) : 0,
         teacherName: cTeacherName.trim(),
-        notes: cNotes.trim()
+        phone: cPhone.trim(),
+        electricity: cElectricity,
+        solarKw: cSolarKw.trim(),
+        hasSolarBattery: cHasSolarBattery,
+        solarBatteryCapacity: cSolarBatteryCapacity.trim(),
+        internetType: cInternetType,
+        distanceFromMainSchool: cDistanceFromMainSchool.trim(),
+        latitude: cLatitude ? Number(cLatitude) : 0,
+        longitude: cLongitude ? Number(cLongitude) : 0,
+        notes: cNotes.trim(),
+        isRemoteBranch: cIsRemoteBranch,
+        gradesBreakdown: cGradesBreakdown || {}
       };
 
       if (editingClassroom) {
@@ -188,25 +313,26 @@ export default function SchoolDetailView({
         updatedList.push(newClassroomObj);
       }
 
+      const cleanClassrooms = JSON.parse(JSON.stringify(updatedList));
       const schoolRef = doc(db, 'schools', school.id);
-      await setDoc(schoolRef, { classrooms: updatedList }, { merge: true });
+      await setDoc(schoolRef, { classrooms: cleanClassrooms }, { merge: true });
       
       setClassrooms(updatedList);
       setIsClassroomModalOpen(false);
-      setSuccessMsg('บันทึกข้อมูลห้องเรียนเรียบร้อยแล้ว!');
+      setSuccessMsg('บันทึกข้อมูลเรียบร้อยแล้ว!');
       await onRefreshData();
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       console.error(err);
-      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลห้องเรียน');
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     } finally {
       setIsSavingClassroom(false);
     }
   };
 
-  // ลบห้องเรียน
+  // ลบห้องเรียน/สาขา
   const handleDeleteClassroom = async (classroomId: string) => {
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบห้องเรียนนี้ออกจากโรงเรียนของคุณ?')) return;
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้ออกจากโรงเรียนของคุณ?')) return;
 
     try {
       const updatedList = (school.classrooms || []).filter(c => c.id !== classroomId);
@@ -214,12 +340,12 @@ export default function SchoolDetailView({
       await setDoc(schoolRef, { classrooms: updatedList }, { merge: true });
       
       setClassrooms(updatedList);
-      setSuccessMsg('ลบห้องเรียนเรียบร้อยแล้ว!');
+      setSuccessMsg('ลบรายการเรียบร้อยแล้ว!');
       await onRefreshData();
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       console.error(err);
-      alert('เกิดข้อผิดพลาดในการลบห้องเรียน');
+      alert('เกิดข้อผิดพลาดในการลบรายการ');
     }
   };
 
@@ -231,7 +357,8 @@ export default function SchoolDetailView({
       c.name.toLowerCase().includes(q) ||
       (c.gradeLevel && c.gradeLevel.toLowerCase().includes(q)) ||
       (c.teacherName && c.teacherName.toLowerCase().includes(q)) ||
-      (c.notes && c.notes.toLowerCase().includes(q))
+      (c.notes && c.notes.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q))
     );
   }, [classrooms, classroomSearch]);
 
@@ -348,26 +475,32 @@ export default function SchoolDetailView({
       });
 
       const updatedData = {
-        name: editName,
-        networkGroup: editNetworkGroup,
-        directorPhone: editDirectorPhone,
-        schoolPhone: editSchoolPhone,
-        internetType: editInternetType,
-        electricity: editElectricity,
+        name: editName || '',
+        networkGroup: editNetworkGroup || '',
+        directorPhone: editDirectorPhone || '',
+        schoolPhone: editSchoolPhone || '',
+        internetType: editInternetType || 'none',
+        electricity: editElectricity || 'has_electric',
+        solarKw: editSolarKw || '',
+        hasSolarBattery: !!editHasSolarBattery,
+        solarBatteryCapacity: editSolarBatteryCapacity || '',
         staffCount: Number(editStaffCount) || 0,
-        majorSubjects: combinedMajors,
-        majorSubjectsWithStaff: updatedMajorsWithStaff,
-        imageUrl: editImageUrl,
-        logoUrl: editLogoUrl,
-        directorImageUrl: editDirectorImageUrl,
+        majorSubjects: combinedMajors || [],
+        majorSubjectsWithStaff: updatedMajorsWithStaff || [],
+        imageUrl: editImageUrl || '',
+        logoUrl: editLogoUrl || '',
+        directorImageUrl: editDirectorImageUrl || '',
+        specialHighlights: editSpecialHighlights || '',
         latitude: Number(editLatitude) || 19.3,
         longitude: Number(editLongitude) || 97.9,
-        size: editSize,
-        isExpansion: editIsExpansion
+        size: editSize || 'small',
+        isExpansion: !!editIsExpansion
       };
 
+      const cleanData = JSON.parse(JSON.stringify(updatedData));
+
       try {
-        await setDoc(schoolRef, updatedData, { merge: true });
+        await setDoc(schoolRef, cleanData, { merge: true });
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `schools/${school.id}`);
       }
@@ -439,6 +572,32 @@ export default function SchoolDetailView({
       นักเรียนรวม: item.totalStudents || 0
     }));
   }, [allStudentData, school.id]);
+
+  // คำนวณแนวโน้มจำนวนนักเรียนตัว G (ไม่มีหลักฐานทางทะเบียนราษฎร) รายปีการศึกษาเฉพาะของโรงเรียนนี้
+  const schoolGTrendData = useMemo(() => {
+    if (!allStudentGData || allStudentGData.length === 0) return [];
+    
+    // กรองประวัติข้อมูลนักเรียนตัว G ของโรงเรียนนี้โดยตรง
+    const history = allStudentGData.filter(g => g.schoolId === school.id || (g.schoolName && g.schoolName === school.name));
+    
+    // เรียงลำดับจากปีการศึกษาน้อยไปมาก
+    const sortedHistory = [...history].sort((a, b) => a.academicYear.localeCompare(b.academicYear));
+    
+    return sortedHistory.map(item => ({
+      year: `ปีการศึกษา ${item.academicYear}`,
+      academicYear: item.academicYear,
+      'ชาย': item.maleGCount || 0,
+      'หญิง': item.femaleGCount || 0,
+      'นักเรียนตัวGรวม': item.totalGStudents || 0,
+      notes: item.notes || ''
+    }));
+  }, [allStudentGData, school.id, school.name]);
+
+  // ข้อมูลนักเรียนตัว G ปีล่าสุดของโรงเรียนนี้
+  const latestSchoolGData = useMemo(() => {
+    if (schoolGTrendData.length === 0) return null;
+    return schoolGTrendData[schoolGTrendData.length - 1];
+  }, [schoolGTrendData]);
 
   // คำนวณประเภทช่วงชั้นเรียน
   const schoolLevelsText = useMemo(() => {
@@ -897,9 +1056,21 @@ export default function SchoolDetailView({
                     placeholder={hasAdminAccess ? "ระบุเบอร์โทรผู้บริหาร" : "ซ่อนข้อมูลสำหรับบุคคลทั่วไป"}
                   />
                 ) : (
-                  <span className="text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1 font-bold">
-                    <Phone className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" /> {hasAdminAccess ? (school.directorPhone || "-") : "ซ่อนข้อมูลสำหรับบุคคลทั่วไป"}
-                  </span>
+                  hasAdminAccess && school.directorPhone ? (
+                    <a
+                      href={`tel:${school.directorPhone.replace(/[^0-9+]/g, '')}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:hover:bg-emerald-900 dark:text-emerald-100 border-2 border-emerald-500 font-black text-xs transition-transform active:scale-95 shadow-xs cursor-pointer"
+                      title="กดเพื่อโทรออกหาผู้บริหาร"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{school.directorPhone}</span>
+                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-md font-black">โทรออก</span>
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1 font-bold">
+                      <Phone className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" /> {hasAdminAccess ? (school.directorPhone || "-") : "ซ่อนข้อมูลสำหรับบุคคลทั่วไป"}
+                    </span>
+                  )
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -913,9 +1084,21 @@ export default function SchoolDetailView({
                     placeholder="ระบุเบอร์โทรโรงเรียน"
                   />
                 ) : (
-                  <span className="text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" /> {school.schoolPhone || "-"}
-                  </span>
+                  school.schoolPhone ? (
+                    <a
+                      href={`tel:${school.schoolPhone.replace(/[^0-9+]/g, '')}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:hover:bg-emerald-900 dark:text-emerald-100 border-2 border-emerald-500 font-black text-xs transition-transform active:scale-95 shadow-xs cursor-pointer"
+                      title="กดเพื่อโทรออกหาโรงเรียน"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{school.schoolPhone}</span>
+                      <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-md font-black">โทรออก</span>
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                      <Phone className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" /> -
+                    </span>
+                  )
                 )}
               </div>
             </div>
@@ -948,23 +1131,98 @@ export default function SchoolDetailView({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-24">ระบบไฟฟ้า:</span>
-                {isEditing ? (
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] select-none cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editElectricity}
-                      onChange={(e) => setEditElectricity(e.target.checked)}
-                      className="rounded border-[#33272A] text-[#FF8BA7] focus:ring-0"
-                    />
-                    <span>มีกระแสไฟฟ้าพร้อมใช้</span>
-                  </label>
-                ) : (
-                  <span className="flex items-center gap-1 text-[#33272A] dark:text-[#FFF9F5]">
-                    <Zap className={`h-4 w-4 ${school.electricity ? 'text-amber-400 fill-amber-300' : 'text-slate-300'}`} />
-                    {school.electricity ? 'มีกระแสไฟฟ้าพร้อมใช้' : 'ใช้ระบบโซล่าเซลล์หลัก'}
-                  </span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-24 shrink-0">ระบบไฟฟ้า:</span>
+                  {isEditing ? (
+                    <select
+                      value={editElectricity}
+                      onChange={(e) => setEditElectricity(e.target.value as any)}
+                      className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none cursor-pointer"
+                    >
+                      <option value="has_electric">🔌 มีไฟฟ้าถาวร</option>
+                      <option value="solar">☀️ ระบบโซลาร์เซลล์</option>
+                      <option value="hybrid">⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)</option>
+                      <option value="none">❌ ไม่มีไฟฟ้า</option>
+                    </select>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-lg font-black text-xs bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                      {school.electricity === 'has_electric' || school.electricity === true ? '🔌 มีไฟฟ้าถาวร' :
+                       school.electricity === 'solar' ? '☀️ ระบบโซลาร์เซลล์' :
+                       school.electricity === 'hybrid' ? '⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)' : '❌ ไม่มีไฟฟ้า'}
+                    </span>
+                  )}
+                </div>
+
+                {isEditing && (editElectricity === 'solar' || editElectricity === 'hybrid') && (
+                  <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-700 space-y-2.5 animate-fade-in text-xs font-bold">
+                    <div className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                      <Sun className="h-4 w-4 text-amber-500" /> รายละเอียดระบบโซลาร์เซลล์ / พลังงานแสงอาทิตย์
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                          กำลังการผลิต (kW)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น 5 kW หรือ 10 kW"
+                          value={editSolarKw}
+                          onChange={(e) => setEditSolarKw(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-1.5 px-2.5 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                        />
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <label className="block text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                          ระบบแบตเตอรี่กักเก็บพลังงาน
+                        </label>
+                        <label className="inline-flex items-center gap-2 cursor-pointer mt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={editHasSolarBattery}
+                            onChange={(e) => setEditHasSolarBattery(e.target.checked)}
+                            className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                            {editHasSolarBattery ? '🔋 มีแบตเตอรี่กักเก็บพลังงาน' : '❌ ไม่มีแบตเตอรี่'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {editHasSolarBattery && (
+                      <div>
+                        <label className="block text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                          รายละเอียด / ความจุแบตเตอรี่
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น 200Ah 48V หรือ แบตเตอรี่ Lithium 10kWh"
+                          value={editSolarBatteryCapacity}
+                          onChange={(e) => setEditSolarBatteryCapacity(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-1.5 px-2.5 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!isEditing && (school.electricity === 'solar' || school.electricity === 'hybrid') && (school.solarKw || school.hasSolarBattery) && (
+                  <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] space-y-1 text-amber-900 dark:text-amber-200 font-bold ml-0 sm:ml-26">
+                    {school.solarKw && (
+                      <div className="flex items-center gap-1.5">
+                        <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>กำลังการผลิต: <strong className="font-black text-amber-800 dark:text-amber-200">{school.solarKw}</strong></span>
+                      </div>
+                    )}
+                    {school.hasSolarBattery && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">🔋</span>
+                        <span>แบตเตอรี่กักเก็บพลังงาน: {school.solarBatteryCapacity ? <strong className="font-black text-amber-800 dark:text-amber-200">{school.solarBatteryCapacity}</strong> : 'มีแบตเตอรี่กักเก็บพลังงาน'}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -1122,6 +1380,29 @@ export default function SchoolDetailView({
             </div>
           </div>
         </div>
+
+        {/* แสดงความพิเศษของโรงเรียน / จุดเด่น (Special Highlights) */}
+        {(school.specialHighlights || editSpecialHighlights || isEditing) && (
+          <div className="p-5 border-t-2 border-[#33272A] dark:border-[#FFD3B6] bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200">
+              <Sparkles className="h-4 w-4 text-amber-500 fill-amber-400 shrink-0" />
+              <span>ความพิเศษของโรงเรียน / จุดเด่น (Special Highlights)</span>
+            </div>
+            {isEditing ? (
+              <textarea
+                rows={2}
+                value={editSpecialHighlights}
+                onChange={(e) => setEditSpecialHighlights(e.target.value)}
+                placeholder="ระบุความพิเศษของโรงเรียน เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
+                className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+              />
+            ) : (
+              <p className="text-xs font-bold text-amber-950 dark:text-amber-100 leading-relaxed whitespace-pre-line pl-6">
+                {school.specialHighlights || 'ยังไม่มีข้อมูลความพิเศษของโรงเรียน'}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* รายละเอียดจำนวนนักเรียน + แผนที่ Google Maps */}
@@ -1228,7 +1509,7 @@ export default function SchoolDetailView({
           </div>
 
           {/* สถิติรวดเร็ว */}
-          <div className="mt-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 grid grid-cols-3 gap-2 text-center text-xs font-black">
+          <div className="mt-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs font-black">
             <div className="bg-[#A0E7E5]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
               <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">ชายทั้งหมด</span>
               <span className="text-sm font-black">{studentData?.totalMale || 0} คน</span>
@@ -1241,115 +1522,245 @@ export default function SchoolDetailView({
               <span className="block text-[10px] text-[#33272A]/60 dark:text-[#FFF9F5]/70">นักเรียนรวม</span>
               <span className="text-sm font-black">{studentData?.totalStudents || 0} คน</span>
             </div>
+            <div className="bg-amber-100 dark:bg-amber-950/60 border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 rounded-2xl text-[#33272A] dark:text-[#FFF9F5]">
+              <span className="block text-[10px] text-amber-800 dark:text-amber-200 font-extrabold flex items-center justify-center gap-1">
+                <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" /> นักเรียนตัว G รวม
+              </span>
+              <span className="text-sm font-black text-amber-900 dark:text-amber-100">
+                {latestSchoolGData ? latestSchoolGData.นักเรียนตัวGรวม : 0} คน
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ส่วนวิเคราะห์แนวโน้มและตารางวิเคราะห์สถิติจำนวนนักเรียน */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* ส่วนวิเคราะห์แนวโน้มประชากรนักเรียนรายปีการศึกษา */}
-        <div className="card p-6 flex flex-col justify-between">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4 mb-4">
-            <div>
-              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <TrendingUp className="h-4 w-4 text-[#FF8BA7]" /> แนวโน้มจำนวนนักเรียนรายปีการศึกษา
-              </h3>
-              <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
-                วิเคราะห์สถิติจำนวนนักเรียนรวมของ {school.name} เปรียบเทียบตามแต่ละปีการศึกษาในระบบ
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
-                <span className="h-2 w-2 rounded-full bg-[#FF8BA7]"></span>
-                หญิง
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
-                <span className="h-2 w-2 rounded-full bg-[#A0E7E5]"></span>
-                ชาย
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[10px] font-black text-[#33272A] dark:text-rose-100">
-                <span className="h-2 w-2 rounded-full bg-[#FFD3B6]"></span>
-                นักเรียนรวม
-              </span>
-            </div>
-          </div>
+      {/* ส่วนวิเคราะห์แนวโน้มประชากรนักเรียนรายปีการศึกษา (นักเรียนทั่วไป และ นักเรียนตัว G) */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-2">
+          <h2 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-[#FF8BA7]" /> กราฟเส้นแสดงแนวโน้มสถิตินักเรียนรายปีการศึกษา ({school.name})
+          </h2>
+          <span className="text-[11px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60 bg-[#FFF9F5] dark:bg-slate-800 px-3 py-1 rounded-full border border-[#33272A]/20">
+            ข้อมูลเปรียบเทียบตามปีการศึกษา
+          </span>
+        </div>
 
-          <div className="h-72 w-full text-[10px] font-bold mt-2">
-            {schoolTrendData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={schoolTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="year" stroke={chartStroke} />
-                  <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '16px',
-                      border: `2px solid ${tooltipBorder}`,
-                      backgroundColor: tooltipBg,
-                      color: tooltipText,
-                      boxShadow: tooltipShadow,
-                    }}
-                    itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px', fontWeight: 'bold' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="ชาย" 
-                    stroke="#A0E7E5" 
-                    strokeWidth={3} 
-                    dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#A0E7E5' }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="หญิง" 
-                    stroke="#FF8BA7" 
-                    strokeWidth={3} 
-                    dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#FF8BA7' }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="นักเรียนรวม" 
-                    stroke={isDarkMode ? '#FFD3B6' : '#33272A'} 
-                    strokeWidth={4} 
-                    dot={{ stroke: chartStroke, strokeWidth: 2, r: 5, fill: isDarkMode ? '#FFD3B6' : '#33272A' }}
-                    activeDot={{ r: 7 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-2">
-                <span>ไม่พบข้อมูลประวัติสถิติจำนวนนักเรียนในระบบสำหรับคำนวณแนวโน้ม</span>
-                <span className="text-[9px] font-medium opacity-75">กรุณาเพิ่มข้อมูลสถิตินักเรียนปีการศึกษาอื่นเพิ่มเติมในหน้า แอดมิน เพื่อแสดงผลกราฟแนวโน้ม</span>
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* กราฟเส้นแนวโน้มจำนวนนักเรียนทั่วไป */}
+          <div className="card p-6 flex flex-col justify-between shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3 mb-3">
+              <div>
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-[#FF8BA7]" /> แนวโน้มจำนวนนักเรียนทั่วไป
+                </h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                  สถิตินักเรียนชาย หญิง และนักเรียนรวมของ {school.name}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-[#FF8BA7]"></span>
+                  หญิง
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-[#A0E7E5]"></span>
+                  ชาย
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-[#FFD3B6]"></span>
+                  รวม
+                </span>
+              </div>
+            </div>
+
+            <div className="h-64 w-full text-[10px] font-bold mt-2">
+              {schoolTrendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={schoolTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                    <XAxis dataKey="year" stroke={chartStroke} />
+                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: `2px solid ${tooltipBorder}`,
+                        backgroundColor: tooltipBg,
+                        color: tooltipText,
+                        boxShadow: tooltipShadow,
+                      }}
+                      itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px', fontWeight: 'bold' }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="ชาย" 
+                      stroke="#A0E7E5" 
+                      strokeWidth={3} 
+                      dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#A0E7E5' }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="หญิง" 
+                      stroke="#FF8BA7" 
+                      strokeWidth={3} 
+                      dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#FF8BA7' }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="นักเรียนรวม" 
+                      stroke={isDarkMode ? '#FFD3B6' : '#33272A'} 
+                      strokeWidth={4} 
+                      dot={{ stroke: chartStroke, strokeWidth: 2, r: 5, fill: isDarkMode ? '#FFD3B6' : '#33272A' }}
+                      activeDot={{ r: 7 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <span>ไม่พบข้อมูลประวัติสถิติจำนวนนักเรียนในระบบสำหรับคำนวณแนวโน้ม</span>
+                  <span className="text-[9px] font-medium opacity-75">กรุณาเพิ่มข้อมูลสถิตินักเรียนปีการศึกษาอื่นเพิ่มเติมในหน้า แอดมิน</span>
+                </div>
+              )}
+            </div>
+
+            {schoolTrendData.length > 0 && (
+              <div className="mt-4 p-3 bg-[#FFF9F5] dark:bg-[#1e1518]/60 border border-[#33272A]/10 dark:border-[#FFD3B6]/10 rounded-xl text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span>💡 <b>นักเรียนรวมล่าสุด:</b> <b>{schoolTrendData[schoolTrendData.length - 1]?.นักเรียนรวม} คน</b> </span>
+                  {schoolTrendData.length > 1 && (() => {
+                    const prev = schoolTrendData[schoolTrendData.length - 2];
+                    const curr = schoolTrendData[schoolTrendData.length - 1];
+                    const diff = curr.นักเรียนรวม - prev.นักเรียนรวม;
+                    if (diff > 0) {
+                      return <span className="text-emerald-500 font-extrabold">(+{diff} คน)</span>;
+                    } else if (diff < 0) {
+                      return <span className="text-rose-500 font-extrabold">({diff} คน)</span>;
+                    } else {
+                      return <span className="text-slate-500 font-extrabold">(คงที่)</span>;
+                    }
+                  })()}
+                </div>
+                <div className="text-[10px] text-[#33272A]/50 dark:text-[#FFF9F5]/50 italic shrink-0">
+                  *ข้อมูลรวมของ {school.name}
+                </div>
               </div>
             )}
           </div>
 
-          {schoolTrendData.length > 0 && (
-            <div className="mt-4 p-3 bg-[#FFF9F5] dark:bg-[#1e1518]/60 border border-[#33272A]/10 dark:border-[#FFD3B6]/10 rounded-xl text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* กราฟเส้นแนวโน้มจำนวนนักเรียนตัว G (ข้อมูลตรงกับโรงเรียนนี้) */}
+          <div className="card p-6 flex flex-col justify-between shadow-md border-2 border-amber-500/40 dark:border-amber-400/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3 mb-3">
               <div>
-                <span>💡 <b>วิเคราะห์แนวโน้ม:</b> จำนวนนักเรียนล่าสุดในปีการศึกษาล่าสุด มีจำนวนนักเรียนรวม <b>{schoolTrendData[schoolTrendData.length - 1]?.นักเรียนรวม} คน</b> </span>
-                {schoolTrendData.length > 1 && (() => {
-                  const prev = schoolTrendData[schoolTrendData.length - 2];
-                  const curr = schoolTrendData[schoolTrendData.length - 1];
-                  const diff = curr.นักเรียนรวม - prev.นักเรียนรวม;
-                  if (diff > 0) {
-                    return <span className="text-emerald-500 font-extrabold">(เพิ่มขึ้นจากปีการศึกษาก่อนหน้า +{diff} คน)</span>;
-                  } else if (diff < 0) {
-                    return <span className="text-rose-500 font-extrabold">(ลดลงจากปีการศึกษาก่อนหน้า {Math.abs(diff)} คน)</span>;
-                  } else {
-                    return <span className="text-slate-500 font-extrabold">(จำนวนเท่าเดิมกับปีการศึกษาก่อนหน้า)</span>;
-                  }
-                })()}
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-500" /> แนวโน้มจำนวนนักเรียนตัว G (รหัส G)
+                </h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                  สถิตินักเรียนกลุ่มไม่มีหลักฐานทางทะเบียนราษฎร (รหัส G) ของ {school.name}
+                </p>
               </div>
-              <div className="text-[10px] text-[#33272A]/50 dark:text-[#FFF9F5]/50 italic shrink-0">
-                *ข้อมูลนำมาจากสถิตินักเรียนรายปีการศึกษาในฐานข้อมูล
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-[#FF8BA7]"></span>
+                  หญิง (G)
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-[#A0E7E5]"></span>
+                  ชาย (G)
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF9F5] dark:bg-slate-800 border border-[#33272A]/20 text-[9px] font-black text-[#33272A] dark:text-rose-100">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  ตัว G รวม
+                </span>
               </div>
             </div>
-          )}
+
+            <div className="h-64 w-full text-[10px] font-bold mt-2">
+              {schoolGTrendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={schoolGTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                    <XAxis dataKey="year" stroke={chartStroke} />
+                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: `2px solid ${tooltipBorder}`,
+                        backgroundColor: tooltipBg,
+                        color: tooltipText,
+                        boxShadow: tooltipShadow,
+                      }}
+                      itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px', fontWeight: 'bold' }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="ชาย" 
+                      name="ชาย (ตัว G)"
+                      stroke="#A0E7E5" 
+                      strokeWidth={3} 
+                      dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#A0E7E5' }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="หญิง" 
+                      name="หญิง (ตัว G)"
+                      stroke="#FF8BA7" 
+                      strokeWidth={3} 
+                      dot={{ stroke: chartStroke, strokeWidth: 1.5, r: 4, fill: '#FF8BA7' }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="นักเรียนตัวGรวม" 
+                      name="นักเรียนตัว G รวม"
+                      stroke="#F59E0B" 
+                      strokeWidth={4} 
+                      dot={{ stroke: chartStroke, strokeWidth: 2, r: 5, fill: '#F59E0B' }}
+                      activeDot={{ r: 7 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <span>ไม่พบข้อมูลประวัติสถิตินักเรียนตัว G ของโรงเรียนนี้ในระบบ</span>
+                  <span className="text-[9px] font-medium opacity-75">สามารถเพิ่มข้อมูลสถิตินักเรียนตัว G ได้ในหน้า แอดมิน</span>
+                </div>
+              )}
+            </div>
+
+            {schoolGTrendData.length > 0 && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span>🎓 <b>นักเรียนตัว G ล่าสุด ({school.name}):</b> <b>{schoolGTrendData[schoolGTrendData.length - 1]?.นักเรียนตัวGรวม} คน</b> </span>
+                  {schoolGTrendData.length > 1 && (() => {
+                    const prev = schoolGTrendData[schoolGTrendData.length - 2];
+                    const curr = schoolGTrendData[schoolGTrendData.length - 1];
+                    const diff = curr.นักเรียนตัวGรวม - prev.นักเรียนตัวGรวม;
+                    if (diff > 0) {
+                      return <span className="text-emerald-500 font-extrabold">(+{diff} คนจากปีก่อน)</span>;
+                    } else if (diff < 0) {
+                      return <span className="text-rose-500 font-extrabold">({diff} คนจากปีก่อน)</span>;
+                    } else {
+                      return <span className="text-slate-500 font-extrabold">(คงที่)</span>;
+                    }
+                  })()}
+                </div>
+                <div className="text-[10px] text-amber-800/60 dark:text-amber-200/60 italic shrink-0">
+                  *ข้อมูลตรงตามโรงเรียน {school.name}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ตารางวิเคราะห์สถิติจำนวนนักเรียนและครูวิชาเอก */}
+      <div className="grid gap-6 lg:grid-cols-3">
 
         {/* แผนภูมิแสดงจำนวนครูจำแนกตามวิชาเอก */}
         <div className="card p-6 flex flex-col justify-between shadow-md">
@@ -1398,7 +1809,7 @@ export default function SchoolDetailView({
         </div>
 
         {/* ตารางข้อมูลนักเรียนแบบละเอียด */}
-        <div className="card overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-2 card overflow-hidden flex flex-col justify-between">
           <div>
             <div className="p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518]">
               <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">ตารางวิเคราะห์สถิติจำนวนนักเรียนและห้องเรียนรายระดับชั้น</h3>
@@ -1445,16 +1856,17 @@ export default function SchoolDetailView({
             </div>
           </div>
         </div>
+      </div>
 
-        {/* ส่วนจัดการชื่อห้องเรียน / ชั้นเรียน (Requirement 4) */}
-        <div className="card p-6 space-y-4 border-2 border-[#33272A] dark:border-[#FFD3B6]">
+      {/* ส่วนจัดการข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล (อยู่ล่างสุด) */}
+        <div className="card p-6 space-y-6 border-2 border-[#33272A] dark:border-[#FFD3B6]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4">
             <div>
               <h3 className="text-md font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-[#FF8BA7]" /> รายชื่อห้องเรียน / ชั้นเรียน ({classrooms.length} ห้อง)
+                <Navigation className="h-5 w-5 text-amber-500" /> ข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล ({remoteBranchStats.branchCount} แห่ง)
               </h3>
               <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
-                การจัดการและค้นหารายชื่อห้องเรียนเฉพาะของ {school.name}
+                การจัดการข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกลของ {school.name}
               </p>
             </div>
 
@@ -1464,7 +1876,7 @@ export default function SchoolDetailView({
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="ค้นหาชื่อห้องเรียน/ครูประจำชั้น..."
+                  placeholder="ค้นหาชื่อห้องเรียนย่อย/ครูผู้ดูแล/เบอร์โทร..."
                   value={classroomSearch}
                   onChange={(e) => setClassroomSearch(e.target.value)}
                   className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#1e1518] dark:border-[#FFD3B6] dark:text-white pl-8 pr-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-[#FF8BA7]"
@@ -1479,7 +1891,7 @@ export default function SchoolDetailView({
                 )}
               </div>
 
-              {/* ปุ่มเพิ่มชื่อห้องเรียน */}
+              {/* ปุ่มเพิ่มห้องเรียนย่อย */}
               {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
                 <button
                   type="button"
@@ -1487,97 +1899,227 @@ export default function SchoolDetailView({
                   className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3.5 py-1.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-[#86d8d6] transition-all"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>เพิ่มชื่อห้องเรียนใหม่</span>
+                  <span>เพิ่มข้อมูลห้องเรียนย่อยใหม่</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* รายการห้องเรียนแบบการ์ด/กริด */}
-          {filteredClassrooms.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {filteredClassrooms.map((c) => (
-                <div 
-                  key={c.id} 
-                  className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex flex-col justify-between space-y-2 group"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-[#FF8BA7] text-[#33272A] border border-[#33272A] shadow-xs">
-                        {c.gradeLevel || 'ไม่ระบุชั้น'}
-                      </span>
-                      {c.studentCount !== undefined && c.studentCount > 0 && (
-                        <span className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] bg-[#A0E7E5] dark:bg-emerald-900/60 px-2 py-0.5 rounded-full border border-[#33272A]">
-                          {c.studentCount} คน
+          {/* แผงสรุปเปรียบเทียบข้อมูลแยกต่างหาก (โรงเรียนหลัก VS ห้องเรียนย่อยห่างไกล) */}
+          <div className="p-4 rounded-2xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3">
+            <div className="flex items-center justify-between border-b border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-2">
+              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
+                สรุปภาพรวมแยกตามประเภท (โรงเรียนหลัก VS ห้องเรียนย่อยห่างไกล)
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                ข้อมูลแยกกันตามบริบท
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* สถิติโรงเรียนหลัก */}
+              <div className="p-3 rounded-xl bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6]/40 shadow-xs">
+                <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Building className="h-3.5 w-3.5 text-purple-500" /> โรงเรียนหลัก ({school.name})
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-300 font-bold">นักเรียนรวม:</span>
+                    <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">{remoteBranchStats.mainSchoolStudents} คน</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500">
+                    <span>(ชาย {remoteBranchStats.mainSchoolMale} / หญิง {remoteBranchStats.mainSchoolFemale})</span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-600 dark:text-slate-300 font-bold">ครูและบุคลากร:</span>
+                    <span className="font-black text-purple-600 dark:text-purple-300">{school.staffCount} คน</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* สถิติห้องเรียนย่อยในพื้นที่ห่างไกล */}
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-400 dark:border-amber-700 shadow-xs">
+                <div className="text-[10px] font-black text-amber-900 dark:text-amber-300 flex items-center gap-1">
+                  <Navigation className="h-3.5 w-3.5 text-amber-600" /> ห้องเรียนย่อยพื้นที่ห่างไกล ({remoteBranchStats.branchCount} แห่ง)
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-amber-900 dark:text-amber-200 font-bold">นักเรียนรวมห้องเรียนย่อย:</span>
+                    <span className="font-black text-amber-900 dark:text-amber-100">{remoteBranchStats.totalBranchStudents} คน</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                    <span>(ชาย {remoteBranchStats.totalBranchMale} / หญิง {remoteBranchStats.totalBranchFemale})</span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1 border-t border-amber-200 dark:border-amber-800">
+                    <span className="text-amber-900 dark:text-amber-200 font-bold">ครูประจำห้องเรียนย่อย:</span>
+                    <span className="font-black text-amber-800 dark:text-amber-200">{remoteBranchStats.totalBranchStaff} คน</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ยอดรวมทั้งสิ้น */}
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-700 shadow-xs">
+                <div className="text-[10px] font-black text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5 text-emerald-600" /> ยอดรวมสุทธิ (โรงเรียนหลัก + ห้องเรียนย่อย)
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-emerald-900 dark:text-emerald-200 font-bold">นักเรียนรวมสุทธิ:</span>
+                    <span className="font-black text-emerald-950 dark:text-emerald-100 text-sm">{remoteBranchStats.grandTotalStudents} คน</span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1 border-t border-emerald-200 dark:border-emerald-800">
+                    <span className="text-emerald-900 dark:text-emerald-200 font-bold">บุคลากรรวมสุทธิ:</span>
+                    <span className="font-black text-emerald-900 dark:text-emerald-100">{remoteBranchStats.grandTotalStaff} คน</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* รายชื่อห้องเรียนย่อยในพื้นที่ห่างไกล */}
+          <div className="space-y-3">
+            {classrooms.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredClassrooms.map((branch) => (
+                  <div
+                    key={branch.id}
+                    className="p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-amber-50/60 dark:bg-amber-950/20 shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      {/* ส่วนหัวของห้องเรียนย่อย */}
+                      <div className="flex items-start justify-between gap-2 border-b border-amber-200 dark:border-amber-900/60 pb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 border border-[#33272A]">
+                              🏔️ ห้องเรียนย่อยพื้นที่ห่างไกล
+                            </span>
+                            {branch.distanceFromMainSchool && (
+                              <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 flex items-center gap-0.5">
+                                🚗 ระยะห่าง: {branch.distanceFromMainSchool}
+                              </span>
+                            )}
+                          </div>
+                          <h5 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                            {branch.name}
+                          </h5>
+                        </div>
+
+                        {/* เบอร์โทรติดต่อห้องเรียนย่อย (กดโทรออกได้) */}
+                        {branch.phone && (
+                          <a
+                            href={`tel:${branch.phone.replace(/[^0-9+]/g, '')}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500 text-white font-black text-xs shadow-xs hover:bg-emerald-600 transition-transform active:scale-95 cursor-pointer shrink-0"
+                            title="โทรออกหาห้องเรียนย่อยนี้"
+                          >
+                            <Phone className="h-3 w-3" />
+                            <span>{branch.phone}</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {/* รายละเอียดสถิตินักเรียนและครูประจำห้องเรียนย่อย */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                        <div className="p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-amber-200 dark:border-amber-900">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">ครู/ผู้ดูแลประจำห้องเรียนย่อย:</span>
+                          <span className="font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1 mt-0.5">
+                            <Users className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                            {branch.teacherName || "ไม่ระบุ"} ({branch.staffCount || 0} คน)
+                          </span>
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-amber-200 dark:border-amber-900">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block">จำนวนนักเรียนห้องเรียนย่อย:</span>
+                          <span className="font-black text-[#FF8BA7] flex items-center gap-1 mt-0.5">
+                            <GraduationCap className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" />
+                            {branch.studentCount || 0} คน (ชาย {branch.maleCount || 0} / หญิง {branch.femaleCount || 0})
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* ข้อมูลสาธารณูปโภคของห้องเรียนย่อย */}
+                      <div className="flex items-center gap-2 flex-wrap mt-2.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                        <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                          ⚡ ไฟฟ้า: {branch.electricity === 'hybrid' ? '⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)' : branch.electricity === 'solar' ? '☀️ โซลาร์เซลล์' : branch.electricity === 'has_electric' || branch.electricity === true ? '🔌 มีไฟฟ้าถาวร' : '❌ ไม่มีไฟฟ้า'}
                         </span>
+                        {(branch.electricity === 'solar' || branch.electricity === 'hybrid' || branch.solarKw || branch.hasSolarBattery) && (
+                          <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            ☀️ โซลาร์: {branch.solarKw ? `${branch.solarKw} kW` : ''} {branch.hasSolarBattery ? `(มีแบต ${branch.solarBatteryCapacity ? `: ${branch.solarBatteryCapacity}` : ''})` : '(ไม่มีแบต)'}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                          🌐 เน็ต: {branch.internetType === 'satellite' ? '📡 ดาวเทียม' : branch.internetType === 'sim' ? '📱 SIM 4G' : branch.internetType === 'fiber' ? '🌐 Fiber' : '❌ ไม่ได้ใช้'}
+                        </span>
+                      </div>
+
+                      {branch.notes && (
+                        <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 mt-2 bg-amber-100/60 dark:bg-amber-950/50 p-2 rounded-xl border border-amber-200/50 italic">
+                          "{branch.notes}"
+                        </p>
                       )}
                     </div>
-                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] mt-2 group-hover:text-[#FF8BA7] transition-colors">
-                      {c.name}
-                    </h4>
-                    {c.teacherName && (
-                      <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1">
-                        <Users className="h-3 w-3 text-amber-500" />
-                        ครูประจำชั้น: {c.teacherName}
-                      </p>
-                    )}
-                    {c.notes && (
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 italic">
-                        "{c.notes}"
-                      </p>
-                    )}
-                  </div>
 
-                  {/* ปุ่มจัดการแก้ไข/ลบห้องเรียน */}
-                  {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
-                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    {/* ปุ่มจัดการห้องเรียนย่อย */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-amber-200 dark:border-amber-900/60">
                       <button
                         type="button"
-                        onClick={() => handleOpenClassroomModal(c)}
-                        className="p-1 px-2 text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 rounded-lg hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1"
+                        onClick={() => setViewingBranchDetail(branch)}
+                        className="p-1.5 px-3 text-xs font-black bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 rounded-xl hover:bg-purple-200 transition-colors cursor-pointer flex items-center gap-1"
                       >
-                        <Edit2 className="h-3 w-3" /> แก้ไข
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>ดูข้อมูลนักเรียนแยกรายชั้น</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteClassroom(c.id)}
-                        className="p-1 px-2 text-[10px] font-black bg-rose-100 text-rose-900 border border-rose-400 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <Trash2 className="h-3 w-3" /> ลบ
-                      </button>
+
+                      {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenClassroomModal(branch)}
+                            className="p-1 px-2 text-xs font-black bg-amber-100 text-amber-900 border border-amber-400 rounded-lg hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Edit2 className="h-3 w-3" /> แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClassroom(branch.id)}
+                            className="p-1 px-2 text-xs font-black bg-rose-100 text-rose-900 border border-rose-400 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" /> ลบ
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
-              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40 text-[#FF8BA7]" />
-              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                {classroomSearch ? `ไม่พบชื่อห้องเรียนที่ตรงกับ "${classroomSearch}"` : "ยังไม่มีการเพิ่มรายชื่อห้องเรียนของโรงเรียนนี้"}
-              </p>
-              {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && !classroomSearch && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenClassroomModal()}
-                  className="mt-3 btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-1.5 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>เพิ่มห้องเรียนแรกของโรงเรียนนี้</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-400 dark:text-slate-500 border-2 border-dashed border-amber-300 dark:border-amber-800 rounded-2xl bg-amber-50/30 dark:bg-amber-950/10">
+                <Navigation className="h-8 w-8 mx-auto mb-2 opacity-50 text-amber-500" />
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {classroomSearch ? `ไม่พบข้อมูลห้องเรียนย่อยที่ตรงกับ "${classroomSearch}"` : 'ยังไม่มีการเพิ่มข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล'}
+                </p>
+                {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && !classroomSearch && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenClassroomModal()}
+                    className="mt-3 btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-1.5 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>เพิ่มข้อมูลห้องเรียนย่อยแรก</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* Modal เพิ่ม/แก้ไขชื่อห้องเรียน */}
+        {/* Modal เพิ่ม/แก้ไขข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล */}
         {isClassroomModalOpen && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="relative max-w-md w-full bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-6 shadow-2xl space-y-4 animate-scale-up">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+            <div className="relative max-w-2xl w-full bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-6 shadow-2xl space-y-4 my-8 animate-scale-up">
               <div className="flex items-center justify-between border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3">
                 <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-[#FF8BA7]" />
-                  {editingClassroom ? 'แก้ไขชื่อห้องเรียน' : 'เพิ่มชื่อห้องเรียนใหม่'}
+                  {editingClassroom ? 'แก้ไขข้อมูลห้องเรียนย่อย' : 'เพิ่มข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล'}
                 </h3>
                 <button
                   type="button"
@@ -1588,87 +2130,376 @@ export default function SchoolDetailView({
                 </button>
               </div>
 
-              <form onSubmit={handleSaveClassroom} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                    ชื่อห้องเรียน/ชั้นเรียน <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น ม.1/1, ป.1/1 (ห้องเรียนภาษาอังกฤษ), อ.2/1"
-                    value={cName}
-                    onChange={(e) => setCName(e.target.value)}
-                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              {/* สวิตช์เลือกว่าเป็นห้องเรียนย่อยในพื้นที่ห่างไกลหรือไม่ */}
+              <div className="p-3 rounded-2xl bg-amber-100/70 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-700 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Navigation className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
                   <div>
-                    <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                      ระดับชั้น
-                    </label>
-                    <select
-                      value={cGradeLevel}
-                      onChange={(e) => setCGradeLevel(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none cursor-pointer"
-                    >
-                      <option value="อ.1">อนุบาล 1 (อ.1)</option>
-                      <option value="อ.2">อนุบาล 2 (อ.2)</option>
-                      <option value="อ.3">อนุบาล 3 (อ.3)</option>
-                      <option value="ป.1">ประถมศึกษาปีที่ 1 (ป.1)</option>
-                      <option value="ป.2">ประถมศึกษาปีที่ 2 (ป.2)</option>
-                      <option value="ป.3">ประถมศึกษาปีที่ 3 (ป.3)</option>
-                      <option value="ป.4">ประถมศึกษาปีที่ 4 (ป.4)</option>
-                      <option value="ป.5">ประถมศึกษาปีที่ 5 (ป.5)</option>
-                      <option value="ป.6">ประถมศึกษาปีที่ 6 (ป.6)</option>
-                      <option value="ม.1">มัธยมศึกษาปีที่ 1 (ม.1)</option>
-                      <option value="ม.2">มัธยมศึกษาปีที่ 2 (ม.2)</option>
-                      <option value="ม.3">มัธยมศึกษาปีที่ 3 (ม.3)</option>
-                      <option value="อื่นๆ">อื่นๆ</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                      จำนวนนักเรียน (คน)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="เช่น 25"
-                      value={cStudentCount}
-                      onChange={(e) => setCStudentCount(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
-                    />
+                    <div className="text-xs font-black text-amber-950 dark:text-amber-100">
+                      เป็นห้องเรียนย่อยในพื้นที่ห่างไกล
+                    </div>
+                    <div className="text-[10px] text-amber-800 dark:text-amber-300 font-bold">
+                      หากเปิด ตัวเลือกนี้จะสามารถกรอกข้อมูลพื้นฐาน ยอดนักเรียน และครูแยกต่างหากจากโรงเรียนหลักได้
+                    </div>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                    ชื่อครูประจำชั้น
-                  </label>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
-                    type="text"
-                    placeholder="เช่น ครูสมชาย ใจดี"
-                    value={cTeacherName}
-                    onChange={(e) => setCTeacherName(e.target.value)}
-                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                    type="checkbox"
+                    checked={cIsRemoteBranch}
+                    onChange={(e) => setCIsRemoteBranch(e.target.checked)}
+                    className="sr-only peer"
                   />
-                </div>
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:peer-focus:ring-amber-800 peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                    หมายเหตุ/คำอธิบายเพิ่มเติม
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="เช่น ห้องเรียนโครงการพิเศษ, ห้องเรียนวิทย์-คณิต"
-                    value={cNotes}
-                    onChange={(e) => setCNotes(e.target.value)}
-                    className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
-                  />
-                </div>
+              {/* แท็บบาร์สลับระหว่าง ข้อมูลพื้นฐาน VS ข้อมูลนักเรียน */}
+              <div className="flex gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/10 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setModalActiveTab('basic')}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    modalActiveTab === 'basic'
+                      ? 'bg-[#33272A] text-white dark:bg-[#FFD3B6] dark:text-[#33272A] shadow-sm'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  <Building className="h-4 w-4" />
+                  <span>1. ข้อมูลพื้นฐานห้องเรียนย่อย</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalActiveTab('students')}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    modalActiveTab === 'students'
+                      ? 'bg-[#33272A] text-white dark:bg-[#FFD3B6] dark:text-[#33272A] shadow-sm'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  <span>2. ข้อมูลนักเรียน & รายชั้น</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveClassroom} className="space-y-4">
+                {modalActiveTab === 'basic' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                        ชื่อห้องเรียนย่อย <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น ห้องเรียนย่อยบ้านห้วยฮี้, ห้องเรียนย่อยแม่สลี"
+                        value={cName}
+                        onChange={(e) => setCName(e.target.value)}
+                        className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                          ครูผู้ดูแลประจำห้องเรียนย่อย
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น ครูสมชาย ใจดี"
+                          value={cTeacherName}
+                          onChange={(e) => setCTeacherName(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                          เบอร์โทรศัพท์ติดต่อห้องเรียนย่อย (กดโทรออกได้)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น 081-234-5678"
+                          value={cPhone}
+                          onChange={(e) => setCPhone(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                        />
+                      </div>
+                    </div>
+
+                    {cIsRemoteBranch && (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                              จำนวนครู/บุคลากรประจำห้องเรียนย่อย (คน)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="เช่น 2"
+                              value={cStaffCount}
+                              onChange={(e) => setCStaffCount(e.target.value)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                              ระบบไฟฟ้า
+                            </label>
+                            <select
+                              value={cElectricity}
+                              onChange={(e) => setCElectricity(e.target.value as any)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none cursor-pointer"
+                            >
+                              <option value="has_electric">🔌 มีไฟฟ้าถาวร</option>
+                              <option value="solar">☀️ ระบบโซลาร์เซลล์</option>
+                              <option value="hybrid">⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)</option>
+                              <option value="none">❌ ไม่มีไฟฟ้า</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                              ระบบอินเทอร์เน็ต
+                            </label>
+                            <select
+                              value={cInternetType}
+                              onChange={(e) => setCInternetType(e.target.value as any)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none cursor-pointer"
+                            >
+                              <option value="fiber">🌐 สาย Fiber Optic</option>
+                              <option value="satellite">📡 อินเทอร์เน็ตดาวเทียม</option>
+                              <option value="sim">📱 ซิม 4G/5G Router</option>
+                              <option value="none">❌ ไม่ได้ใช้บริการ</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* รายละเอียดเพิ่มเติมกรณีเลือกโซลาร์เซลล์ หรือ Hybrid */}
+                        {(cElectricity === 'solar' || cElectricity === 'hybrid') && (
+                          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-700 space-y-3 animate-fade-in">
+                            <div className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                              ☀️ รายละเอียดระบบโซลาร์เซลล์ / พลังงานแสงอาทิตย์
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                                  กำลังการผลิต (kW)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="เช่น 5 kW หรือ 10 kW"
+                                  value={cSolarKw}
+                                  onChange={(e) => setCSolarKw(e.target.value)}
+                                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-col justify-center">
+                                <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                                  ระบบแบตเตอรี่กักเก็บพลังงาน
+                                </label>
+                                <label className="inline-flex items-center gap-2 cursor-pointer mt-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={cHasSolarBattery}
+                                    onChange={(e) => setCHasSolarBattery(e.target.checked)}
+                                    className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                                  />
+                                  <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                                    {cHasSolarBattery ? '🔋 มีแบตเตอรี่กักเก็บพลังงาน' : '❌ ไม่มีแบตเตอรี่'}
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+
+                            {cHasSolarBattery && (
+                              <div>
+                                <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                                  รายละเอียด / ความจุแบตเตอรี่
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="เช่น 200Ah 48V หรือ แบตเตอรี่ Lithium 10kWh"
+                                  value={cSolarBatteryCapacity}
+                                  onChange={(e) => setCSolarBatteryCapacity(e.target.value)}
+                                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                              ระยะทางจากโรงเรียนหลัก (กม. / สภาพเส้นทาง)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="เช่น 12 กม. (ทางลูกรัง/วิบาก)"
+                              value={cDistanceFromMainSchool}
+                              onChange={(e) => setCDistanceFromMainSchool(e.target.value)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                                ละติจูด (Lat)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="19.xxx"
+                                value={cLatitude}
+                                onChange={(e) => setCLatitude(e.target.value)}
+                                className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-2 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                                ลองจิจูด (Lng)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="97.xxx"
+                                value={cLongitude}
+                                onChange={(e) => setCLongitude(e.target.value)}
+                                className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-2 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                        หมายเหตุ / คำอธิบายบริบทพื้นที่
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="เช่น พื้นที่ห่างไกลเดินทางลำบากช่วงฤดูฝน"
+                        value={cNotes}
+                        onChange={(e) => setCNotes(e.target.value)}
+                        className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* แท็บ 2: ข้อมูลนักเรียนและจำแนกรายชั้น (อ.1 - ป.6) */
+                  <div className="space-y-4">
+                    {/* สรุปยอดอัตโนมัติจากการกรอกในตาราง */}
+                    <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 flex items-center justify-between text-xs font-bold">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="h-5 w-5 text-[#FF8BA7]" />
+                        <span>ยอดรวมนักเรียนห้องเรียนย่อย (คำนวณอัตโนมัติ):</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-emerald-600 font-black">ชาย: {cMaleCount || 0} คน</span>
+                        <span className="text-rose-500 font-black">หญิง: {cFemaleCount || 0} คน</span>
+                        <span className="text-[#33272A] dark:text-white font-black bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border border-[#33272A]">
+                          รวม: {cStudentCount || 0} คน
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* กรอกจำนวนนักเรียนแยกรายชั้นเรียนเฉพาะ อ.1 - ป.6 */}
+                    <div>
+                      <h5 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-2 flex items-center gap-1.5">
+                        <Grid className="h-4 w-4 text-[#FF8BA7]" /> ตารางระบุจำนวนนักเรียน (อ.1 - ป.6)
+                      </h5>
+                      <div className="border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-[#33272A] text-white dark:bg-[#FFD3B6] dark:text-[#33272A] font-black">
+                            <tr>
+                              <th className="p-2.5 pl-4">ระดับชั้น</th>
+                              <th className="p-2.5 text-center">ชาย (คน)</th>
+                              <th className="p-2.5 text-center">หญิง (คน)</th>
+                              <th className="p-2.5 text-center">รวม (คน)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-[#150e10]">
+                            {['อ.1', 'อ.2', 'อ.3', 'ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'].map((grade) => {
+                              const currGrade = cGradesBreakdown[grade] || { male: 0, female: 0, total: 0 };
+                              return (
+                                <tr key={grade}>
+                                  <td className="p-2 pl-4 font-black text-[#33272A] dark:text-[#FFF9F5]">{grade}</td>
+                                  <td className="p-1.5 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={currGrade.male || ''}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value) || 0;
+                                        const updated = {
+                                          ...cGradesBreakdown,
+                                          [grade]: {
+                                            ...currGrade,
+                                            male: val,
+                                            total: val + (currGrade.female || 0)
+                                          }
+                                        };
+                                        setCGradesBreakdown(updated);
+
+                                        // Auto sum total male/female/student count
+                                        let sumM = 0, sumF = 0;
+                                        Object.values(updated).forEach((g: any) => {
+                                          sumM += g.male || 0;
+                                          sumF += g.female || 0;
+                                        });
+                                        setCMaleCount(String(sumM));
+                                        setCFemaleCount(String(sumF));
+                                        setCStudentCount(String(sumM + sumF));
+                                      }}
+                                      className="w-20 text-center border-2 border-slate-300 dark:border-slate-700 rounded-lg p-1 text-xs font-bold focus:border-[#FF8BA7] outline-none"
+                                      placeholder="0"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={currGrade.female || ''}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value) || 0;
+                                        const updated = {
+                                          ...cGradesBreakdown,
+                                          [grade]: {
+                                            ...currGrade,
+                                            female: val,
+                                            total: (currGrade.male || 0) + val
+                                          }
+                                        };
+                                        setCGradesBreakdown(updated);
+
+                                        let sumM = 0, sumF = 0;
+                                        Object.values(updated).forEach((g: any) => {
+                                          sumM += g.male || 0;
+                                          sumF += g.female || 0;
+                                        });
+                                        setCMaleCount(String(sumM));
+                                        setCFemaleCount(String(sumF));
+                                        setCStudentCount(String(sumM + sumF));
+                                      }}
+                                      className="w-20 text-center border-2 border-slate-300 dark:border-slate-700 rounded-lg p-1 text-xs font-bold focus:border-[#FF8BA7] outline-none"
+                                      placeholder="0"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center font-black text-[#FF8BA7] text-sm">
+                                    {(currGrade.male || 0) + (currGrade.female || 0)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
                   <button
@@ -1685,10 +2516,159 @@ export default function SchoolDetailView({
                     className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     {isSavingClassroom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    <span>{isSavingClassroom ? 'กำลังบันทึก...' : 'บันทึกห้องเรียน'}</span>
+                    <span>{isSavingClassroom ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal ดูข้อมูลรายละเอียดเฉพาะห้องเรียนย่อย (Detail Viewer Modal) */}
+        {viewingBranchDetail && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+            <div className="relative max-w-2xl w-full bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-6 shadow-2xl space-y-4 my-8 animate-scale-up">
+              <div className="flex items-center justify-between border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3">
+                <div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 border border-[#33272A]">
+                    🏔️ ข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล
+                  </span>
+                  <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5] mt-1 flex items-center gap-2">
+                    {viewingBranchDetail.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold">
+                    สังกัด: {school.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingBranchDetail(null)}
+                  className="p-1 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* สรุปข้อมูลพื้นฐานห้องเรียนย่อย */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-2xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">ครูผู้ดูแล:</span>
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    {viewingBranchDetail.teacherName || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">บุคลากร:</span>
+                  <span className="text-xs font-black text-purple-600 dark:text-purple-300">
+                    {viewingBranchDetail.staffCount || 0} คน
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">นักเรียนรวม:</span>
+                  <span className="text-xs font-black text-[#FF8BA7]">
+                    {viewingBranchDetail.studentCount || 0} คน
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">เบอร์โทรติดต่อ:</span>
+                  {viewingBranchDetail.phone ? (
+                    <a
+                      href={`tel:${viewingBranchDetail.phone.replace(/[^0-9+]/g, '')}`}
+                      className="text-xs font-black text-emerald-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Phone className="h-3 w-3" /> โทรออก ({viewingBranchDetail.phone})
+                    </a>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-400">-</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ข้อมูลระยะทาง พิกัด และสาธารณูปโภค */}
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 text-xs font-bold space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span>🚗 ระยะทางจากโรงเรียนหลัก:</span>
+                  <span className="font-black text-amber-950 dark:text-amber-100">{viewingBranchDetail.distanceFromMainSchool || "ไม่ระบุ"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>⚡ ระบบไฟฟ้า:</span>
+                  <span className="font-black">
+                    {viewingBranchDetail.electricity === 'hybrid' ? '⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)' : viewingBranchDetail.electricity === 'solar' ? '☀️ โซลาร์เซลล์' : viewingBranchDetail.electricity === 'has_electric' || viewingBranchDetail.electricity === true ? '🔌 มีไฟฟ้าถาวร' : '❌ ไม่มีไฟฟ้า'}
+                  </span>
+                </div>
+                {(viewingBranchDetail.electricity === 'solar' || viewingBranchDetail.electricity === 'hybrid' || viewingBranchDetail.solarKw || viewingBranchDetail.hasSolarBattery) && (
+                  <div className="flex items-center justify-between text-amber-900 dark:text-amber-200 pt-1 border-t border-amber-200/60">
+                    <span>☀️ ข้อมูลโซลาร์เซลล์:</span>
+                    <span className="font-black">
+                      {viewingBranchDetail.solarKw ? `${viewingBranchDetail.solarKw} kW` : ''}{' '}
+                      {viewingBranchDetail.hasSolarBattery ? `(มีแบต ${viewingBranchDetail.solarBatteryCapacity ? `: ${viewingBranchDetail.solarBatteryCapacity}` : ''})` : '(ไม่มีแบต)'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span>🌐 ระบบอินเทอร์เน็ต:</span>
+                  <span className="font-black">
+                    {viewingBranchDetail.internetType === 'satellite' ? '📡 ดาวเทียม' : viewingBranchDetail.internetType === 'sim' ? '📱 SIM 4G' : viewingBranchDetail.internetType === 'fiber' ? '🌐 Fiber' : '❌ ไม่ได้ใช้'}
+                  </span>
+                </div>
+                {viewingBranchDetail.latitude && viewingBranchDetail.longitude && (
+                  <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                    <span>📍 พิกัด GPS:</span>
+                    <span className="font-mono font-black text-slate-700 dark:text-slate-200">
+                      {viewingBranchDetail.latitude}, {viewingBranchDetail.longitude}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ตารางแสดงจำนวนนักเรียนแยกรายชั้นของห้องเรียนย่อย */}
+              <div>
+                <h5 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-2 flex items-center gap-1.5">
+                  <Grid className="h-4 w-4 text-[#FF8BA7]" /> ตารางนักเรียนแยกรายชั้นเรียนของ {viewingBranchDetail.name}
+                </h5>
+
+                {viewingBranchDetail.gradesBreakdown && Object.keys(viewingBranchDetail.gradesBreakdown).length > 0 ? (
+                  <div className="border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-2xl overflow-hidden">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-[#33272A] text-white dark:bg-[#FFD3B6] dark:text-[#33272A] font-black">
+                        <tr>
+                          <th className="p-2.5 pl-4">ระดับชั้น</th>
+                          <th className="p-2.5 text-center">นักเรียนชาย</th>
+                          <th className="p-2.5 text-center">นักเรียนหญิง</th>
+                          <th className="p-2.5 text-center">รวมทั้งหมด</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-[#150e10]">
+                        {Object.entries(viewingBranchDetail.gradesBreakdown).map(([grade, data]: [string, any]) => {
+                          if (!data || (data.male === 0 && data.female === 0 && data.total === 0)) return null;
+                          return (
+                            <tr key={grade} className="hover:bg-amber-50/50">
+                              <td className="p-2.5 pl-4 font-black text-[#33272A] dark:text-[#FFF9F5]">{grade}</td>
+                              <td className="p-2.5 text-center text-emerald-600 font-bold">{data.male} คน</td>
+                              <td className="p-2.5 text-center text-rose-500 font-bold">{data.female} คน</td>
+                              <td className="p-2.5 text-center font-black text-[#FF8BA7]">{data.total || (data.male + data.female)} คน</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-slate-400 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed">
+                    ยังไม่มีข้อมูลตัวเลขแยกรายชั้นเรียนแบบละเอียดสำหรับห้องเรียนย่อยนี้ (ยอดรวม: {viewingBranchDetail.studentCount || 0} คน)
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewingBranchDetail(null)}
+                  className="btn-cute bg-[#33272A] text-white dark:bg-[#FFD3B6] dark:text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
             </div>
           </div>
         )}

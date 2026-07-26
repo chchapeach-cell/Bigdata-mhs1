@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -17,8 +17,16 @@ interface SchoolListViewProps {
     amphoe?: string;
     netFilter?: string;
     electricityFilter?: string;
+    majorSubjectFilter?: string;
   } | null;
   clearInitialFilters?: () => void;
+  systemConfig?: {
+    allowDataDownload?: boolean;
+    restrictOneAdminPerSchool?: boolean;
+    allowSchoolAdminRegistration?: boolean;
+    electricityOptions?: { id: string; label: string }[];
+    internetOptions?: { id: string; label: string }[];
+  };
 }
 
 export default function SchoolListView({
@@ -27,13 +35,15 @@ export default function SchoolListView({
   onSelectSchool,
   userProfile,
   initialFilters,
-  clearInitialFilters
+  clearInitialFilters,
+  systemConfig
 }: SchoolListViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all'); // all, expansion, basic
   const [netFilter, setNetFilter] = useState<string>('all');
-  const [electricityFilter, setElectricityFilter] = useState<string>('all'); // all, yes, no
+  const [electricityFilter, setElectricityFilter] = useState<string>('all'); // all, has_electric, solar, hybrid, none
+  const [majorSubjectFilter, setMajorSubjectFilter] = useState<string>('all'); // ตัวกรองครูวิชาเอก
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
   const [networkGroupFilter, setNetworkGroupFilter] = useState<string>('all'); // ตัวกรองกลุ่มโรงเรียน
   
@@ -45,6 +55,7 @@ export default function SchoolListView({
       if (initialFilters.amphoe) setAmphoeFilter(initialFilters.amphoe);
       if (initialFilters.netFilter) setNetFilter(initialFilters.netFilter);
       if (initialFilters.electricityFilter) setElectricityFilter(initialFilters.electricityFilter);
+      if (initialFilters.majorSubjectFilter) setMajorSubjectFilter(initialFilters.majorSubjectFilter);
       
       // ล้างข้อมูลการพิมพ์ค้นหา
       setSearchTerm('');
@@ -54,6 +65,31 @@ export default function SchoolListView({
       }
     }
   }, [initialFilters, clearInitialFilters]);
+
+  // ดึงวิชาเอกทั้งหมดที่มีจากทุกโรงเรียน
+  const allAvailableMajors = useMemo(() => {
+    const majorsSet = new Set<string>();
+    const defaultList = [
+      'ภาษาไทย', 'คณิตศาสตร์', 'ภาษาอังกฤษ', 'วิทยาศาสตร์', 'คอมพิวเตอร์',
+      'ปฐมวัย', 'สังคมศึกษา', 'พลศึกษา', 'ศิลปะ', 'การงานอาชีพ'
+    ];
+    defaultList.forEach(m => majorsSet.add(m));
+
+    schools.forEach(s => {
+      if (s.majorSubjects) {
+        s.majorSubjects.forEach(m => {
+          if (m && m.trim()) majorsSet.add(m.trim());
+        });
+      }
+      if (s.majorSubjectsWithStaff) {
+        s.majorSubjectsWithStaff.forEach(ms => {
+          if (ms.name && ms.name.trim()) majorsSet.add(ms.name.trim());
+        });
+      }
+    });
+
+    return Array.from(majorsSet);
+  }, [schools]);
   
   // สถานะการจัดเรียงข้อมูล
   const [sortField, setSortField] = useState<'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | null>(null);
@@ -93,17 +129,40 @@ export default function SchoolListView({
         (c.teacherName && c.teacherName.toLowerCase().includes(q)) ||
         (c.gradeLevel && c.gradeLevel.toLowerCase().includes(q))
       );
+      const matchesMajorQuery = (school.majorSubjects && school.majorSubjects.some(m => m.toLowerCase().includes(q))) ||
+                                (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.some(ms => ms.name.toLowerCase().includes(q)));
+
       const matchesSearch = school.name.toLowerCase().includes(q) ||
                             school.id.includes(searchTerm) ||
-                            matchesClassroom;
+                            matchesClassroom ||
+                            matchesMajorQuery;
       const matchesSize = sizeFilter === 'all' || school.size === sizeFilter;
       const matchesType = typeFilter === 'all' || 
                           (typeFilter === 'expansion' && school.isExpansion) ||
                           (typeFilter === 'basic' && !school.isExpansion);
       const matchesNet = netFilter === 'all' || school.internetType === netFilter;
-      const matchesElectricity = electricityFilter === 'all' || 
-                                 (electricityFilter === 'yes' && school.electricity) ||
-                                 (electricityFilter === 'no' && !school.electricity);
+      
+      // กรองตามไฟฟ้า
+      let matchesElectricity = true;
+      if (electricityFilter !== 'all') {
+        if (electricityFilter === 'has_electric' || electricityFilter === 'yes') {
+          matchesElectricity = school.electricity === 'has_electric' || school.electricity === true;
+        } else if (electricityFilter === 'solar') {
+          matchesElectricity = school.electricity === 'solar';
+        } else if (electricityFilter === 'hybrid') {
+          matchesElectricity = school.electricity === 'hybrid';
+        } else if (electricityFilter === 'none' || electricityFilter === 'no') {
+          matchesElectricity = school.electricity === 'none' || school.electricity === false;
+        }
+      }
+
+      // กรองตามครูวิชาเอก
+      let matchesMajorSubject = true;
+      if (majorSubjectFilter !== 'all') {
+        const hasMajorStr = school.majorSubjects && school.majorSubjects.some(m => m.includes(majorSubjectFilter));
+        const hasMajorObj = school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.some(ms => ms.name.includes(majorSubjectFilter) && ms.teachersCount > 0);
+        matchesMajorSubject = !!(hasMajorStr || hasMajorObj);
+      }
       
       const schoolAmphoe = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
       const matchesAmphoe = amphoeFilter === 'all' || schoolAmphoe === amphoeFilter;
@@ -115,9 +174,9 @@ export default function SchoolListView({
       }
       const matchesNetworkGroup = networkGroupFilter === 'all' || schoolNetwork === networkGroupFilter;
 
-      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesNetworkGroup;
+      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesNetworkGroup && matchesMajorSubject;
     });
-  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter, networkGroupFilter]);
+  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter, networkGroupFilter, majorSubjectFilter]);
 
   // จัดเรียงข้อมูลที่คัดกรองแล้ว
   const sortedSchools = useMemo(() => {
@@ -183,8 +242,14 @@ export default function SchoolListView({
     }
   };
 
+  const canDownload = systemConfig?.allowDataDownload !== false || userProfile?.role === 'super_admin';
+
   // ฟังก์ชันสําหรับสร้าง Excel และบันทึกลง Firestore สำหรับประวัติ
   const handleOpenDownload = (id: string, name: string) => {
+    if (!canDownload) {
+      alert('การดาวน์โหลดข้อมูลถูกปิดใช้งานชั่วคราวโดย Super Admin');
+      return;
+    }
     setDownloadTarget({ id, name });
     setDownloadError('');
     setIsDownloadModalOpen(true);
@@ -360,8 +425,8 @@ export default function SchoolListView({
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+        {/* Dropdown Filters Grid - ออกแบบให้พอดีขอบจอมือถือและเดสก์ท็อป ไม่ยืดล้น */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
           {/* อำเภอ */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
@@ -441,34 +506,53 @@ export default function SchoolListView({
           {/* ระบบไฟฟ้า */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5 text-amber-500" /> ระบบไฟฟ้า
+              <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" /> ระบบไฟฟ้า
             </label>
             <select
               value={electricityFilter}
               onChange={(e) => setElectricityFilter(e.target.value)}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
-              <option value="all">ทั้งหมด (มี/ไม่มีไฟฟ้า)</option>
-              <option value="yes">⚡ มีไฟฟ้าใช้งาน</option>
-              <option value="no">🔌 ใช้โซลาร์เซลล์ / ไม่มีไฟฟ้า</option>
+              <option value="all">ทั้งหมด (ทุกประเภทไฟฟ้า)</option>
+              <option value="has_electric">🔌 มีไฟฟ้าถาวร</option>
+              <option value="solar">☀️ ระบบโซลาร์เซลล์</option>
+              <option value="hybrid">⚡☀️ ระบบผสมผสาน</option>
+              <option value="none">❌ ไม่มีระบบไฟฟ้า</option>
             </select>
           </div>
 
           {/* อินเทอร์เน็ต */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5 text-sky-500" /> ระบบอินเทอร์เน็ต
+              <Globe className="h-3.5 w-3.5 text-sky-500 shrink-0" /> ระบบอินเทอร์เน็ต
             </label>
             <select
               value={netFilter}
               onChange={(e) => setNetFilter(e.target.value)}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
             >
-              <option value="all">ทั้งหมด ทุกประเภท</option>
+              <option value="all">ทั้งหมด ทุกประเภทเน็ต</option>
               <option value="fiber">🌐 ไฟเบอร์ออพติก (Fiber)</option>
               <option value="satellite">🛰️ ดาวเทียม (Satellite)</option>
               <option value="sim">📱 อินเทอร์เน็ตซิม (SIM 4G/5G)</option>
               <option value="none">❌ ไม่ได้ใช้/ไม่มีอินเทอร์เน็ต</option>
+            </select>
+          </div>
+
+          {/* ครูวิชาเอก */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+              <GraduationCap className="h-3.5 w-3.5 text-purple-500 shrink-0" /> ครูวิชาเอกที่มี
+            </label>
+            <select
+              value={majorSubjectFilter}
+              onChange={(e) => setMajorSubjectFilter(e.target.value)}
+              className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+            >
+              <option value="all">ทั้งหมด ทุกวิชาเอก</option>
+              {allAvailableMajors.map(m => (
+                <option key={m} value={m}>เอก{m}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -588,20 +672,48 @@ export default function SchoolListView({
                     <tr key={school.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10">
                       <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
                       <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-1">
                           <button 
                             onClick={() => onSelectSchool(school.id)}
                             className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
                           >
                             {school.name}
                           </button>
-                          {school.classrooms && school.classrooms.length > 0 && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
-                                📚 {school.classrooms.length} ห้องเรียน
+
+                          {/* แสดงป้ายไฟฟ้า / วิชาเอกย่อ */}
+                          <div className="flex flex-wrap items-center gap-1">
+                            {/* ป้ายไฟฟ้า */}
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
+                              school.electricity === 'has_electric' || school.electricity === true
+                                ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-700'
+                                : school.electricity === 'solar'
+                                ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200 dark:border-yellow-700'
+                                : school.electricity === 'hybrid'
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700'
+                                : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                            }`}>
+                              <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                              {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                               school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                               school.electricity === 'hybrid' ? 'ผสมผสาน' : 'ไม่มีไฟฟ้า'}
+                            </span>
+
+                            {/* ห้องเรียนย่อย */}
+                            {school.classrooms && school.classrooms.length > 0 && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
+                                📚 {school.classrooms.length} ห้อง
                               </span>
-                            </div>
-                          )}
+                            )}
+
+                            {/* ครูวิชาเอก */}
+                            {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-200 border border-sky-300 dark:border-sky-700 flex items-center gap-0.5" title={(school.majorSubjects || school.majorSubjectsWithStaff?.map(m=>m.name))?.join(', ')}>
+                                <GraduationCap className="h-2.5 w-2.5 text-sky-600" />
+                                {school.majorSubjects ? school.majorSubjects.slice(0, 2).join(', ') : school.majorSubjectsWithStaff?.slice(0, 2).map(m=>m.name).join(', ')}
+                                {((school.majorSubjects?.length || 0) > 2 || (school.majorSubjectsWithStaff?.length || 0) > 2) && '...'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="p-3">
@@ -708,9 +820,42 @@ export default function SchoolListView({
                         >
                           {school.name}
                         </button>
-                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
                         </p>
+
+                        {/* Badges ข้อมูลไฟฟ้า และ ครูวิชาเอก สำหรับมือถือ */}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                            school.electricity === 'has_electric' || school.electricity === true
+                              ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                              : school.electricity === 'solar'
+                              ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                              : school.electricity === 'hybrid'
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                          }`}>
+                            <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                            {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                             school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                             school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
+                          </span>
+
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 flex items-center gap-1">
+                            <Globe className="h-2.5 w-2.5 text-sky-600" />
+                            {school.internetType === 'fiber' ? 'เน็ต Fiber' :
+                             school.internetType === 'satellite' ? 'เน็ต ดาวเทียม' :
+                             school.internetType === 'sim' ? 'เน็ต SIM 4G' : 'ไม่มีเน็ต'}
+                          </span>
+
+                          {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 flex items-center gap-1">
+                              <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
+                              เอก{school.majorSubjects ? school.majorSubjects[0] : school.majorSubjectsWithStaff?.[0]?.name}
+                              {((school.majorSubjects?.length || 0) > 1 || (school.majorSubjectsWithStaff?.length || 0) > 1) && ` +${(school.majorSubjects?.length || school.majorSubjectsWithStaff?.length || 1) - 1}`}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-1.5 py-2 border-y border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-center text-xs">

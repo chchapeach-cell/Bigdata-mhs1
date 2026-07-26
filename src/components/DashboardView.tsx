@@ -20,6 +20,7 @@ interface DashboardViewProps {
     amphoe?: string;
     netFilter?: string;
     electricityFilter?: string;
+    majorSubjectFilter?: string;
   }) => void;
 }
 
@@ -50,6 +51,11 @@ export default function DashboardView({
     'electricity_yes' | 'electricity_no' | 'fiber' | 'satellite' | 'sim' | 'none' | null
   >(null);
   const [infraSearchQuery, setInfraSearchQuery] = useState<string>('');
+
+  // สถานะเปิด Modal ดูรายชื่อโรงเรียนที่มีนักเรียนตัว G เรียงตามจำนวน
+  const [showGStudentsModal, setShowGStudentsModal] = useState<boolean>(false);
+  const [gSchoolSearchQuery, setGSchoolSearchQuery] = useState<string>('');
+  const [gSortOrder, setGSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // คัดกรองรายชื่อโรงเรียนตามหมวดหมู่โครงสร้างพื้นฐานที่เปิดดูใน Modal
   const filteredInfraSchools = useMemo(() => {
@@ -604,6 +610,48 @@ export default function DashboardView({
     return { total, male, female, schoolCount: schoolSet.size };
   }, [studentGData, academicYear]);
 
+  // รายชื่อสถานศึกษาที่มีนักเรียนตัว G เรียงตามจำนวนจากมากไปน้อย
+  const gSchoolsList = useMemo(() => {
+    if (!studentGData || studentGData.length === 0) return [];
+
+    const filtered = studentGData.filter(g => g.academicYear === academicYear && (g.totalGStudents || 0) > 0);
+
+    const mapped = filtered.map(g => {
+      const schoolObj = schools.find(s => s.id === g.schoolId || (s.name && g.schoolName && s.name.trim() === g.schoolName.trim()));
+      const info = schoolObj ? getAmphoeAndNetwork(schoolObj.id, schoolObj.name) : { amphoe: '-', networkGroup: '-' };
+      const amphoe = schoolObj?.amphoe || info.amphoe;
+      const network = schoolObj?.networkGroup || info.networkGroup;
+      return {
+        schoolId: g.schoolId,
+        schoolName: g.schoolName || schoolObj?.name || 'ไม่ระบุชื่อโรงเรียน',
+        amphoe,
+        network,
+        maleGCount: g.maleGCount || 0,
+        femaleGCount: g.femaleGCount || 0,
+        totalGStudents: g.totalGStudents || 0,
+        notes: g.notes || '',
+        schoolObj
+      };
+    });
+
+    const searched = mapped.filter(item => {
+      if (!gSchoolSearchQuery) return true;
+      const q = gSchoolSearchQuery.toLowerCase();
+      return (
+        item.schoolName.toLowerCase().includes(q) ||
+        item.amphoe.toLowerCase().includes(q) ||
+        item.network.toLowerCase().includes(q)
+      );
+    });
+
+    return searched.sort((a, b) => {
+      if (gSortOrder === 'asc') {
+        return a.totalGStudents - b.totalGStudents;
+      }
+      return b.totalGStudents - a.totalGStudents;
+    });
+  }, [studentGData, academicYear, schools, gSchoolSearchQuery, gSortOrder]);
+
   return (
     <div className="space-y-6">
       {/* Header และปีการศึกษา */}
@@ -935,25 +983,34 @@ export default function DashboardView({
       {/* สถิติและแนวโน้มข้อมูลนักเรียนรหัส G (แสดงเฉพาะเมื่อมีข้อมูลนักเรียนตัว G ในปีการศึกษาที่เลือก) */}
       {currentYearGStats.total > 0 && (
         <div className="card p-6 space-y-6 border-l-8 border-l-[#A0E7E5] bg-[#FFF9F5]/80 dark:bg-slate-900/60 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#A0E7E5] text-[#33272A] border border-[#33272A]">
-                  แยกข้อมูลเฉพาะ
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#A0E7E5] text-[#33272A] border border-[#33272A] shrink-0">
+                  นักเรียน G
                 </span>
-                <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                  <Users className="h-5 w-5 text-[#60A5FA]" />
-                  สถิติและแนวโน้มจำนวนนักเรียนรหัส G (กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร)
+                <h3 className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-[#60A5FA] shrink-0" />
+                  สถิตินักเรียนรหัส G
                 </h3>
               </div>
               <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
-                ข้อมูลสถิตินักเรียนรหัส G แยกจากข้อมูลนักเรียน DMC ปกติอย่างชัดเจน รายงานตามปีการศึกษา
+                กลุ่มไม่มีหลักฐานทางทะเบียนราษฎร รายงานตามปีการศึกษา
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="bg-white dark:bg-[#1e1518] px-3 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                ปีการศึกษา {academicYear}: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{currentYearGStats.total.toLocaleString()}</span> คน
+            <div className="flex flex-wrap items-center gap-2 mt-1 sm:mt-0">
+              <button
+                onClick={() => setShowGStudentsModal(true)}
+                className="btn-cute bg-amber-400 hover:bg-amber-300 text-amber-950 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 text-xs font-black px-3 py-1.5 sm:px-4 sm:py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95"
+              >
+                <Building2 className="h-4 w-4 shrink-0" />
+                <span className="inline sm:hidden">โรงเรียนเด็ก G (มาก ➔ น้อย)</span>
+                <span className="hidden sm:inline">ดูรายชื่อโรงเรียนที่มีเด็ก G (เรียงจากมาก ➔ น้อย)</span>
+                <Eye className="h-4 w-4 text-amber-900 dark:text-slate-900 shrink-0" />
+              </button>
+              <div className="bg-white dark:bg-[#1e1518] px-2.5 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5] shrink-0">
+                ปี {academicYear}: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{currentYearGStats.total.toLocaleString()}</span> คน
               </div>
             </div>
           </div>
@@ -985,14 +1042,23 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-sm flex items-center justify-between">
+            <div 
+              onClick={() => setShowGStudentsModal(true)}
+              className="bg-white dark:bg-slate-800/80 p-4 rounded-2xl border-2 border-amber-500 dark:border-amber-400 shadow-sm flex items-center justify-between cursor-pointer hover:bg-amber-50/70 dark:hover:bg-slate-700/80 transition-all hover:scale-[1.02] group"
+              title="คลิกเพื่อเปิดดูรายชื่อโรงเรียนและลำดับจำนวนนักเรียนตัว G"
+            >
               <div>
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สถานศึกษาที่มีนักเรียนตัว G</span>
+                <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1 group-hover:underline">
+                  สถานศึกษาที่มีนักเรียนตัว G <Eye className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                </span>
                 <div className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
                   {currentYearGStats.schoolCount} <span className="text-xs font-normal">แห่ง</span>
                 </div>
+                <span className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 underline mt-1 block">
+                  👉 คลิกเพื่อเปิดดูรายชื่อ (เรียงตามจำนวน)
+                </span>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 flex items-center justify-center font-bold">
+              <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 flex items-center justify-center font-bold group-hover:bg-amber-500 group-hover:text-white transition-colors shadow-sm">
                 <Building2 className="h-5 w-5" />
               </div>
             </div>
@@ -1163,23 +1229,28 @@ export default function DashboardView({
                   return filtered.map((major, idx) => (
                     <div 
                       key={idx}
-                      className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-[#33272A]/10 dark:border-[#FFD3B6]/10 hover:border-[#FF8BA7] transition-all"
+                      onClick={() => onFilterNavigate && onFilterNavigate({ majorSubjectFilter: major.name })}
+                      className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e1518] border border-[#33272A]/10 dark:border-[#FFD3B6]/10 hover:border-[#FF8BA7] transition-all cursor-pointer hover:bg-[#FF8BA7]/10 group"
+                      title={`คลิกเพื่อดูโรงเรียนที่มีครูเอก ${major.name}`}
                     >
                       <div className="flex items-center gap-2">
                         <span className="h-5 w-5 rounded-lg bg-[#FF8BA7]/20 border border-[#FF8BA7]/50 flex items-center justify-center text-[9px] font-black text-[#FF8BA7]">
                           {idx + 1}
                         </span>
-                        <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors">
                           {major.name}
                         </span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-black text-[#FF8BA7] block">
-                          ครู {major.teachersCount} คน
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 block">
-                          พบใน {major.schoolCount} โรงเรียน
-                        </span>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <span className="text-xs font-black text-[#FF8BA7] block">
+                            ครู {major.teachersCount} คน
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-400 block">
+                            พบใน {major.schoolCount} โรงเรียน
+                          </span>
+                        </div>
+                        <Eye className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#FF8BA7] transition-colors" />
                       </div>
                     </div>
                   ));
@@ -1911,6 +1982,176 @@ export default function DashboardView({
           </div>
         );
       })()}
+
+      {/* Modal แสดงรายชื่อสถานศึกษาที่มีนักเรียนตัว G เรียงจากมากสุดไปน้อยสุด */}
+      {showGStudentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#FFF9F5] dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-[8px_8px_0px_#33272A] dark:shadow-none overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-amber-50 dark:bg-slate-900 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl border-2 border-[#33272A] bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <Building2 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                    รายชื่อสถานศึกษาที่มีนักเรียนตัว G (รหัส G) <Sparkles className="h-4 w-4 text-amber-500" />
+                  </h3>
+                  <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold mt-0.5">
+                    ประจำปีการศึกษา {academicYear} • ทั้งหมด {gSchoolsList.length} สถานศึกษา (เรียงลำดับจากมากสุดไปน้อยสุด)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowGStudentsModal(false);
+                  setGSchoolSearchQuery('');
+                }}
+                className="h-9 w-9 rounded-full border-2 border-[#33272A] bg-rose-100 hover:bg-rose-200 text-[#33272A] flex items-center justify-center font-black text-base cursor-pointer shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Search & Sort Controls */}
+            <div className="p-4 bg-white/60 dark:bg-slate-950/60 border-b border-[#33272A]/10 flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อโรงเรียน, อำเภอ หรือกลุ่มโรงเรียน..."
+                  value={gSchoolSearchQuery}
+                  onChange={(e) => setGSchoolSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border-2 border-[#33272A] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-extrabold text-[#33272A] dark:text-[#FFF9F5]">การเรียงลำดับ:</span>
+                <button
+                  onClick={() => setGSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  className="px-3 py-1.5 rounded-xl border-2 border-[#33272A] bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/60 dark:hover:bg-amber-800 text-amber-950 dark:text-amber-100 text-xs font-black flex items-center gap-1.5 shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                >
+                  <TrendingUp className={`h-3.5 w-3.5 transition-transform ${gSortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                  <span>{gSortOrder === 'desc' ? 'เรียง: มาก ➔ น้อย' : 'เรียง: น้อย ➔ มาก'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* List Table Body */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {gSchoolsList.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 font-bold space-y-2">
+                  <p>ไม่พบรายชื่อสถานศึกษาที่มีนักเรียนตัว G ตรงกับเงื่อนไขการค้นหา</p>
+                </div>
+              ) : (
+                <div className="border-2 border-[#33272A] dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#33272A] text-[#FFF9F5] text-[11px] font-black uppercase tracking-wider">
+                          <th className="py-3 px-3 text-center w-16">อันดับ</th>
+                          <th className="py-3 px-4">ชื่อสถานศึกษา</th>
+                          <th className="py-3 px-3">อำเภอ / กลุ่มโรงเรียน</th>
+                          <th className="py-3 px-3 text-center">ชาย (G)</th>
+                          <th className="py-3 px-3 text-center">หญิง (G)</th>
+                          <th className="py-3 px-4 text-center">นักเรียนตัว G รวม</th>
+                          <th className="py-3 px-3 text-center">การดำเนินการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                        {gSchoolsList.map((item, idx) => {
+                          const rank = gSortOrder === 'desc' ? idx + 1 : gSchoolsList.length - idx;
+                          return (
+                            <tr 
+                              key={item.schoolId || idx}
+                              className="hover:bg-amber-50/60 dark:hover:bg-amber-950/30 transition-colors"
+                            >
+                              <td className="py-3 px-3 text-center">
+                                {rank === 1 ? (
+                                  <span className="inline-flex items-center justify-center h-7 px-2 rounded-full bg-amber-400 text-amber-950 font-black text-xs shadow-sm">🥇 1</span>
+                                ) : rank === 2 ? (
+                                  <span className="inline-flex items-center justify-center h-7 px-2 rounded-full bg-slate-300 text-slate-900 font-black text-xs shadow-sm">🥈 2</span>
+                                ) : rank === 3 ? (
+                                  <span className="inline-flex items-center justify-center h-7 px-2 rounded-full bg-amber-600 text-white font-black text-xs shadow-sm">🥉 3</span>
+                                ) : (
+                                  <span className="text-slate-500 font-bold">{rank}</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-black">
+                                <div className="flex flex-col">
+                                  <span className="text-sm text-[#33272A] dark:text-[#FFF9F5]">{item.schoolName}</span>
+                                  {item.notes && (
+                                    <span className="text-[10px] text-amber-700 dark:text-amber-300 italic font-medium">{item.notes}</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-[11px] text-slate-600 dark:text-slate-300">
+                                <div className="flex flex-col">
+                                  <span className="font-extrabold text-[#33272A] dark:text-[#FFF9F5]">อ. {item.amphoe}</span>
+                                  <span className="text-[10px] text-slate-400">{item.network}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center text-blue-600 dark:text-blue-400 font-extrabold">
+                                {item.maleGCount}
+                              </td>
+                              <td className="py-3 px-3 text-center text-pink-600 dark:text-pink-400 font-extrabold">
+                                {item.femaleGCount}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="inline-block px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/80 border border-amber-400 text-amber-900 dark:text-amber-200 text-xs font-black">
+                                  {item.totalGStudents} คน
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                {onSelectSchool && item.schoolId && (
+                                  <button
+                                    onClick={() => {
+                                      setShowGStudentsModal(false);
+                                      onSelectSchool(item.schoolId);
+                                    }}
+                                    className="px-2.5 py-1 rounded-xl bg-[#33272A] hover:bg-black text-[#FFF9F5] dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 text-[10px] font-black transition-all cursor-pointer shadow-sm hover:scale-105"
+                                  >
+                                    ดูโรงเรียน ➔
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white dark:bg-slate-900 border-t-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span>💡 สรุปรวม:</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-black border border-amber-300">
+                  นักเรียนตัว G ทั้งหมด {currentYearGStats.total.toLocaleString()} คน
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">
+                  เฉลี่ย {gSchoolsList.length > 0 ? (currentYearGStats.total / gSchoolsList.length).toFixed(1) : 0} คน / โรงเรียน
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowGStudentsModal(false);
+                  setGSchoolSearchQuery('');
+                }}
+                className="px-4 py-2 rounded-xl border-2 border-[#33272A] bg-slate-200 dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] font-black hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* แถบการวิเคราะห์ข้อมูลเชิงลึก (AI-Data Insights) */}
       <div className="card bg-[#FFEEE2] dark:bg-[#2c2023] p-6">

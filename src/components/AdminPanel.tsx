@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, StudentGData } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet } from 'lucide-react';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2 } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -13,6 +13,7 @@ interface AdminPanelProps {
   studentData: StudentData[];
   studentGData?: StudentGData[];
   onRefreshData: () => Promise<void>;
+  systemConfig?: SystemConfig;
 }
 
 export default function AdminPanel({
@@ -20,7 +21,8 @@ export default function AdminPanel({
   schools,
   studentData,
   studentGData = [],
-  onRefreshData
+  onRefreshData,
+  systemConfig
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin';
 
@@ -35,11 +37,12 @@ export default function AdminPanel({
   const [editAmphoe, setEditAmphoe] = useState('');
   const [editNetworkGroup, setEditNetworkGroup] = useState('');
   const [editInternet, setEditInternet] = useState<School['internetType']>('none');
-  const [editElectricity, setEditElectricity] = useState(true);
+  const [editElectricity, setEditElectricity] = useState<any>(true);
   const [editStaffCount, setEditStaffCount] = useState(5);
   const [editDirectorPhone, setEditDirectorPhone] = useState('');
   const [editSchoolPhone, setEditSchoolPhone] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editSpecialHighlights, setEditSpecialHighlights] = useState('');
   const [editMajorsStr, setEditMajorsStr] = useState('');
   const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
   const [newMajorName, setNewMajorName] = useState('');
@@ -190,6 +193,7 @@ export default function AdminPanel({
       setEditDirectorPhone(targetSchool.directorPhone || '');
       setEditSchoolPhone(targetSchool.schoolPhone || '');
       setEditImageUrl(targetSchool.imageUrl || '');
+      setEditSpecialHighlights(targetSchool.specialHighlights || '');
       setEditMajorsStr(targetSchool.majorSubjects ? targetSchool.majorSubjects.join(', ') : '');
       
       // อัปเดตวิชาเอกพร้อมจำนวนครู
@@ -214,7 +218,9 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'upload' | 'g_students' | 'users' | 'logs' | 'schools'>('upload');
+  const [adminTab, setAdminTab] = useState<'upload' | 'g_students' | 'users' | 'logs' | 'schools' | 'settings'>(
+    isSuperAdmin ? 'upload' : 'schools'
+  );
 
   // State สำหรับจัดการข้อมูลนักเรียนตัว G
   const [gYear, setGYear] = useState<string>('2568');
@@ -960,11 +966,51 @@ export default function AdminPanel({
   const [deleteError, setDeleteError] = useState('');
   const [deleteSuccess, setDeleteSuccess] = useState('');
 
-  // นโยบายจำกัด 1 แอดมินต่อโรงเรียน และการเปิด-ปิดรับสมัครแอดมิน
-  const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState(true);
-  const [allowSchoolAdminRegistration, setAllowSchoolAdminRegistration] = useState(true);
+  // นโยบายระบบ และ ตัวเลือกโครงสร้างพื้นฐาน (Super Admin)
+  const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState<boolean>(
+    systemConfig?.restrictOneAdminPerSchool ?? true
+  );
+  const [allowSchoolAdminRegistration, setAllowSchoolAdminRegistration] = useState<boolean>(
+    systemConfig?.allowSchoolAdminRegistration ?? true
+  );
+  const [allowDataDownload, setAllowDataDownload] = useState<boolean>(
+    systemConfig?.allowDataDownload ?? true
+  );
+  const [electricityOptions, setElectricityOptions] = useState<InfrastructureOption[]>(
+    systemConfig?.electricityOptions || [
+      { id: 'has_electric', label: '🔌 มีไฟฟ้าถาวร' },
+      { id: 'solar', label: '☀️ โซลาร์เซลล์' },
+      { id: 'hybrid', label: '⚡☀️ ไฟฟ้าผสมผสาน' },
+      { id: 'none', label: '❌ ไม่มีไฟฟ้า' },
+    ]
+  );
+  const [internetOptions, setInternetOptions] = useState<InfrastructureOption[]>(
+    systemConfig?.internetOptions || [
+      { id: 'fiber', label: '🌐 Fiber Optic' },
+      { id: 'satellite', label: '🛰️ จานดาวเทียม' },
+      { id: 'sim', label: '📱 SIM 4G/5G' },
+      { id: 'none', label: '❌ ไม่มีเน็ต' },
+    ]
+  );
+
+  const [newElecId, setNewElecId] = useState('');
+  const [newElecLabel, setNewElecLabel] = useState('');
+  const [newNetId, setNewNetId] = useState('');
+  const [newNetLabel, setNewNetLabel] = useState('');
+
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState('');
+
+  // Sync states when systemConfig prop updates
+  useEffect(() => {
+    if (systemConfig) {
+      if (systemConfig.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(systemConfig.restrictOneAdminPerSchool);
+      if (systemConfig.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(systemConfig.allowSchoolAdminRegistration);
+      if (systemConfig.allowDataDownload !== undefined) setAllowDataDownload(systemConfig.allowDataDownload);
+      if (systemConfig.electricityOptions) setElectricityOptions(systemConfig.electricityOptions);
+      if (systemConfig.internetOptions) setInternetOptions(systemConfig.internetOptions);
+    }
+  }, [systemConfig]);
 
   // โหลดข้อมูลนโยบายสิทธิ์การรับสมัครจาก Firestore (เฉพาะ Super Admin)
   const loadSystemSettings = async () => {
@@ -972,44 +1018,106 @@ export default function AdminPanel({
     try {
       const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
       if (configSnap.exists()) {
-        const data = configSnap.data();
-        if (data.restrictOneAdminPerSchool !== undefined) {
-          setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
-        }
-        if (data.allowSchoolAdminRegistration !== undefined) {
-          setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
-        }
+        const data = configSnap.data() as SystemConfig;
+        if (data.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
+        if (data.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
+        if (data.allowDataDownload !== undefined) setAllowDataDownload(data.allowDataDownload);
+        if (data.electricityOptions) setElectricityOptions(data.electricityOptions);
+        if (data.internetOptions) setInternetOptions(data.internetOptions);
       }
     } catch (e) {
       console.error('Failed to load system settings:', e);
     }
   };
 
-  // บันทึกและสลับสถานะนโยบาย (เฉพาะ Super Admin)
-  const handleToggleRestriction = async (field: 'restrictOneAdminPerSchool' | 'allowSchoolAdminRegistration', newValue: boolean) => {
+  // บันทึกการตั้งค่าระบบทั้งหมดไปยัง Firestore
+  const handleSaveAllSystemConfig = async () => {
     if (!isSuperAdmin) return;
     setIsSavingSettings(true);
     setSettingsSuccess('');
     try {
-      await setDoc(doc(db, 'settings', 'system_config'), {
-        [field]: newValue,
+      const configData = {
+        restrictOneAdminPerSchool,
+        allowSchoolAdminRegistration,
+        allowDataDownload,
+        electricityOptions,
+        internetOptions,
         updatedAt: new Date()
-      }, { merge: true });
-      
-      if (field === 'restrictOneAdminPerSchool') {
-        setRestrictOneAdminPerSchool(newValue);
-      } else {
-        setAllowSchoolAdminRegistration(newValue);
-      }
-      
-      setSettingsSuccess('อัปเดตนโยบายระบบเรียบร้อยแล้ว!');
+      };
+      await setDoc(doc(db, 'settings', 'system_config'), configData, { merge: true });
+      setSettingsSuccess('บันทึกนโยบายระบบและโครงสร้างพื้นฐานสำเร็จ!');
+      await onRefreshData();
       setTimeout(() => setSettingsSuccess(''), 4000);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to save settings:', e);
-      alert('เกิดข้อผิดพลาดในการบันทึกนโยบายผู้สมัคร');
+      alert('เกิดข้อผิดพลาดในการบันทึกนโยบายระบบ: ' + (e.message || ''));
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const handleToggleSetting = async (key: string, value: boolean) => {
+    if (!isSuperAdmin) return;
+    setIsSavingSettings(true);
+    setSettingsSuccess('');
+    try {
+      if (key === 'allowSchoolAdminRegistration') setAllowSchoolAdminRegistration(value);
+      if (key === 'restrictOneAdminPerSchool') setRestrictOneAdminPerSchool(value);
+      if (key === 'allowDataDownload') setAllowDataDownload(value);
+
+      await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
+      setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
+      await onRefreshData();
+      setTimeout(() => setSettingsSuccess(''), 3000);
+    } catch (e: any) {
+      console.error('Failed to update setting:', e);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // เพิ่มตัวเลือกไฟฟ้า
+  const handleAddElectricityOption = () => {
+    if (!newElecLabel.trim()) return;
+    const id = newElecId.trim() || `elec_${Date.now()}`;
+    if (electricityOptions.some(o => o.id === id)) {
+      alert('มีรหัสประเภทไฟฟ้านี้ในระบบแล้ว');
+      return;
+    }
+    const updated = [...electricityOptions, { id, label: newElecLabel.trim() }];
+    setElectricityOptions(updated);
+    setNewElecId('');
+    setNewElecLabel('');
+  };
+
+  const handleRemoveElectricityOption = (id: string) => {
+    if (electricityOptions.length <= 1) {
+      alert('ต้องมีประเภทไฟฟ้าอย่างน้อย 1 รายการ');
+      return;
+    }
+    setElectricityOptions(prev => prev.filter(o => o.id !== id));
+  };
+
+  // เพิ่มตัวเลือกอินเทอร์เน็ต
+  const handleAddInternetOption = () => {
+    if (!newNetLabel.trim()) return;
+    const id = newNetId.trim() || `net_${Date.now()}`;
+    if (internetOptions.some(o => o.id === id)) {
+      alert('มีรหัสประเภทอินเทอร์เน็ตนี้ในระบบแล้ว');
+      return;
+    }
+    const updated = [...internetOptions, { id, label: newNetLabel.trim() }];
+    setInternetOptions(updated);
+    setNewNetId('');
+    setNewNetLabel('');
+  };
+
+  const handleRemoveInternetOption = (id: string) => {
+    if (internetOptions.length <= 1) {
+      alert('ต้องมีประเภทอินเทอร์เน็ตอย่างน้อย 1 รายการ');
+      return;
+    }
+    setInternetOptions(prev => prev.filter(o => o.id !== id));
   };
 
   // ลบข้อมูลรายปีการศึกษา
@@ -1190,6 +1298,7 @@ export default function AdminPanel({
         directorPhone: editDirectorPhone,
         schoolPhone: editSchoolPhone,
         imageUrl: editImageUrl,
+        specialHighlights: editSpecialHighlights.trim(),
         majorSubjects: combinedMajors,
         majorSubjectsWithStaff: updatedMajorsWithStaff
       };
@@ -1673,27 +1782,27 @@ export default function AdminPanel({
               <div className="space-y-1">
                 <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ตที่ใช้งาน</label>
                 <select
-                  value={editInternet}
-                  onChange={(e) => setEditInternet(e.target.value as School['internetType'])}
+                  value={String(editInternet)}
+                  onChange={(e) => setEditInternet(e.target.value as any)}
                   className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                 >
-                  <option value="fiber">อินเทอร์เน็ตความเร็วสูง (Fiber Optic)</option>
-                  <option value="satellite">จานดาวเทียม (เช่น DLTV/IPStar/Starlink)</option>
-                  <option value="sim">ใช้ระบบซิมมือถือ (SIM 4G/5G)</option>
-                  <option value="none">ไม่ได้ใช้ระบบอินเทอร์เน็ต</option>
+                  {internetOptions.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
 
               {/* กระแสไฟฟ้า */}
               <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กระแสไฟฟ้า</label>
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กระแสไฟฟ้า / พลังงานที่ใช้</label>
                 <select
-                  value={editElectricity ? 'true' : 'false'}
-                  onChange={(e) => setEditElectricity(e.target.value === 'true')}
+                  value={typeof editElectricity === 'boolean' ? (editElectricity ? 'has_electric' : 'none') : String(editElectricity)}
+                  onChange={(e) => setEditElectricity(e.target.value)}
                   className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                 >
-                  <option value="true">มีไฟฟ้าใช้งานสมบูรณ์</option>
-                  <option value="false">ไม่มีกระแสไฟฟ้า/ใช้พลังงานทดแทน</option>
+                  {electricityOptions.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1833,6 +1942,21 @@ export default function AdminPanel({
                 />
               </div>
 
+              {/* ความพิเศษของโรงเรียน / จุดเด่น */}
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
+                  ความพิเศษของโรงเรียน / จุดเด่น (Special Highlights)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editSpecialHighlights}
+                  onChange={(e) => setEditSpecialHighlights(e.target.value)}
+                  placeholder="เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
               {/* ข้อความแจ้งเตือน */}
               <div className="sm:col-span-2 space-y-2">
                 {editSuccess && (
@@ -1935,6 +2059,16 @@ export default function AdminPanel({
             >
               <Building className="h-4 w-4 inline-block mr-1.5" /> เพิ่ม/จัดการรายชื่อโรงเรียน ({schools.length})
             </button>
+            <button
+              onClick={() => setAdminTab('settings')}
+              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
+                adminTab === 'settings' 
+                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <Settings className="h-4 w-4 inline-block mr-1.5" /> ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน
+            </button>
           </div>
 
           {adminTab === 'upload' && (
@@ -1953,7 +2087,7 @@ export default function AdminPanel({
                       <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบเปิดรับสมัครแอดมิน</span>
                       <button
                         type="button"
-                        onClick={() => handleToggleRestriction('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                        onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
                         disabled={isSavingSettings}
                         className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
                           allowSchoolAdminRegistration 
@@ -1968,7 +2102,7 @@ export default function AdminPanel({
                       <span className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 คนต่อโรงเรียน</span>
                       <button
                         type="button"
-                        onClick={() => handleToggleRestriction('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
+                        onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
                         disabled={isSavingSettings}
                         className={`px-3 py-1.5 text-[10px] font-black rounded-lg border border-[#33272A] transition-all cursor-pointer ${
                           restrictOneAdminPerSchool 
@@ -3061,6 +3195,225 @@ export default function AdminPanel({
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'settings' && (
+            <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-6 w-6 text-[#FF8BA7]" />
+                  <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน (System Configuration)
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveAllSystemConfig}
+                  disabled={isSavingSettings}
+                  className="btn-cute bg-[#A0E7E5] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
+                </button>
+              </div>
+
+              {settingsSuccess && (
+                <div className="p-3 bg-emerald-100 text-emerald-900 border-2 border-emerald-400 rounded-2xl text-xs font-black flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <span>{settingsSuccess}</span>
+                </div>
+              )}
+
+              {/* Grid 2 คอลัมน์: สวิตช์นโยบายระบบ & โครงสร้างพื้นฐาน */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* คอลัมน์ 1: นโยบายและสิทธิ์ระบบ */}
+                <div className="space-y-4 bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2 border-b border-[#33272A]/20 pb-2">
+                    <Shield className="h-4 w-4 text-[#FF8BA7]" />
+                    สิทธิ์การเข้าถึงและนโยบายผู้ใช้งาน
+                  </h4>
+
+                  {/* 1. เปิด/ปิด การดาวน์โหลดข้อมูล */}
+                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        เปิด/ปิด การดาวน์โหลดข้อมูลระบบ (Export Files)
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                        {allowDataDownload
+                          ? '✓ อนุญาตให้ผู้ใช้ทั่วไปดาวน์โหลดไฟล์รายงาน Excel/CSV ได้'
+                          : '❌ ปิดใช้งานการดาวน์โหลด (เฉพาะ Super Admin ดาวน์โหลดได้)'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAllowDataDownload(!allowDataDownload)}
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                        allowDataDownload
+                          ? 'bg-emerald-400 text-emerald-950 shadow-[2px_2px_0px_#33272A]'
+                          : 'bg-rose-200 text-rose-950 shadow-[2px_2px_0px_#33272A]'
+                      }`}
+                    >
+                      {allowDataDownload ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                    </button>
+                  </div>
+
+                  {/* 2. จำกัด 1 แอดมินต่อโรงเรียน */}
+                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                        {restrictOneAdminPerSchool
+                          ? '✓ โรงเรียนที่มีแอดมินแล้ว จะไม่เปิดให้ผู้อื่นลงทะเบียนซ้ำ'
+                          : '🔓 อนุญาตให้มีแอดมินหลายคนต่อโรงเรียน'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRestrictOneAdminPerSchool(!restrictOneAdminPerSchool)}
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                        restrictOneAdminPerSchool
+                          ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                          : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
+                      }`}
+                    >
+                      {restrictOneAdminPerSchool ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                    </button>
+                  </div>
+
+                  {/* 3. เปิด/ปิด การรับสมัครแอดมินโรงเรียน */}
+                  <div className="p-3.5 bg-white dark:bg-[#1a1214] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        ระบบเปิดรับสมัครแอดมินโรงเรียนใหม่
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                        {allowSchoolAdminRegistration
+                          ? '✓ ผู้ใช้งานสามารถลงทะเบียนขอสิทธิ์ School Admin ได้'
+                          : '❌ ปิดรับสมัครแอดมินใหม่ชั่วคราว'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAllowSchoolAdminRegistration(!allowSchoolAdminRegistration)}
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer ${
+                        allowSchoolAdminRegistration
+                          ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                          : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
+                      }`}
+                    >
+                      {allowSchoolAdminRegistration ? 'เปิดรับสมัคร' : 'ปิดรับสมัคร'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* คอลัมน์ 2: จัดการประเภทโครงสร้างพื้นฐาน (ไฟฟ้า & อินเทอร์เน็ต) */}
+                <div className="space-y-4 bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2 border-b border-[#33272A]/20 pb-2">
+                    <Zap className="h-4 w-4 text-amber-500" />
+                    จัดการตัวเลือกโครงสร้างพื้นฐาน (เพิ่ม/ลด รายละเอียด)
+                  </h4>
+
+                  {/* ข้อมูลไฟฟ้า */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                      <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                      ประเภทไฟฟ้าในระบบ:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {electricityOptions.map(opt => (
+                        <div key={opt.id} className="bg-white dark:bg-[#1a1214] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 dark:text-white">
+                          <span>{opt.label}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({opt.id})</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveElectricityOption(opt.id)}
+                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
+                            title="ลบตัวเลือกนี้"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="รหัส (เช่น nuclear)"
+                        value={newElecId}
+                        onChange={(e) => setNewElecId(e.target.value)}
+                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="ชื่อแสดง (เช่น ⚡ พลังงานนิวเคลียร์)"
+                        value={newElecLabel}
+                        onChange={(e) => setNewElecLabel(e.target.value)}
+                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddElectricityOption}
+                        className="btn-cute bg-amber-300 text-amber-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto"
+                      >
+                        + เพิ่มไฟฟ้า
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ข้อมูลอินเทอร์เน็ต */}
+                  <div className="space-y-2 pt-2 border-t border-[#33272A]/10">
+                    <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                      <Globe className="h-3.5 w-3.5 text-sky-500" />
+                      ประเภทอินเทอร์เน็ตในระบบ:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {internetOptions.map(opt => (
+                        <div key={opt.id} className="bg-white dark:bg-[#1a1214] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 dark:text-white">
+                          <span>{opt.label}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({opt.id})</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveInternetOption(opt.id)}
+                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
+                            title="ลบตัวเลือกนี้"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="รหัส (เช่น starlink)"
+                        value={newNetId}
+                        onChange={(e) => setNewNetId(e.target.value)}
+                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="ชื่อแสดง (เช่น 📡 Starlink)"
+                        value={newNetLabel}
+                        onChange={(e) => setNewNetLabel(e.target.value)}
+                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddInternetOption}
+                        className="btn-cute bg-sky-300 text-sky-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto"
+                      >
+                        + เพิ่มเน็ต
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

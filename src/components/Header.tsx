@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
@@ -66,8 +66,8 @@ export default function Header({
           </div>
         </button>
 
-        {/* Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
+        {/* Navigation Tabs - Shown on large screens (Desktop), on mobile/tablet uses bottom icon bar */}
+        <nav className="hidden lg:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 ${
@@ -88,6 +88,18 @@ export default function Header({
           >
             รายชื่อโรงเรียน
           </button>
+
+          <button
+            onClick={() => setActiveTab('infrastructure')}
+            className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
+              activeTab === 'infrastructure'
+                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
+                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+            โครงสร้างพื้นฐาน
+          </button>
           {userProfile && (
             <button
               onClick={() => setActiveTab('admin')}
@@ -107,7 +119,7 @@ export default function Header({
         </nav>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Font size adjuster */}
           <div className="hidden sm:flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
             <button
@@ -159,102 +171,122 @@ export default function Header({
           {/* Dark mode toggle */}
           <button
             onClick={toggleDarkMode}
-            className="rounded-xl p-2 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-amber-300 transition-colors duration-200"
+            className="rounded-xl p-1.5 sm:p-2 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-amber-300 transition-colors duration-200 cursor-pointer shrink-0"
             aria-label="Toggle theme"
           >
             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          {/* User Section */}
+          {/* User Section (Desktop & Mobile) */}
           {userProfile ? (
             <div className="flex items-center gap-2">
-              <div className="flex flex-col items-end text-right">
-                <span className="text-[10px] sm:text-xs font-black text-[#33272A] dark:text-[#FFF9F5] max-w-[100px] sm:max-w-[180px] truncate">
+              {/* Profile Badge (Hidden on mobile to prevent overflow, shown on sm and up) */}
+              <div className="hidden sm:flex flex-col items-end text-right">
+                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] max-w-[180px] truncate">
                   {userProfile.firstName} {userProfile.lastName}
                 </span>
-                <span className="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6] max-w-[100px] sm:max-w-[180px] truncate mt-0.5">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#A0E7E5] font-bold text-[#33272A] border border-[#33272A] dark:border-[#FFD3B6] max-w-[180px] truncate mt-0.5">
                   {userProfile.role === 'super_admin' ? 'Super Admin' : `แอดมิน: ${userProfile.schoolName || 'โรงเรียน'}`}
                   {userProfile.status === 'pending' && ' (รออนุมัติ)'}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 border-l-2 border-[#33272A] pl-2 dark:border-[#FFD3B6]">
-                <button
-                  onClick={() => setActiveTab('admin')}
-                  className="rounded-full bg-[#A0E7E5] border border-[#33272A] p-1 text-[#33272A] hover:bg-opacity-90 dark:border-[#FFD3B6] sm:hidden"
-                  title="แผงควบคุม"
-                >
-                  <Shield className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={onLogout}
-                  className="btn-cute bg-[#FF8BA7] px-2 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] font-black transition-all flex items-center gap-0.5"
-                >
-                  <LogOut className="h-3 w-3 shrink-0" />
-                  <span className="hidden sm:inline">ออกระบบ</span>
-                </button>
-              </div>
+
+              {/* Logout Button in top header (hidden on mobile, accessible via bottom bar on mobile) */}
+              <button
+                onClick={onLogout}
+                className="hidden sm:flex btn-cute bg-[#FF8BA7] px-3 py-1.5 text-[10px] font-black transition-all items-center gap-1 cursor-pointer shrink-0"
+                title="ออกจากระบบ"
+              >
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
+                <span>ออกระบบ</span>
+              </button>
             </div>
           ) : (
             <button
               onClick={onLoginClick}
-              className="btn-cute bg-[#FF8BA7] hover:bg-[#ff7094] text-[#33272A] px-3.5 py-1.5 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A]"
+              className="btn-cute bg-[#FF8BA7] hover:bg-[#ff7094] text-[#33272A] px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A] shrink-0"
               title="เข้าสู่ระบบ / แอดมิน"
             >
-              <LogIn className="h-4 w-4" />
-              <span>เข้าสู่ระบบ</span>
+              <LogIn className="h-4 w-4 shrink-0" />
+              <span className="text-[11px] sm:text-xs">เข้าสู่ระบบ</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Mobile Bottom Tab Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
+      {/* Mobile & Tablet Bottom Tab Navigation */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
         {/* Tab 1: ภาพรวม */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
             activeTab === 'dashboard'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
           <LayoutDashboard className={`h-5 w-5 ${activeTab === 'dashboard' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-          <span className="text-[10px] font-black">ภาพรวมระบบ</span>
+          <span className="text-[10px] font-black">ภาพรวม</span>
         </button>
 
         {/* Tab 2: รายชื่อโรงเรียน */}
         <button
           onClick={() => setActiveTab('schools')}
-          className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
             activeTab === 'schools'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
           <Building2 className={`h-5 w-5 ${activeTab === 'schools' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-          <span className="text-[10px] font-black">รายชื่อโรงเรียน</span>
+          <span className="text-[10px] font-black">โรงเรียน</span>
         </button>
 
-        {/* Tab 3: จัดการ หรือ เข้าสู่ระบบ */}
-        {userProfile ? (
+        {/* Tab 3: โครงสร้างพื้นฐาน */}
+        <button
+          onClick={() => setActiveTab('infrastructure')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+            activeTab === 'infrastructure'
+              ? 'text-[#FF8BA7] scale-105 font-black'
+              : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
+          }`}
+        >
+          <Zap className={`h-5 w-5 ${activeTab === 'infrastructure' ? 'stroke-[2.5px] fill-amber-300' : 'stroke-2'}`} />
+          <span className="text-[10px] font-black">โครงสร้าง</span>
+        </button>
+
+        {/* Tab 3: ระบบจัดการ (ถ้าเข้าสู่ระบบแล้ว) */}
+        {userProfile && (
           <button
             onClick={() => setActiveTab('admin')}
-            className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1 transition-all relative ${
+            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all relative ${
               activeTab === 'admin'
                 ? 'text-[#FF8BA7] scale-105 font-black'
                 : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
             }`}
           >
             <Shield className={`h-5 w-5 ${activeTab === 'admin' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-            <span className="text-[10px] font-black">ระบบจัดการ</span>
+            <span className="text-[10px] font-black">จัดการ</span>
             {userProfile.status === 'pending' && (
               <span className="absolute top-1 right-[25%] h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
             )}
           </button>
+        )}
+
+        {/* Tab 4: ออกจากระบบ หรือ เข้าสู่ระบบ */}
+        {userProfile ? (
+          <button
+            onClick={onLogout}
+            className="flex flex-col items-center justify-center gap-1 flex-1 py-1 text-rose-500/80 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 transition-all"
+            title="ออกจากระบบ"
+          >
+            <LogOut className="h-5 w-5 stroke-2" />
+            <span className="text-[10px] font-black">ออกระบบ</span>
+          </button>
         ) : (
           <button
             onClick={onLoginClick}
-            className="flex flex-col items-center justify-center gap-1.5 flex-1 py-1 text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#FF8BA7] transition-all"
+            className="flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#FF8BA7] transition-all"
           >
             <LogIn className="h-5 w-5 stroke-2" />
             <span className="text-[10px] font-black">เข้าสู่ระบบ</span>
