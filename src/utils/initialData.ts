@@ -9,217 +9,217 @@ export const SCHOOL_METADATA_PRESETS: { [id: string]: { name: string; lat: numbe
     name: "โรงเรียนบ้านห้วยผึ้ง",
     lat: 19.4184,
     lng: 97.9304,
-    imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
-    director: "นายสมชาย ใจดี",
-    phone: "053-611001",
-    managerPhone: "081-2345678"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010002": {
     name: "โรงเรียนบ้านทุ่งมะส่าง",
     lat: 19.3642,
     lng: 97.9821,
-    imageUrl: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=600&auto=format&fit=crop&q=60",
-    director: "นางกัญญา รักเรียน",
-    phone: "053-611002",
-    managerPhone: "082-3456789"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010003": {
     name: "โรงเรียนบ้านทุ่งโป่ง",
     lat: 19.3412,
     lng: 97.9543,
-    imageUrl: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&auto=format&fit=crop&q=60",
-    director: "นายวีระศักดิ์ ผดุงวิชา",
-    phone: "053-611003",
-    managerPhone: "083-4567890"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010004": {
     name: "โรงเรียนบ้านสบสอย",
     lat: 19.2741,
     lng: 97.9215,
-    imageUrl: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&auto=format&fit=crop&q=60",
-    director: "นายประวิทย์ รักษ์สันติ",
-    phone: "053-611004",
-    managerPhone: "084-5678901"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010005": {
     name: "โรงเรียนบ้านปางหมู",
     lat: 19.3325,
     lng: 97.9621,
-    imageUrl: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=600&auto=format&fit=crop&q=60",
-    director: "ดร.วิชัย พัฒนศึกษา",
-    phone: "053-611005",
-    managerPhone: "085-6789012"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010006": {
     name: "โรงเรียนบ้านไม้ซางหนาม",
     lat: 19.3112,
     lng: 97.9154,
-    imageUrl: "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=600&auto=format&fit=crop&q=60",
-    director: "นายมานพ ตั้งใจ",
-    phone: "053-611006",
-    managerPhone: "086-7890123"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010007": {
     name: "โรงเรียนบ้านสบป่อง",
     lat: 19.5245,
     lng: 98.2451,
-    imageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=60",
-    director: "นางสาวศิริพร มานะดี",
-    phone: "053-611007",
-    managerPhone: "087-9012345"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010008": {
     name: "โรงเรียนบ้านท่าโป่งแดง",
     lat: 19.2612,
     lng: 97.9412,
-    imageUrl: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&auto=format&fit=crop&q=60",
-    director: "นายสุรพล พลศึกษา",
-    phone: "053-611008",
-    managerPhone: "088-0123456"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010009": {
     name: "โรงเรียนบ้านทุ่งกองมู",
     lat: 19.3245,
     lng: 97.9423,
-    imageUrl: "https://images.unsplash.com/photo-1562774053-f5a02f689958?w=600&auto=format&fit=crop&q=60",
-    director: "นายธงชัย ชาญศึก",
-    phone: "053-611009",
-    managerPhone: "089-1234567"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010012": {
     name: "โรงเรียนบ้านนาปลาจาด",
     lat: 19.4582,
     lng: 97.9421,
-    imageUrl: "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=600&auto=format&fit=crop&q=60",
-    director: "นายณรงค์ เกียรติคุณ",
-    phone: "053-611012",
-    managerPhone: "081-3456789"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010013": {
     name: "โรงเรียนอนุบาลแม่ฮ่องสอน",
     lat: 19.3012,
     lng: 97.9658,
-    imageUrl: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&auto=format&fit=crop&q=60",
-    director: "ว่าที่ ร.ต. ศักดิ์ชาย เรียนดี",
-    phone: "053-611234",
-    managerPhone: "082-4567890"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010015": {
     name: "โรงเรียนบ้านแกงหอม",
     lat: 19.2014,
     lng: 97.9125,
-    imageUrl: "https://images.unsplash.com/photo-1498243691581-b145c3f54a5c?w=600&auto=format&fit=crop&q=60",
-    director: "นายอภิชาติ ปัญญา",
-    phone: "053-611015",
-    managerPhone: "083-5678901"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010016": {
     name: "โรงเรียนบ้านรักไทย",
     lat: 19.5843,
     lng: 97.9482,
-    imageUrl: "https://images.unsplash.com/photo-1510531704581-5b2870972060?w=600&auto=format&fit=crop&q=60",
-    director: "นายเล่าซือ มิตรสัมพันธ์",
-    phone: "053-611016",
-    managerPhone: "084-6789012"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010018": {
     name: "โรงเรียนบ้านหมอกจำแป่",
     lat: 19.4285,
     lng: 97.9542,
-    imageUrl: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&auto=format&fit=crop&q=60",
-    director: "นางดวงพร ศรีสวย",
-    phone: "053-611018",
-    managerPhone: "085-7890123"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010019": {
     name: "โรงเรียนอนุบาลปางมะผ้า",
     lat: 19.5215,
     lng: 98.2412,
-    imageUrl: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&auto=format&fit=crop&q=60",
-    director: "นายอัครเดช รุ่งเรือง",
-    phone: "053-611019",
-    managerPhone: "086-8901234"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010020": {
     name: "โรงเรียนบ้านนาป่าแปก",
     lat: 19.5125,
     lng: 97.9514,
-    imageUrl: "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=600&auto=format&fit=crop&q=60",
-    director: "นายเกษม ศิริรัตน์",
-    phone: "053-611020",
-    managerPhone: "087-9012345"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010023": {
     name: "โรงเรียนบ้านปางตอง",
     lat: 19.4625,
     lng: 97.9614,
-    imageUrl: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&auto=format&fit=crop&q=60",
-    director: "นายชรินทร์ สมบูรณ์",
-    phone: "053-611023",
-    managerPhone: "089-0123456"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010027": {
     name: "โรงเรียนบ้านห้วยปูลิง",
     lat: 19.1451,
     lng: 97.9954,
-    imageUrl: "https://images.unsplash.com/photo-1498243691581-b145c3f54a5c?w=600&auto=format&fit=crop&q=60",
-    director: "นายสวาท ปัญญาไสย",
-    phone: "053-611027",
-    managerPhone: "081-4567890"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010029": {
     name: "โรงเรียนบ้านห้วยพึ่ง",
     lat: 19.3852,
     lng: 97.9254,
-    imageUrl: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=600&auto=format&fit=crop&q=60",
-    director: "นายธีระ จิตภักดี",
-    phone: "053-611029",
-    managerPhone: "082-5678901"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010057": {
     name: "โรงเรียนบ้านขุนยวม",
     lat: 18.8351,
     lng: 97.9421,
-    imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
-    director: "นายวิโรจน์ ยอดปัญญา",
-    phone: "053-691057",
-    managerPhone: "083-6789012"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010058": {
     name: "โรงเรียนอนุบาลขุนยวม",
     lat: 18.8312,
     lng: 97.9354,
-    imageUrl: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&auto=format&fit=crop&q=60",
-    director: "นางรัชนี ขยันศึกษา",
-    phone: "053-691058",
-    managerPhone: "084-7890123"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010129": {
     name: "โรงเรียนอนุบาลปาย (วันครู 2501)",
     lat: 19.3612,
     lng: 98.4354,
-    imageUrl: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=600&auto=format&fit=crop&q=60",
-    director: "นายสุวรรณ ปายศึกษา",
-    phone: "053-699129",
-    managerPhone: "085-8901234"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010133": {
     name: "โรงเรียนบ้านทุ่งยาว",
     lat: 19.3452,
     lng: 98.4512,
-    imageUrl: "https://images.unsplash.com/photo-1562774053-f5a02f689958?w=600&auto=format&fit=crop&q=60",
-    director: "นายเกษม จิตรดี",
-    phone: "053-699133",
-    managerPhone: "086-9012345"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   },
   "58010152": {
     name: "โรงเรียนบ้านปางมะผ้า",
     lat: 19.5241,
     lng: 98.2415,
-    imageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop&q=60",
-    director: "นายอนันต์ รักษ์สันติ",
-    phone: "053-611152",
-    managerPhone: "087-0123456"
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   }
 };
 
@@ -357,43 +357,25 @@ export function generateDefaultSchool(id: string, nameRaw: string, studentCount:
     name: nameRaw.replace(/[^\u0E00-\u0E7F0-9a-zA-Z\s]/g, '') || `โรงเรียนรหัส ${id}`,
     lat: MAP_CENTER.lat + (Math.random() - 0.5) * 0.4,
     lng: MAP_CENTER.lng + (Math.random() - 0.5) * 0.4,
-    imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
-    director: "ผู้อำนวยการใจดี มีคุณธรรม",
-    phone: `053-611${id.substring(4)}`,
-    managerPhone: `08${Math.floor(10000000 + Math.random() * 90000000)}`
+    imageUrl: "",
+    director: "-",
+    phone: "-",
+    managerPhone: "-"
   };
 
   // วิเคราะห์ขนาดตามเกณฑ์ ก.ค.ศ. กำหนด
   const size = getSchoolSize(studentCount);
 
-  // สุ่มระบบอินเทอร์เน็ต
-  const netTypes: School['internetType'][] = ['fiber', 'satellite', 'sim', 'none'];
-  const netIndex = parseInt(id) % 4;
-  const internetType = netTypes[netIndex];
+  // ข้อมูลโครงสร้างพื้นฐาน
+  const internetType = 'none';
+  const electricity = false;
 
-  // สุ่มไฟฟ้า (ส่วนใหญ่มี)
-  const electricity = (parseInt(id) % 15 !== 0);
-
-  // สุ่มจำนวนครู (สัมพันธ์กับขนาดนักเรียน)
-  const staffCount = Math.max(3, Math.round(studentCount / 12) + (parseInt(id) % 5));
-
-  // วิชาเอกสุ่มจากลิสต์
-  const numMajors = 2 + (parseInt(id) % 4);
+  // ข้อมูลครูและบุคลากร
+  const staffCount = 0;
   const majorSubjects: string[] = [];
-  for (let i = 0; i < numMajors; i++) {
-    const major = MAJOR_SUBJECTS_LIST[(parseInt(id) + i) % MAJOR_SUBJECTS_LIST.length];
-    if (!majorSubjects.includes(major)) {
-      majorSubjects.push(major);
-    }
-  }
+  const majorSubjectsWithStaff: any[] = [];
 
   const { amphoe, networkGroup } = getAmphoeAndNetwork(id, metadata.name);
-
-  // สร้างรายวิชาเอกแบบมีจำนวนบุคลากรครู
-  const majorSubjectsWithStaff = majorSubjects.map((sub, idx) => ({
-    name: sub,
-    teachersCount: 1 + ((parseInt(id) + idx) % 4)
-  }));
 
   return {
     id,
