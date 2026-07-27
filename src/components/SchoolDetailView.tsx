@@ -902,7 +902,9 @@ export default function SchoolDetailView({
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="ระบุชื่อโรงเรียน"
-                    className="block w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-3 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                    disabled={!isSuperAdmin}
+                    title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถเปลี่ยนชื่อโรงเรียนได้' : ''}
+                    className={`block w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-3 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] ${!isSuperAdmin ? 'opacity-70 bg-gray-100 cursor-not-allowed' : ''}`}
                   />
                 </div>
               ) : (

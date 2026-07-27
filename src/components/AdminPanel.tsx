@@ -880,6 +880,39 @@ export default function AdminPanel({
   const [addSchoolError, setAddSchoolError] = useState('');
   const [addSchoolSuccess, setAddSchoolSuccess] = useState('');
 
+  const [isResettingData, setIsResettingData] = useState(false);
+  const handleResetAllSchoolData = async () => {
+    if (!window.confirm('คุณยืนยันที่จะล้างข้อมูลครู บุคลากร ข้อมูลทั่วไป และโครงสร้างพื้นฐานของ "ทุกโรงเรียน" ให้เป็นค่าว่าง (0) ใช่หรือไม่?\n\nการกระทำนี้เพื่อให้เจ้าหน้าที่สามารถเริ่มต้นกรอกข้อมูลของโรงเรียนได้ง่ายขึ้น')) return;
+    setIsResettingData(true);
+    try {
+      let updatedCount = 0;
+      for (const school of schools) {
+        const schoolRef = doc(db, 'schools', school.id);
+        await updateDoc(schoolRef, {
+          director: "-",
+          phone: "-",
+          managerPhone: "-",
+          directorPhone: "-",
+          schoolPhone: "-",
+          imageUrl: "",
+          internetType: "none",
+          electricity: false,
+          staffCount: 0,
+          majorSubjects: [],
+          majorSubjectsWithStaff: []
+        });
+        updatedCount++;
+      }
+      alert(`ล้างข้อมูลสำเร็จแล้วจำนวน ${updatedCount} โรงเรียน\nขณะนี้ข้อมูลต่างๆ เป็น 0 และค่าว่างเพื่อให้เจ้าหน้าที่กรอกข้อมูลใหม่แล้ว`);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to reset school data:', err);
+      alert('เกิดข้อผิดพลาดในการล้างข้อมูล: ' + err.message);
+    } finally {
+      setIsResettingData(false);
+    }
+  };
+
   // ฟังก์ชันเพิ่มโรงเรียนใหม่
   const handleAddSchoolSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -1609,16 +1642,28 @@ export default function AdminPanel({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] p-3 text-[#33272A] dark:border-[#FFD3B6]">
-          <Shield className="h-6 w-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] p-3 text-[#33272A] dark:border-[#FFD3B6]">
+            <Shield className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">
+              {isSuperAdmin ? 'ระบบจัดการระดับเขตพื้นที่ (Super Admin)' : `ระบบจัดการสถานศึกษา: ${userProfile.schoolName}`}
+            </h2>
+            <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">แผงควบคุมหลักสำหรับจัดการข้อมูล สิทธิ์ผู้สมัคร และไฟล์นำเข้า BIGDATA</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">
-            {isSuperAdmin ? 'ระบบจัดการระดับเขตพื้นที่ (Super Admin)' : `ระบบจัดการสถานศึกษา: ${userProfile.schoolName}`}
-          </h2>
-          <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">แผงควบคุมหลักสำหรับจัดการข้อมูล สิทธิ์ผู้สมัคร และไฟล์นำเข้า BIGDATA</p>
-        </div>
+        {isSuperAdmin && (
+          <button
+            onClick={handleResetAllSchoolData}
+            disabled={isResettingData}
+            className="button bg-rose-500 text-white hover:bg-rose-600 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-4 text-xs font-black disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
+          >
+            <RefreshCw className={`h-4 w-4 ${isResettingData ? 'animate-spin' : ''}`} />
+            {isResettingData ? 'กำลังล้างข้อมูล...' : 'ล้างข้อมูลเป็น 0 ทุกโรงเรียน'}
+          </button>
+        )}
       </div>
 
       {/* แก้ไขข้อมูลส่วนตัวสำหรับผู้ใช้งานทุกคน (เจ้าตัวแก้ไขข้อมูลตัวเอง) */}
@@ -1730,7 +1775,9 @@ export default function AdminPanel({
                   required
                   value={editSchoolName}
                   onChange={(e) => setEditSchoolName(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  disabled={!isSuperAdmin}
+                  title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถเปลี่ยนชื่อโรงเรียนได้' : ''}
+                  className={`w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] ${!isSuperAdmin ? 'opacity-70 bg-gray-100 cursor-not-allowed dark:bg-gray-800' : ''}`}
                 />
               </div>
 
