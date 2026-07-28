@@ -1072,73 +1072,96 @@ export default function InfrastructureView({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredSchools.map(school => (
-              <div
-                key={school.id}
-                onClick={() => onSelectSchool(school.id)}
-                className="group p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] hover:bg-[#FFF9F5] dark:hover:bg-[#261b1f] transition-all cursor-pointer shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex flex-col justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#A0E7E5] text-[#33272A] border border-[#33272A]">
-                      {school.id}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+          <div className="overflow-x-auto rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] bg-white dark:bg-[#1e1518]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#FFF9F5] dark:bg-[#281c20] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <tr>
+                  <th className="p-3 text-center w-12">ลำดับ</th>
+                  <th className="p-3">รหัส / ชื่อโรงเรียน</th>
+                  <th className="p-3">อำเภอ</th>
+                  <th className="p-3">ระบบไฟฟ้า</th>
+                  <th className="p-3">อินเทอร์เน็ต</th>
+                  <th className="p-3">ครูวิชาเอก / บุคลากร</th>
+                  <th className="p-3 text-center">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                {filteredSchools.map((school, index) => (
+                  <tr 
+                    key={school.id}
+                    onClick={() => onSelectSchool(school.id)}
+                    className="hover:bg-[#FFF9F5] dark:hover:bg-[#261b1f] transition-colors cursor-pointer group"
+                  >
+                    <td className="p-3 text-center font-black text-slate-400 font-mono">
+                      {index + 1}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#A0E7E5] text-[#33272A] border border-[#33272A] shrink-0">
+                          {school.id}
+                        </span>
+                        <span className="font-black group-hover:text-[#FF8BA7] transition-colors text-sm">
+                          {school.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-slate-600 dark:text-slate-300">
                       {school.amphoe || 'อ.เมืองแม่ฮ่องสอน'}
-                    </span>
-                  </div>
-
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors mt-2">
-                    {school.name}
-                  </h3>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {/* ระบบไฟฟ้า */}
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${
-                      school.electricity === 'has_electric' || school.electricity === true
-                        ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
-                        : school.electricity === 'solar'
-                        ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
-                        : school.electricity === 'hybrid'
-                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
-                        : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200'
-                    }`}>
-                      <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
-                      {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
-                       school.electricity === 'solar' ? 'โซลาร์เซลล์' :
-                       school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
-                    </span>
-
-                    {/* เน็ต */}
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 flex items-center gap-1">
-                      <Globe className="h-2.5 w-2.5 text-sky-600" />
-                      {school.internetType === 'fiber' ? 'เน็ต Fiber' :
-                       school.internetType === 'satellite' ? 'ดาวเทียม' :
-                       school.internetType === 'sim' ? 'SIM 4G' : 'ไม่มีเน็ต'}
-                    </span>
-
-                    {/* ครูวิชาเอก */}
-                    {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 flex items-center gap-1">
-                        <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
-                        {school.majorSubjects ? school.majorSubjects.slice(0, 2).join(', ') : school.majorSubjectsWithStaff?.slice(0, 2).map(m=>m.name).join(', ')}
+                    </td>
+                    <td className="p-3">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border inline-flex items-center gap-1 ${
+                        school.electricity === 'has_electric' || school.electricity === true
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                          : school.electricity === 'solar'
+                          ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                          : school.electricity === 'hybrid'
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                          : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200'
+                      }`}>
+                        <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                        {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                         school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                         school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
                       </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-xs">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    บุคลากร {school.staffCount || 0} คน
-                  </span>
-                  <span className="text-xs font-black text-[#FF8BA7] group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
-                    รายละเอียด <ChevronRight className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-              </div>
-            ))}
+                    </td>
+                    <td className="p-3">
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 inline-flex items-center gap-1">
+                        <Globe className="h-2.5 w-2.5 text-sky-600" />
+                        {school.internetType === 'fiber' ? 'เน็ต Fiber' :
+                         school.internetType === 'satellite' ? 'ดาวเทียม' :
+                         school.internetType === 'sim' ? 'SIM 4G' : 'ไม่มีเน็ต'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          บุคลากร {school.staffCount || 0} คน
+                        </span>
+                        {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 inline-flex items-center gap-1 w-max">
+                            <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
+                            {school.majorSubjects ? school.majorSubjects.slice(0, 2).join(', ') : school.majorSubjectsWithStaff?.slice(0, 2).map(m=>m.name).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectSchool(school.id);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] text-xs font-black hover:bg-rose-300 transition-colors inline-flex items-center gap-1 shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                      >
+                        <span>รายละเอียด</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
