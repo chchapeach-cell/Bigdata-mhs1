@@ -3388,8 +3388,6 @@ export default function AdminPanel({
                     />
                   </div>
 
-
-
                   <div className="space-y-2 md:col-span-3">
                     {addSchoolSuccess && (
                       <div className="p-3 bg-emerald-100 border-2 border-emerald-500 rounded-xl text-emerald-900 text-xs font-bold">
@@ -3573,261 +3571,256 @@ export default function AdminPanel({
           {adminTab === 'settings' && (
             <div className="space-y-6">
               <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
-                <div className="flex items-center gap-2">
-                  <Settings className="h-6 w-6 text-[#FF8BA7]" />
-                  <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
-                    ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน (System Configuration)
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveAllSystemConfig}
-                  disabled={isSavingSettings || !isSuperAdmin}
-                  className="btn-cute bg-[#A0E7E5] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 disabled:opacity-50"
-                  title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถบันทึกได้' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
-                >
-                  <Save className="h-4 w-4" />
-                  {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
-                </button>
-              </div>
-
-              {settingsSuccess && (
-                <div className="p-3 bg-emerald-100 text-emerald-900 border-2 border-emerald-400 rounded-2xl text-xs font-black flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                  <span>{settingsSuccess}</span>
-                </div>
-              )}
-
-              {/* 🖼️ ส่วนตั้งค่าแบนเนอร์รูปภาพบนหัว Header */}
-              <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
                   <div className="flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-[#FF8BA7]" />
-                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      ตั้งค่ารูปภาพแบนเนอร์บนหัวเว็บไซต์ (Header Banner Image &amp; Resizing)
-                    </h4>
+                    <Settings className="h-6 w-6 text-[#FF8BA7]" />
+                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน (System Configuration)
+                    </h3>
                   </div>
-                  <div className="flex items-center gap-2">
+                  {isSuperAdmin && (
                     <button
                       type="button"
-                      onClick={() => setHeaderBannerEnabled(!headerBannerEnabled)}
-                      disabled={!isSuperAdmin}
-                      className={`btn-cute px-3 py-1.5 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        headerBannerEnabled
-                          ? 'bg-emerald-400 text-[#33272A]'
-                          : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                      }`}
+                      onClick={handleSaveAllSystemConfig}
+                      disabled={isSavingSettings}
+                      className="btn-cute bg-[#A0E7E5] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 disabled:opacity-50"
                     >
-                      {headerBannerEnabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                      {headerBannerEnabled ? 'เปิดใช้งานแบนเนอร์' : 'ปิดการแสดงผล'}
+                      <Save className="h-4 w-4" />
+                      {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
                     </button>
-                  </div>
+                  )}
                 </div>
 
-                {!isSuperAdmin && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-                    <span>🔒 เฉพาะผู้ใช้งานระดับ Super Admin เท่านั้นที่สามารถแก้ไขตั้งค่ารูปภาพแบนเนอร์ได้</span>
+                {settingsSuccess && (
+                  <div className="p-3 bg-emerald-100 text-emerald-900 border-2 border-emerald-400 rounded-2xl text-xs font-black flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                    <span>{settingsSuccess}</span>
                   </div>
                 )}
 
-                <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
-                  อัปโหลดรูปภาพป้ายแบนเนอร์ หรือใส่ลิงก์ URL เพื่อแสดงบนส่วนหัวของเว็บไซต์ (Header) พร้อมปรับขนาดความสูง และรูปแบบการจัดวางรูปภาพได้อย่างอิสระ
-                </p>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-                  {/* ฝั่งซ้าย: อัปโหลด & ปุ่มตั้งค่า */}
-                  <div className="space-y-4">
-                    {/* อัปโหลดไฟล์ภาพ */}
-                    <div>
-                      <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1.5 flex items-center gap-1">
-                        <Upload className="h-4 w-4 text-rose-500" />
-                        อัปโหลดรูปภาพแบนเนอร์ใหม่ (ไฟล์ภาพ .jpg, .png, .webp)
-                      </label>
+                {/* 🖼️ ส่วนตั้งค่าแบนเนอร์รูปภาพบนหัว Header */}
+                {isSuperAdmin && (
+                  <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 pb-3">
                       <div className="flex items-center gap-2">
-                        <label className={`btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-rose-300'} shrink-0`}>
-                          <Upload className="h-4 w-4" /> เลือกรูปภาพจากเครื่อง
+                        <ImageIcon className="h-5 w-5 text-[#FF8BA7]" />
+                        <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                          ตั้งค่ารูปภาพแบนเนอร์บนหัวเว็บไซต์ (Header Banner Image &amp; Resizing)
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setHeaderBannerEnabled(!headerBannerEnabled)}
+                          className={`btn-cute px-3 py-1.5 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-all ${
+                            headerBannerEnabled
+                              ? 'bg-emerald-400 text-[#33272A]'
+                              : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          }`}
+                        >
+                          {headerBannerEnabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                          {headerBannerEnabled ? 'เปิดใช้งานแบนเนอร์' : 'ปิดการแสดงผล'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
+                      อัปโหลดรูปภาพป้ายแบนเนอร์ หรือใส่ลิงก์ URL เพื่อแสดงบนส่วนหัวของเว็บไซต์ (Header) พร้อมปรับขนาดความสูง และรูปแบบการจัดวางรูปภาพได้อย่างอิสระ
+                    </p>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                      {/* ฝั่งซ้าย: อัปโหลด & ปุ่มตั้งค่า */}
+                      <div className="space-y-4">
+                        {/* อัปโหลดไฟล์ภาพ */}
+                        <div>
+                          <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1.5 flex items-center gap-1">
+                            <Upload className="h-4 w-4 text-rose-500" />
+                            อัปโหลดรูปภาพแบนเนอร์ใหม่ (ไฟล์ภาพ .jpg, .png, .webp)
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <label className={`btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-rose-300'} shrink-0`}>
+                              <Upload className="h-4 w-4" /> เลือกรูปภาพจากเครื่อง
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleHeaderBannerUpload}
+                                disabled={!isSuperAdmin}
+                                className="hidden"
+                              />
+                            </label>
+                            {headerBannerUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setHeaderBannerUrl('')}
+                                disabled={!isSuperAdmin}
+                                className="btn-cute bg-rose-500 text-white px-3 py-2 text-xs font-black flex items-center gap-1 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> ลบรูปภาพ
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* หรือวาง URL ตรง */}
+                        <div>
+                          <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                            หรือใส่ลิงก์รูปภาพ (Image URL)
+                          </label>
                           <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleHeaderBannerUpload}
+                            type="url"
+                            value={headerBannerUrl}
+                            onChange={(e) => setHeaderBannerUrl(e.target.value)}
                             disabled={!isSuperAdmin}
-                            className="hidden"
+                            placeholder="https://example.com/banner.jpg"
+                            className="w-full text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           />
-                        </label>
-                        {headerBannerUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setHeaderBannerUrl('')}
-                            disabled={!isSuperAdmin}
-                            className="btn-cute bg-rose-500 text-white px-3 py-2 text-xs font-black flex items-center gap-1 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> ลบรูปภาพ
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                        </div>
 
-                    {/* หรือวาง URL ตรง */}
-                    <div>
-                      <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
-                        หรือใส่ลิงก์รูปภาพ (Image URL)
-                      </label>
-                      <input
-                        type="url"
-                        value={headerBannerUrl}
-                        onChange={(e) => setHeaderBannerUrl(e.target.value)}
-                        disabled={!isSuperAdmin}
-                        placeholder="https://example.com/banner.jpg"
-                        className="w-full text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-
-                    {/* ปรับความสูง Banner */}
-                    <div className="p-3 bg-white dark:bg-[#150e10] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
-                      <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        <span>📏 ปรับขนาดความสูงรูปภาพ (Banner Height)</span>
-                        <span className="bg-[#FFD3B6] dark:bg-amber-950 text-[#33272A] dark:text-amber-200 px-2 py-0.5 rounded-lg border border-[#33272A]/30 font-black">
-                          {headerBannerHeight} px
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min="40"
-                          max="350"
-                          step="5"
-                          value={headerBannerHeight}
-                          onChange={(e) => setHeaderBannerHeight(Number(e.target.value))}
-                          disabled={!isSuperAdmin}
-                          className="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer dark:bg-rose-950 accent-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <input
-                          type="number"
-                          min="30"
-                          max="500"
-                          value={headerBannerHeight}
-                          onChange={(e) => setHeaderBannerHeight(Number(e.target.value) || 100)}
-                          disabled={!isSuperAdmin}
-                          className="w-20 text-xs font-black p-1.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                      {/* ปุ่มขนาดสำเร็จรูป */}
-                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-[10px] font-extrabold text-[#33272A]/70 dark:text-[#FFF9F5]/70">ขนาดสำเร็จรูป:</span>
-                        {[
-                          { label: 'เล็ก (60px)', val: 60 },
-                          { label: 'มาตรฐาน (100px)', val: 100 },
-                          { label: 'ใหญ่ (150px)', val: 150 },
-                          { label: 'ใหญ่พิเศษ (200px)', val: 200 }
-                        ].map((preset) => (
-                          <button
-                            key={preset.val}
-                            type="button"
-                            onClick={() => setHeaderBannerHeight(preset.val)}
-                            disabled={!isSuperAdmin}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border border-[#33272A] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                              headerBannerHeight === preset.val
-                                ? 'bg-[#FF8BA7] text-[#33272A]'
-                                : 'bg-[#FFF9F5] dark:bg-[#251b1e] text-[#33272A] dark:text-[#FFF9F5] hover:bg-rose-100'
-                            }`}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* รูปแบบการแสดงผล Object Fit */}
-                    <div className="p-3 bg-white dark:bg-[#150e10] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
-                      <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        🎯 รูปแบบการสเกลรูปภาพ (Object Fit Mode)
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                        {[
-                          { id: 'contain', label: 'Contain (ครบทั้งภาพ)', desc: 'ย่อตามสัดส่วน ไม่ตัดภาพ' },
-                          { id: 'cover', label: 'Cover (เต็มพื้นที่)', desc: 'ครอบตัดภาพให้เต็มขอบ' },
-                          { id: 'fill', label: 'Fill (ยืดรูป)', desc: 'ยืดรูปภาพให้เต็มพอดี' },
-                          { id: 'auto', label: 'Auto (ตามจริง)', desc: 'ปรับขนาดตามต้นฉบับ' }
-                        ].map((mode) => (
-                          <button
-                            key={mode.id}
-                            type="button"
-                            onClick={() => setHeaderBannerFit(mode.id as any)}
-                            disabled={!isSuperAdmin}
-                            className={`p-2 text-left rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                              headerBannerFit === mode.id
-                                ? 'bg-[#A0E7E5] text-[#33272A] font-black shadow-[2px_2px_0px_#33272A]'
-                                : 'bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] hover:bg-teal-50 dark:hover:bg-teal-950/30'
-                            }`}
-                          >
-                            <div className="text-[11px] font-black">{mode.label}</div>
-                            <div className="text-[9px] opacity-75">{mode.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ฝั่งขวา: พรีวิวการแสดงผล Real-time */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                      <Eye className="h-4 w-4 text-emerald-500" />
-                      ตัวอย่างการแสดงผลบน Header Real-time (Live Header Preview)
-                    </label>
-                    <div className="p-3 bg-slate-900/10 dark:bg-black/50 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
-                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 text-center">
-                        {headerBannerEnabled ? '🟢 สถานะ: เปิดใช้งานแบนเนอร์' : '🔴 สถานะ: ปิดการแสดงผลแบนเนอร์'}
-                      </div>
-                      
-                      {/* จำลอง Header Real time */}
-                      <div className="border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-xl overflow-hidden bg-white dark:bg-[#1e1518] shadow-sm">
-                        {headerBannerUrl && headerBannerEnabled ? (
-                          <div className="w-full bg-[#FFF9F5] dark:bg-[#150e10] border-b border-[#33272A]/20 flex items-center justify-center overflow-hidden">
-                            <img
-                              src={headerBannerUrl}
-                              alt="Banner Preview"
-                              style={{
-                                height: `${headerBannerHeight}px`,
-                                maxHeight: `${headerBannerHeight}px`,
-                                objectFit: headerBannerFit,
-                                width: headerBannerFit === 'fill' || headerBannerFit === 'cover' ? '100%' : 'auto'
-                              }}
-                              className="max-w-full block"
+                        {/* ปรับความสูง Banner */}
+                        <div className="p-3 bg-white dark:bg-[#150e10] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
+                          <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                            <span>📏 ปรับขนาดความสูงรูปภาพ (Banner Height)</span>
+                            <span className="bg-[#FFD3B6] dark:bg-amber-950 text-[#33272A] dark:text-amber-200 px-2 py-0.5 rounded-lg border border-[#33272A]/30 font-black">
+                              {headerBannerHeight} px
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="range"
+                              min="40"
+                              max="350"
+                              step="5"
+                              value={headerBannerHeight}
+                              onChange={(e) => setHeaderBannerHeight(Number(e.target.value))}
+                              disabled={!isSuperAdmin}
+                              className="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer dark:bg-rose-950 accent-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <input
+                              type="number"
+                              min="30"
+                              max="500"
+                              value={headerBannerHeight}
+                              onChange={(e) => setHeaderBannerHeight(Number(e.target.value) || 100)}
+                              disabled={!isSuperAdmin}
+                              className="w-20 text-xs font-black p-1.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] text-center disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </div>
-                        ) : (
-                          <div className="p-4 text-center text-xs text-slate-400 font-bold border-b border-[#33272A]/10">
-                            (ยังไม่ได้ตั้งค่ารูปภาพ หรือ ปิดการแสดงผลอยู่)
+                          {/* ปุ่มขนาดสำเร็จรูป */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            <span className="text-[10px] font-extrabold text-[#33272A]/70 dark:text-[#FFF9F5]/70">ขนาดสำเร็จรูป:</span>
+                            {[
+                              { label: 'เล็ก (60px)', val: 60 },
+                              { label: 'มาตรฐาน (100px)', val: 100 },
+                              { label: 'ใหญ่ (150px)', val: 150 },
+                              { label: 'ใหญ่พิเศษ (200px)', val: 200 }
+                            ].map((preset) => (
+                              <button
+                                key={preset.val}
+                                type="button"
+                                onClick={() => setHeaderBannerHeight(preset.val)}
+                                disabled={!isSuperAdmin}
+                                className={`px-2 py-0.5 text-[10px] font-black rounded-md border border-[#33272A] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  headerBannerHeight === preset.val
+                                    ? 'bg-[#FF8BA7] text-[#33272A]'
+                                    : 'bg-[#FFF9F5] dark:bg-[#251b1e] text-[#33272A] dark:text-[#FFF9F5] hover:bg-rose-100'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
                           </div>
-                        )}
+                        </div>
 
-                        {/* แถบเมนูจำลอง */}
-                        <div className="p-2 flex items-center justify-between bg-white dark:bg-[#1e1518]">
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded bg-[#FF8BA7] border border-[#33272A]" />
-                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">BigData Mhs1</span>
+                        {/* รูปแบบการแสดงผล Object Fit */}
+                        <div className="p-3 bg-white dark:bg-[#150e10] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
+                          <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                            🎯 รูปแบบการสเกลรูปภาพ (Object Fit Mode)
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                            {[
+                              { id: 'contain', label: 'Contain (ครบทั้งภาพ)', desc: 'ย่อตามสัดส่วน ไม่ตัดภาพ' },
+                              { id: 'cover', label: 'Cover (เต็มพื้นที่)', desc: 'ครอบตัดภาพให้เต็มขอบ' },
+                              { id: 'fill', label: 'Fill (ยืดรูป)', desc: 'ยืดรูปภาพให้เต็มพอดี' },
+                              { id: 'auto', label: 'Auto (ตามจริง)', desc: 'ปรับขนาดตามต้นฉบับ' }
+                            ].map((mode) => (
+                              <button
+                                key={mode.id}
+                                type="button"
+                                onClick={() => setHeaderBannerFit(mode.id as any)}
+                                disabled={!isSuperAdmin}
+                                className={`p-2 text-left rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  headerBannerFit === mode.id
+                                    ? 'bg-[#A0E7E5] text-[#33272A] font-black shadow-[2px_2px_0px_#33272A]'
+                                    : 'bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] hover:bg-teal-50 dark:hover:bg-teal-950/30'
+                                }`}
+                              >
+                                <div className="text-[11px] font-black">{mode.label}</div>
+                                <div className="text-[9px] opacity-75">{mode.desc}</div>
+                              </button>
+                            ))}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-black">เมนู 1</span>
-                            <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-black">เมนู 2</span>
+                        </div>
+                      </div>
+
+                      {/* ฝั่งขวา: พรีวิวการแสดงผล Real-time */}
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                          <Eye className="h-4 w-4 text-emerald-500" />
+                          ตัวอย่างการแสดงผลบน Header Real-time (Live Header Preview)
+                        </label>
+                        <div className="p-3 bg-slate-900/10 dark:bg-black/50 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
+                          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 text-center">
+                            {headerBannerEnabled ? '🟢 สถานะ: เปิดใช้งานแบนเนอร์' : '🔴 สถานะ: ปิดการแสดงผลแบนเนอร์'}
+                          </div>
+                          
+                          {/* จำลอง Header Real time */}
+                          <div className="border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-xl overflow-hidden bg-white dark:bg-[#1e1518] shadow-sm">
+                            {headerBannerUrl && headerBannerEnabled ? (
+                              <div className="w-full bg-[#FFF9F5] dark:bg-[#150e10] border-b border-[#33272A]/20 flex items-center justify-center overflow-hidden">
+                                <img
+                                  src={headerBannerUrl}
+                                  alt="Banner Preview"
+                                  style={{
+                                    height: `${headerBannerHeight}px`,
+                                    maxHeight: `${headerBannerHeight}px`,
+                                    objectFit: headerBannerFit,
+                                    width: headerBannerFit === 'fill' || headerBannerFit === 'cover' ? '100%' : 'auto'
+                                  }}
+                                  className="max-w-full block"
+                                />
+                              </div>
+                            ) : (
+                              <div className="p-4 text-center text-xs text-slate-400 font-bold border-b border-[#33272A]/10">
+                                (ยังไม่ได้ตั้งค่ารูปภาพ หรือ ปิดการแสดงผลอยู่)
+                              </div>
+                            )}
+
+                            {/* แถบเมนูจำลอง */}
+                            <div className="p-2 flex items-center justify-between bg-white dark:bg-[#1e1518]">
+                              <div className="flex items-center gap-2">
+                                <div className="h-6 w-6 rounded bg-[#FF8BA7] border border-[#33272A]" />
+                                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">BigData Mhs1</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-black">เมนู 1</span>
+                                <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-black">เมนู 2</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                )}
 
-              {/* ส่วนเลือกธีมและการแสดงผลของระบบ */}
-              <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-4">
-                <div className="flex items-center justify-between border-b border-[#33272A]/20 pb-2">
-                  <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-[#FF8BA7]" />
-                    เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
-                  </h4>
-                  <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
+                {/* ส่วนเลือกธีมและการแสดงผลของระบบ */}
+                <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#33272A]/20 pb-2">
+                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                      <Palette className="h-5 w-5 text-[#FF8BA7]" />
+                      เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
+                    </h4>
+                    <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
                     ธีมปัจจุบัน: {
                       themeStyle === 'pastel' ? '🌸 พาสเทล' :
                       themeStyle === 'modern' ? '🎨 โมเดิร์น' :
