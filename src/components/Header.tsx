@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap } from 'lucide-react';
-import { UserProfile } from '../types';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles } from 'lucide-react';
+import { UserProfile, ThemeStyle } from '../types';
 
 interface HeaderProps {
   userProfile: UserProfile | null;
@@ -12,6 +12,8 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   fontSize: 'small' | 'medium' | 'large' | 'xlarge';
   setFontSize: (size: 'small' | 'medium' | 'large' | 'xlarge') => void;
+  themeStyle?: ThemeStyle;
+  setThemeStyle?: (theme: ThemeStyle) => void;
   academicYear?: string;
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
@@ -27,6 +29,8 @@ export default function Header({
   setActiveTab,
   fontSize,
   setFontSize,
+  themeStyle = 'pastel',
+  setThemeStyle,
   academicYear,
   setAcademicYear,
   availableYears
@@ -127,8 +131,22 @@ export default function Header({
         </nav>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          {/* Font size adjuster */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Dark / Light Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            className="flex items-center justify-center h-8 w-8 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/40 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] shrink-0"
+            title={isDarkMode ? 'เปลี่ยนเป็นโหมดสว่าง (Light Mode)' : 'เปลี่ยนเป็นโหมดมืด (Dark Mode)'}
+          >
+            {isDarkMode ? (
+              <Sun className="h-4 w-4 text-amber-400 fill-amber-300" />
+            ) : (
+              <Moon className="h-4 w-4 text-indigo-600 fill-indigo-200" />
+            )}
+          </button>
+
+          {/* 3. Font size adjuster */}
           <div className="hidden sm:flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
             <button
               onClick={() => setFontSize('small')}

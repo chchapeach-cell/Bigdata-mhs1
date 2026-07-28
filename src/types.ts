@@ -121,10 +121,15 @@ export interface InfrastructureOption {
   label: string;
 }
 
+export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint';
+
 export interface SystemConfig {
   allowDataDownload: boolean; // เปิด-ปิดระบบดาวน์โหลดข้อมูล
   restrictOneAdminPerSchool: boolean;
   allowSchoolAdminRegistration: boolean;
+  highTrafficAlertEnabled?: boolean; // เปิด-ปิดระบบแจ้งเตือนผู้ใช้งานหนาแน่น Pop-up
+  highTrafficAlertMessage?: string; // ข้อความแจ้งเตือนผู้ใช้งานหนาแน่น
+  simulateRedServerStatus?: boolean; // จำลองสถานะเซิร์ฟเวอร์เป็นสีแดง (เพื่อทดสอบ Pop-up ผู้ใช้หนาแน่น)
   electricityOptions: InfrastructureOption[];
   internetOptions: InfrastructureOption[];
 }

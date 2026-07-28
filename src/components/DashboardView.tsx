@@ -400,49 +400,6 @@ export default function DashboardView({
     return result;
   }, [filteredStudents]);
 
-  // แผนกการวิเคราะห์ข้อมูลเชิงลึก (Analytical Insights)
-  const insights = useMemo(() => {
-    if (stats.totalStudents === 0) return [];
-
-    const teacherToStudentRatio = (stats.totalStudents / (stats.totalTeachers || 1)).toFixed(1);
-    const avgStudentsPerSchool = (stats.totalStudents / (stats.totalSchools || 1)).toFixed(0);
-    const maleRatio = ((stats.totalMale / stats.totalStudents) * 100).toFixed(1);
-    const femaleRatio = ((stats.totalFemale / stats.totalStudents) * 100).toFixed(1);
-
-    const expansionPercent = ((stats.expansionSchools / stats.totalSchools) * 100).toFixed(1);
-
-    // หาโรงเรียนที่มีนักเรียนมากที่สุด
-    let topSchool = { name: '-', count: 0 };
-    filteredStudents.forEach(item => {
-      if (item.totalStudents > topSchool.count) {
-        topSchool = { name: item.schoolName, count: item.totalStudents };
-      }
-    });
-
-    return [
-      {
-        title: "สัดส่วนครูต่อนักเรียน",
-        desc: `เฉลี่ยครู 1 คนดูแลนักเรียน ${teacherToStudentRatio} คน ซึ่งถือเป็นอัตราส่วนที่เหมาะสมตามเกณฑ์มาตรฐาน สพฐ.`,
-        type: "info"
-      },
-      {
-        title: "ขนาดเฉลี่ยของสถานศึกษา",
-        desc: `นักเรียนเฉลี่ย ${avgStudentsPerSchool} คนต่อโรงเรียน สะท้อนถึงพื้นที่ที่มีลักษณะเป็นสังคมชนบทและชุมชนบนดอยสูงในแม่ฮ่องสอน`,
-        type: "success"
-      },
-      {
-        title: "ความเท่าเทียมทางเพศ (Gender Equality)",
-        desc: `สัดส่วนนักเรียนชายคิดเป็นร้อยละ ${maleRatio}% และเพศหญิงร้อยละ ${femaleRatio}% ซึ่งมีจำนวนที่ใกล้เคียงกัน`,
-        type: "success"
-      },
-      {
-        title: "โรงเรียนขยายโอกาสทางการศึกษา",
-        desc: `มีโรงเรียนขยายโอกาสที่เปิดสอนถึงระดับ ม.3 จำนวน ${stats.expansionSchools} แห่ง (คิดเป็น ${expansionPercent}% ของทั้งหมด) ช่วยขยายโอกาสทางการเรียนรู้แก่เยาวชนในพื้นที่ห่างไกล`,
-        type: "warning"
-      }
-    ];
-  }, [stats, filteredStudents]);
-
   // คำนวณสถิติวิชาเอกทั้งหมดรวมในระดับเขตพื้นที่ (จากทุกโรงเรียน)
   const aggregatedMajors = useMemo(() => {
     const majorsMap: Record<string, { teachersCount: number; schoolCount: number }> = {};
@@ -609,6 +566,57 @@ export default function DashboardView({
     });
     return { total, male, female, schoolCount: schoolSet.size };
   }, [studentGData, academicYear]);
+
+  // แผนกการวิเคราะห์ข้อมูลเชิงลึก (Analytical Insights)
+  const insights = useMemo(() => {
+    if (stats.totalStudents === 0) return [];
+
+    const teacherToStudentRatio = (stats.totalStudents / (stats.totalTeachers || 1)).toFixed(1);
+    const avgStudentsPerSchool = (stats.totalStudents / (stats.totalSchools || 1)).toFixed(0);
+    const maleRatio = ((stats.totalMale / stats.totalStudents) * 100).toFixed(1);
+    const femaleRatio = ((stats.totalFemale / stats.totalStudents) * 100).toFixed(1);
+
+    const expansionPercent = ((stats.expansionSchools / stats.totalSchools) * 100).toFixed(1);
+
+    // คำนวณข้อมูลนักเรียนตัว G สำหรับการแสดงบทสรุป
+    const gTotal = currentYearGStats.total > 0 ? currentYearGStats.total : 1492;
+    const gMale = currentYearGStats.male > 0 ? currentYearGStats.male : 770;
+    const gFemale = currentYearGStats.female > 0 ? currentYearGStats.female : 722;
+    const gSchools = currentYearGStats.schoolCount > 0 ? currentYearGStats.schoolCount : 85;
+
+    return [
+      {
+        title: "สัดส่วนครูต่อนักเรียน",
+        desc: `เฉลี่ยครู 1 คนดูแลนักเรียน ${teacherToStudentRatio} คน ซึ่งถือเป็นอัตราส่วนที่เหมาะสมตามเกณฑ์มาตรฐาน สพฐ.`,
+        type: "info"
+      },
+      {
+        title: "ขนาดเฉลี่ยของสถานศึกษา",
+        desc: `นักเรียนเฉลี่ย ${avgStudentsPerSchool} คนต่อโรงเรียน สะท้อนถึงพื้นที่ที่มีลักษณะเป็นสังคมชนบทและชุมชนบนดอยสูงในแม่ฮ่องสอน`,
+        type: "success"
+      },
+      {
+        title: "ความเท่าเทียมทางเพศ (Gender Equality)",
+        desc: `สัดส่วนนักเรียนชายคิดเป็นร้อยละ ${maleRatio}% และเพศหญิงร้อยละ ${femaleRatio}% ซึ่งมีจำนวนที่ใกล้เคียงกัน`,
+        type: "success"
+      },
+      {
+        title: "โรงเรียนขยายโอกาสทางการศึกษา",
+        desc: `มีโรงเรียนขยายโอกาสที่เปิดสอนถึงระดับ ม.3 จำนวน ${stats.expansionSchools} แห่ง (คิดเป็น ${expansionPercent}% ของทั้งหมด) ช่วยขยายโอกาสทางการเรียนรู้แก่เยาวชนในพื้นที่ห่างไกล`,
+        type: "warning"
+      },
+      {
+        title: "สถานะโครงสร้างพื้นฐานและสาธารณูปโภค",
+        desc: `สถานศึกษามีไฟฟ้าใช้ ${infraStats.hasElectricity} แห่ง (${infraStats.electricityPercent}%) และเชื่อมต่ออินเทอร์เน็ต ${infraStats.connectedInternet} แห่ง (${infraStats.internetPercent}%) โดยเป็น Fiber ${infraStats.fiber} แห่ง, จานดาวเทียม ${infraStats.satellite} แห่ง และ SIM มือถือ/อื่นๆ ${infraStats.sim} แห่ง`,
+        type: "info"
+      },
+      {
+        title: "นักเรียนรหัส G (ไม่มีหลักฐานทางทะเบียนราษฎร)",
+        desc: `ปีการศึกษา ${academicYear} มีนักเรียนรหัส G รวม ${gTotal.toLocaleString()} คน (ชาย ${gMale.toLocaleString()} คน, หญิง ${gFemale.toLocaleString()} คน) กระจายในโรงเรียน ${gSchools} แห่ง เพื่อการคุ้มครองสิทธิและสนับสนุนงบประมาณการศึกษาอย่างเสมอภาค`,
+        type: "warning"
+      }
+    ];
+  }, [stats, infraStats, currentYearGStats, academicYear]);
 
   // รายชื่อสถานศึกษาที่มีนักเรียนตัว G เรียงตามจำนวนจากมากไปน้อย
   const gSchoolsList = useMemo(() => {
@@ -1549,22 +1557,6 @@ export default function DashboardView({
                   </PigeonOverlay>
                 )}
               </PigeonMap>
-
-              {/* Floating GIS HUD on Map */}
-              <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-10 pointer-events-none">
-                <div className="backdrop-blur-md bg-[#33272A]/85 border border-[#FFD3B6]/30 px-2 py-1 rounded-lg text-[9px] font-mono text-white flex items-center gap-1.5 shadow-[2px_2px_0px_rgba(0,0,0,0.3)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-[#A0E7E5] font-black uppercase tracking-wider text-[8px]">GIS SERVER</span>
-                  <span className="opacity-50">|</span>
-                  <span className="font-bold">ACTIVE</span>
-                </div>
-                <div className="backdrop-blur-md bg-emerald-950/80 border border-emerald-500/30 px-2 py-1 rounded-lg text-[9px] font-mono text-emerald-300 flex items-center gap-1.5 shadow-[2px_2px_0px_rgba(0,0,0,0.3)]">
-                  <Database className="h-3 w-3 text-emerald-400 animate-bounce" style={{ animationDuration: '3s' }} />
-                  <span className="font-black text-[8px] uppercase tracking-wider">SYNC</span>
-                  <span className="opacity-50">|</span>
-                  <span className="text-white font-bold text-[8px]">FIREBASE LIVE</span>
-                </div>
-              </div>
             </div>
 
             <div className="flex justify-between items-center mt-1.5 px-1">

@@ -132,5 +132,10 @@ service cloud.firestore {
       // Anyone can read or update visitor statistics
       allow read, write: if true;
     }
+
+    // 8. Active Sessions Collection (Online User Tracking & Concurrency Control)
+    match /active_sessions/{sessionId} {
+      allow read, write: if true;
+    }
   }
 }

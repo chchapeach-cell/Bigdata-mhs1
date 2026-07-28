@@ -4,6 +4,8 @@ import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn } from 'lucid
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db, OperationType, handleFirestoreError } from '../firebase';
+import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
+import { signOut } from 'firebase/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -140,6 +142,15 @@ export default function AuthModal({
           return;
         }
 
+        // ตรวจสอบโควตาการเข้าใช้งานพร้อมกัน 70 คน
+        const concurrencyCheck = await checkActiveUsersConcurrency(profile);
+        if (!concurrencyCheck.allowed) {
+          setErrorMsg(concurrencyCheck.message || 'ขออภัยในความไม่สะดวก มีผู้ใช้งานเข้าระบบเต็มจำนวนแล้ว');
+          await signOut(auth).catch(() => {});
+          setIsLoading(false);
+          return;
+        }
+
         // สำเร็จ
         onAuthSuccess(profile);
         setIsLoading(false);
@@ -217,6 +228,15 @@ export default function AuthModal({
         }
         if (profile.status === 'rejected') {
           setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อ Super Admin เพื่อตรวจสอบ');
+          setIsLoading(false);
+          return;
+        }
+
+        // ตรวจสอบโควตาการเข้าใช้งานพร้อมกัน 70 คน
+        const concurrencyCheck = await checkActiveUsersConcurrency(profile);
+        if (!concurrencyCheck.allowed) {
+          setErrorMsg(concurrencyCheck.message || 'ขออภัยในความไม่สะดวก มีผู้ใช้งานเข้าระบบเต็มจำนวนแล้ว');
+          await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }

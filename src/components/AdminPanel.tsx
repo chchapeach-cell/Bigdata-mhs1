@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2 } from 'lucide-react';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils/initialData';
+import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
+import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
+import InfrastructureView from './InfrastructureView';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -14,6 +17,11 @@ interface AdminPanelProps {
   studentGData?: StudentGData[];
   onRefreshData: () => Promise<void>;
   systemConfig?: SystemConfig;
+  serverStatus?: 'green' | 'yellow' | 'red';
+  themeStyle?: ThemeStyle;
+  setThemeStyle?: (theme: ThemeStyle) => void;
+  isDarkMode?: boolean;
+  setIsDarkMode?: (dark: boolean) => void;
 }
 
 export default function AdminPanel({
@@ -22,7 +30,12 @@ export default function AdminPanel({
   studentData,
   studentGData = [],
   onRefreshData,
-  systemConfig
+  systemConfig,
+  serverStatus = 'green',
+  themeStyle = 'pastel',
+  setThemeStyle,
+  isDarkMode = false,
+  setIsDarkMode
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin';
 
@@ -218,9 +231,9 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'upload' | 'g_students' | 'users' | 'logs' | 'schools' | 'settings'>(
-    isSuperAdmin ? 'upload' : 'schools'
-  );
+  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings'>('students_center');
+  const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
+  const [isQuotaDrawerOpen, setIsQuotaDrawerOpen] = useState<boolean>(false);
 
   // State สำหรับจัดการข้อมูลนักเรียนตัว G
   const [gYear, setGYear] = useState<string>('2568');
@@ -249,6 +262,121 @@ export default function AdminPanel({
   const [isDeletingGYear, setIsDeletingGYear] = useState<boolean>(false);
   const [deleteGError, setDeleteGError] = useState<string>('');
   const [deleteGSuccess, setDeleteGSuccess] = useState<string>('');
+
+  // State สำหรับจัดการและแก้ไขข้อมูลสถิตินักเรียน BIGDATA
+  const [bigdataYear, setBigdataYear] = useState<string>('2568');
+  const [bigdataSearchQuery, setBigdataSearchQuery] = useState<string>('');
+  const [editingStudentDataRecord, setEditingStudentDataRecord] = useState<StudentData | null>(null);
+  const [editStudentMale, setEditStudentMale] = useState<number>(0);
+  const [editStudentFemale, setEditStudentFemale] = useState<number>(0);
+  const [editStudentTotal, setEditStudentTotal] = useState<number>(0);
+  const [editStudentClasses, setEditStudentClasses] = useState<number>(0);
+  const [isSavingStudentEdit, setIsSavingStudentEdit] = useState<boolean>(false);
+
+  // State สำหรับแก้ไขข้อมูลนักเรียนตัว G (รายโรงเรียน)
+  const [editingGRecord, setEditingGRecord] = useState<StudentGData | null>(null);
+  const [editGMale, setEditGMale] = useState<number>(0);
+  const [editGFemale, setEditGFemale] = useState<number>(0);
+  const [editGTotal, setEditGTotal] = useState<number>(0);
+  const [editGNotes, setEditGNotes] = useState<string>('');
+  const [isSavingGEdit, setIsSavingGEdit] = useState<boolean>(false);
+
+  // คำนวณปีการศึกษาที่มีข้อมูลนักเรียน BIGDATA
+  const bigdataAvailableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    if (studentData && studentData.length > 0) {
+      studentData.forEach(s => {
+        if (s.academicYear && /^\d{4}$/.test(s.academicYear)) {
+          yearsSet.add(s.academicYear.trim());
+        }
+      });
+    }
+    ['2568', '2567', '2566', '2565', '2564'].forEach(y => yearsSet.add(y));
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [studentData]);
+
+  // ฟังก์ชันสำหรับการแก้ไข/ลบข้อมูลนักเรียน BIGDATA
+  const handleOpenEditStudentData = (record: StudentData) => {
+    setEditingStudentDataRecord(record);
+    setEditStudentMale(record.totalMale || 0);
+    setEditStudentFemale(record.totalFemale || 0);
+    setEditStudentTotal(record.totalStudents || ((record.totalMale || 0) + (record.totalFemale || 0)));
+    const totalRooms = record.grades ? Object.values(record.grades).reduce((acc: number, g: any) => acc + (g?.rooms || 0), 0) : 0;
+    setEditStudentClasses(totalRooms);
+  };
+
+  const handleSaveStudentDataEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingStudentDataRecord) return;
+    setIsSavingStudentEdit(true);
+    try {
+      const docId = editingStudentDataRecord.id || `${editingStudentDataRecord.schoolId}_${editingStudentDataRecord.academicYear}`;
+      const studentDocRef = doc(db, 'students', docId);
+      await setDoc(studentDocRef, {
+        totalMale: Number(editStudentMale),
+        totalFemale: Number(editStudentFemale),
+        totalStudents: Number(editStudentTotal),
+        updatedAt: new Date()
+      }, { merge: true });
+
+      setEditingStudentDataRecord(null);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to save student record edit:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.message || 'Permission denied'));
+    } finally {
+      setIsSavingStudentEdit(false);
+    }
+  };
+
+  const handleDeleteSingleStudentData = async (record: StudentData) => {
+    const docId = record.id || `${record.schoolId}_${record.academicYear}`;
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลสถิตินักเรียนของ "${record.schoolName}" ประจำปีการศึกษา ${record.academicYear}?`)) {
+      return;
+    }
+    try {
+      const studentDocRef = doc(db, 'students', docId);
+      await deleteDoc(studentDocRef);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to delete student record:', err);
+      alert('เกิดข้อผิดพลาดในการลบข้อมูล: ' + (err.message || 'Permission denied'));
+    }
+  };
+
+  // ฟังก์ชันสำหรับการแก้ไขข้อมูลนักเรียนตัว G
+  const handleOpenEditGRecord = (g: StudentGData) => {
+    setEditingGRecord(g);
+    setEditGMale(g.maleGCount || 0);
+    setEditGFemale(g.femaleGCount || 0);
+    setEditGTotal(g.totalGStudents || ((g.maleGCount || 0) + (g.femaleGCount || 0)));
+    setEditGNotes(g.notes || '');
+  };
+
+  const handleSaveGRecordEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingGRecord) return;
+    setIsSavingGEdit(true);
+    try {
+      const docId = editingGRecord.id || `${editingGRecord.schoolId}_${editingGRecord.academicYear}`;
+      const gDocRef = doc(db, 'students_g', docId);
+      await setDoc(gDocRef, {
+        maleGCount: Number(editGMale),
+        femaleGCount: Number(editGFemale),
+        totalGStudents: Number(editGTotal),
+        notes: editGNotes.trim(),
+        updatedAt: new Date()
+      }, { merge: true });
+
+      setEditingGRecord(null);
+      await onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to save G record edit:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.message || 'Permission denied'));
+    } finally {
+      setIsSavingGEdit(false);
+    }
+  };
 
   // คำนวณปีการศึกษาที่มีข้อมูลนักเรียนตัว G (และปีการศึกษาทั่วไป) สำหรับตัวเลือก Dropdown
   const gAvailableYears = useMemo(() => {
@@ -1009,6 +1137,15 @@ export default function AdminPanel({
   const [allowDataDownload, setAllowDataDownload] = useState<boolean>(
     systemConfig?.allowDataDownload ?? true
   );
+  const [highTrafficAlertEnabled, setHighTrafficAlertEnabled] = useState<boolean>(
+    systemConfig?.highTrafficAlertEnabled ?? true
+  );
+  const [highTrafficAlertMessage, setHighTrafficAlertMessage] = useState<string>(
+    systemConfig?.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที'
+  );
+  const [simulateRedServerStatus, setSimulateRedServerStatus] = useState<boolean>(
+    systemConfig?.simulateRedServerStatus ?? false
+  );
   const [electricityOptions, setElectricityOptions] = useState<InfrastructureOption[]>(
     systemConfig?.electricityOptions || [
       { id: 'has_electric', label: '🔌 มีไฟฟ้าถาวร' },
@@ -1040,6 +1177,9 @@ export default function AdminPanel({
       if (systemConfig.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(systemConfig.restrictOneAdminPerSchool);
       if (systemConfig.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(systemConfig.allowSchoolAdminRegistration);
       if (systemConfig.allowDataDownload !== undefined) setAllowDataDownload(systemConfig.allowDataDownload);
+      if (systemConfig.highTrafficAlertEnabled !== undefined) setHighTrafficAlertEnabled(systemConfig.highTrafficAlertEnabled);
+      if (systemConfig.highTrafficAlertMessage) setHighTrafficAlertMessage(systemConfig.highTrafficAlertMessage);
+      if (systemConfig.simulateRedServerStatus !== undefined) setSimulateRedServerStatus(systemConfig.simulateRedServerStatus);
       if (systemConfig.electricityOptions) setElectricityOptions(systemConfig.electricityOptions);
       if (systemConfig.internetOptions) setInternetOptions(systemConfig.internetOptions);
     }
@@ -1055,6 +1195,9 @@ export default function AdminPanel({
         if (data.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
         if (data.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
         if (data.allowDataDownload !== undefined) setAllowDataDownload(data.allowDataDownload);
+        if (data.highTrafficAlertEnabled !== undefined) setHighTrafficAlertEnabled(data.highTrafficAlertEnabled);
+        if (data.highTrafficAlertMessage) setHighTrafficAlertMessage(data.highTrafficAlertMessage);
+        if (data.simulateRedServerStatus !== undefined) setSimulateRedServerStatus(data.simulateRedServerStatus);
         if (data.electricityOptions) setElectricityOptions(data.electricityOptions);
         if (data.internetOptions) setInternetOptions(data.internetOptions);
       }
@@ -1073,6 +1216,9 @@ export default function AdminPanel({
         restrictOneAdminPerSchool,
         allowSchoolAdminRegistration,
         allowDataDownload,
+        highTrafficAlertEnabled,
+        highTrafficAlertMessage,
+        simulateRedServerStatus,
         electricityOptions,
         internetOptions,
         updatedAt: new Date()
@@ -1097,6 +1243,8 @@ export default function AdminPanel({
       if (key === 'allowSchoolAdminRegistration') setAllowSchoolAdminRegistration(value);
       if (key === 'restrictOneAdminPerSchool') setRestrictOneAdminPerSchool(value);
       if (key === 'allowDataDownload') setAllowDataDownload(value);
+      if (key === 'highTrafficAlertEnabled') setHighTrafficAlertEnabled(value);
+      if (key === 'simulateRedServerStatus') setSimulateRedServerStatus(value);
 
       await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
       setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
@@ -1666,685 +1814,490 @@ export default function AdminPanel({
         )}
       </div>
 
-      {/* แก้ไขข้อมูลส่วนตัวสำหรับผู้ใช้งานทุกคน (เจ้าตัวแก้ไขข้อมูลตัวเอง) */}
-      <div className="card p-6 border-l-4 border-l-[#A0E7E5]">
-        <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-          <User className="h-4.5 w-4.5 text-[#A0E7E5]" /> แก้ไขข้อมูลโปรไฟล์ส่วนตัวของคุณ ({userProfile.email})
-        </h3>
-        
-        <form onSubmit={handleSaveSelfProfile} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
-              <input
-                type="text"
-                required
-                value={selfFirstName}
-                onChange={(e) => setSelfFirstName(e.target.value)}
-                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-              />
-            </div>
+      {/* แผงเมนูหลักสำหรับเลือกหน้าการทำงาน (วางบนสุด) */}
+      <div className="space-y-4">
+        {/* ข้อมูลการเชื่อมต่อฐานข้อมูล MHS1-DMC & Status Badge ขนาดเล็ก */}
+        <div className="bg-[#A0E7E5]/25 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-wrap gap-2 items-center justify-between text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${serverStatus === 'red' ? 'bg-rose-400' : serverStatus === 'yellow' ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${serverStatus === 'red' ? 'bg-rose-500' : serverStatus === 'yellow' ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+            </span>
+            <span>สถานะระบบ: <span className={`font-extrabold ${serverStatus === 'red' ? 'text-rose-600 dark:text-rose-400' : serverStatus === 'yellow' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              {serverStatus === 'red' ? '🔴 วิกฤต! ผู้ใช้งานหนาแน่น (High Traffic)' : serverStatus === 'yellow' ? '🟡 เฝ้าระวัง (ภาระการใช้งานสูง)' : '🟢 พร้อมใช้งาน (MHS1-DMC)'}
+            </span></span>
             
-            <div className="space-y-1">
-              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
-              <input
-                type="text"
-                required
-                value={selfLastName}
-                onChange={(e) => setSelfLastName(e.target.value)}
-                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                <Key className="h-3.5 w-3.5 text-[#FF8BA7]" /> เปลี่ยนรหัสผ่านใหม่ (หากไม่เปลี่ยนให้เว้นว่างไว้)
-              </label>
-              <input
-                type="password"
-                placeholder="ป้อนอย่างน้อย 6 อักขระเพื่อเปลี่ยนรหัสผ่าน"
-                value={selfPassword}
-                onChange={(e) => setSelfPassword(e.target.value)}
-                className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-              />
+            {/* Status Badge ขนาดเล็กสำหรับโควตาฐานข้อมูล */}
+            <div className="inline-flex items-center gap-1.5 bg-white/80 dark:bg-black/40 px-2.5 py-1 rounded-xl border border-[#33272A]/30 text-[10px] font-bold">
+              <Activity className="h-3 w-3 text-emerald-500" />
+              <span>โควตาฐานข้อมูล: <strong className="text-emerald-700 dark:text-emerald-300">1.2% Safe</strong></span>
+              <button
+                type="button"
+                onClick={() => setIsQuotaDrawerOpen(true)}
+                className="text-rose-600 dark:text-rose-400 hover:underline font-black cursor-pointer ml-1 text-[10px] bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-300"
+              >
+                ดูรายละเอียด ➔
+              </button>
             </div>
           </div>
 
-          {selfSuccess && (
-            <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
-              {selfSuccess}
-            </div>
-          )}
-          
-          {selfError && (
-            <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
-              {selfError}
-            </div>
+          <div className="font-bold text-[10px] text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+            Project ID: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">mhs1-dmc</span>
+          </div>
+        </div>
+
+        {/* แถบนำทางเมนูหลัก */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setAdminTab('students_center')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+              adminTab === 'students_center' 
+                ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+            }`}
+          >
+            <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
+            <span>ศูนย์ข้อมูลนักเรียน (Student Data Center)</span>
+          </button>
+
+          <button
+            onClick={() => setAdminTab('schools')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+              adminTab === 'schools' 
+                ? 'bg-[#FFAAA5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+            }`}
+          >
+            <Building className="h-4 w-4" />
+            <span>จัดการรายชื่อโรงเรียน ({schools.length})</span>
+          </button>
+
+          {isSuperAdmin && (
+            <>
+              <button
+                onClick={() => setAdminTab('users')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                  adminTab === 'users' 
+                    ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                <span>ทะเบียนผู้ใช้งาน</span>
+                {pendingUsers.length > 0 && (
+                  <span className="ml-1 bg-rose-500 text-white rounded-full px-2 py-0.5 text-[10px] animate-pulse font-black">
+                    {pendingUsers.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setAdminTab('logs')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                  adminTab === 'logs' 
+                    ? 'bg-[#FFD3B6] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <History className="h-4 w-4" />
+                <span>ประวัติการดาวน์โหลด</span>
+              </button>
+            </>
           )}
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSavingSelf}
-              className="button bg-[#A0E7E5] text-[#33272A] hover:bg-[#A0E7E5]/80 py-2 px-5 text-xs font-black disabled:opacity-50 cursor-pointer"
-            >
-              {isSavingSelf ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลโปรไฟล์ส่วนตัว'}
-            </button>
-          </div>
-        </form>
+          <button
+            onClick={() => setAdminTab('settings')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+              adminTab === 'settings' 
+                ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            <span>ตั้งค่าระบบ</span>
+          </button>
+        </div>
       </div>
 
-      {/* แผงแก้ไขข้อมูลสถานศึกษาสำหรับ แอดมินโรงเรียน และ Super Admin (แก้ไขได้ทุกโรงเรียน) */}
-      <div className="card p-6">
-        <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-          <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" /> 
-          {isSuperAdmin ? 'แก้ไขข้อมูลพื้นฐานสถานศึกษาในระบบ (สิทธิ์ Super Admin)' : 'แก้ไขข้อมูลพื้นฐานของสถานศึกษาตนเอง'}
-        </h3>
-
-        {!isSuperAdmin && userProfile.status === 'pending' ? (
-          <div className="rounded-2xl bg-[#FFD3B6] p-4 text-xs font-bold text-[#33272A] border-2 border-[#33272A] flex gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-[#FF8BA7]" />
-            <span>บัญชีของคุณยังไม่ได้รับการอนุมัติจาก Super Admin (tamrri@gmail.com) จึงยังไม่สามารถบันทึกข้อมูลแก้ไขได้ในขณะนี้</span>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {isSuperAdmin && (
-              <div className="space-y-1.5 bg-[#FFD3B6]/20 p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                  <Building className="h-4 w-4 text-[#FF8BA7]" /> เลือกโรงเรียนที่จะทำการแก้ไขข้อมูลทั้งหมด
-                </label>
-                <select
-                  value={selectedSchoolId}
-                  onChange={(e) => setSelectedSchoolId(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                >
-                  <option value="">-- กรุณาเลือกสถานศึกษา --</option>
-                  {schools.map(s => (
-                    <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveSchoolInfo} className="grid gap-4 sm:grid-cols-2">
-              {/* ชื่อโรงเรียน */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อสถานศึกษา</label>
-                <input
-                  type="text"
-                  required
-                  value={editSchoolName}
-                  onChange={(e) => setEditSchoolName(e.target.value)}
-                  disabled={!isSuperAdmin}
-                  title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถเปลี่ยนชื่อโรงเรียนได้' : ''}
-                  className={`w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] ${!isSuperAdmin ? 'opacity-70 bg-gray-100 cursor-not-allowed dark:bg-gray-800' : ''}`}
-                />
-              </div>
-
-
-
-              {/* อำเภอ */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อำเภอ (พื้นที่ตั้ง)</label>
-                <select
-                  value={editAmphoe}
-                  onChange={(e) => setEditAmphoe(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                >
-                  <option value="">-- กรุณาเลือกอำเภอ --</option>
-                  <option value="เมืองแม่ฮ่องสอน">เมืองแม่ฮ่องสอน</option>
-                  <option value="ขุนยวม">ขุนยวม</option>
-                  <option value="ปาย">ปาย</option>
-                  <option value="ปางมะผ้า">ปางมะผ้า</option>
-                </select>
-              </div>
-
-              {/* กลุ่มเครือข่าย */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มพัฒนาคุณภาพการศึกษา (เครือข่าย)</label>
-                <select
-                  value={editNetworkGroup}
-                  onChange={(e) => setEditNetworkGroup(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                >
-                  <option value="">-- เลือกกลุ่มเครือข่าย --</option>
-                  {availableNetworkGroups.map(group => (
-                    <option key={group} value={group}>{group}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* ระบบเน็ต */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ตที่ใช้งาน</label>
-                <select
-                  value={String(editInternet)}
-                  onChange={(e) => setEditInternet(e.target.value as any)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                >
-                  {internetOptions.map(opt => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* กระแสไฟฟ้า */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กระแสไฟฟ้า / พลังงานที่ใช้</label>
-                <select
-                  value={typeof editElectricity === 'boolean' ? (editElectricity ? 'has_electric' : 'none') : String(editElectricity)}
-                  onChange={(e) => setEditElectricity(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                >
-                  {electricityOptions.map(opt => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* จำนวนครู */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากรในโรงเรียน (คน)</label>
-                <input
-                  type="number"
-                  min={1}
-                  required
-                  value={editStaffCount}
-                  onChange={(e) => setEditStaffCount(Number(e.target.value))}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
-              </div>
-
-              {/* วิชาเอกหลัก (คั่นด้วย Comma) */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">วิชาเอกที่มีความพร้อม (คั่นด้วยจุลภาค ",")</label>
-                <input
-                  type="text"
-                  value={editMajorsStr}
-                  onChange={(e) => setEditMajorsStr(e.target.value)}
-                  placeholder="เช่น ปฐมวัย, คณิตศาสตร์, ภาษาอังกฤษ"
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
-              </div>
-
-              {/* วิชาเอกแยกสถิติจำนวนครู (Interactive) */}
-              <div className="sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-3">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                  <GraduationCap className="h-4 w-4 text-[#FF8BA7]" /> ระบุวิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
-                </label>
-                
-                {/* เพิ่มวิชาเอกใหม่ */}
-                <div className="flex flex-wrap gap-2 items-end bg-white dark:bg-slate-800 p-2.5 rounded-xl border-2 border-[#33272A]/20">
-                  <div className="flex-1 min-w-[120px] space-y-1">
-                    <span className="text-[10px] font-bold text-slate-500">ชื่อวิชาเอก</span>
-                    <input 
-                      type="text"
-                      placeholder="เช่น ภาษาไทย, คอมพิวเตอร์"
-                      value={newMajorName}
-                      onChange={(e) => setNewMajorName(e.target.value)}
-                      className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none focus:ring-1 focus:ring-[#FF8BA7]"
-                    />
-                  </div>
-                  <div className="w-24 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-500">จำนวนครู (คน)</span>
-                    <input 
-                      type="number"
-                      min="0"
-                      value={newMajorCount}
-                      onChange={(e) => setNewMajorCount(Number(e.target.value))}
-                      className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none"
-                    />
-                  </div>
+          {adminTab === 'students_center' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* แถบเมนูกลุ่มย่อยภายในศูนย์ข้อมูลนักเรียน */}
+              <div className="card p-3 bg-white dark:bg-[#1e1518] flex flex-wrap gap-2 items-center justify-between border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!newMajorName.trim()) return;
-                      // เช็คซ้ำ
-                      if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
-                        alert('วิชาเอกนี้มีอยู่ในรายการแล้ว');
-                        return;
-                      }
-                      setEditMajorsWithStaff(prev => [...prev, { name: newMajorName.trim(), teachersCount: newMajorCount }]);
-                      setNewMajorName('');
-                      setNewMajorCount(1);
-                    }}
-                    className="btn-cute bg-[#A0E7E5] text-[#33272A] text-xs font-black px-4 py-1.5 cursor-pointer shrink-0"
+                    onClick={() => setStudentSubTab('bigdata')}
+                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-2 ${
+                      studentSubTab === 'bigdata'
+                        ? 'bg-[#FF8BA7] text-[#33272A] border-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                        : 'bg-[#FFF9F5] text-[#33272A]/70 border-[#33272A]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70 dark:border-[#FFD3B6]/30'
+                    }`}
                   >
-                    + เพิ่มวิชาเอก
+                    <Upload className="h-4 w-4" />
+                    <span>1. สถิตินักเรียน BIGDATA (นำเข้า/ตารางรวม)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStudentSubTab('g_students')}
+                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-2 ${
+                      studentSubTab === 'g_students'
+                        ? 'bg-[#A0E7E5] text-[#33272A] border-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                        : 'bg-[#FFF9F5] text-[#33272A]/70 border-[#33272A]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70 dark:border-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-blue-600" />
+                    <span>2. นักเรียนไม่มีหลักฐานทางทะเบียนราษฎร (กลุ่มนักเรียนตัว G)</span>
                   </button>
                 </div>
 
-                {/* รายการวิชาเอกปัจจุบัน */}
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {editMajorsWithStaff.length > 0 ? (
-                    editMajorsWithStaff.map((m, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-white dark:bg-[#1e1518] p-2 rounded-xl border border-[#33272A]/20 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                        <span>{m.name}</span>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-500 font-semibold">จำนวนครู:</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={m.teachersCount}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
-                              }}
-                              className="w-12 rounded border border-[#33272A]/30 bg-white p-0.5 text-center text-xs font-bold text-[#33272A]"
-                            />
-                            <span>คน</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx));
-                            }}
-                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-sm px-1"
-                            title="ลบ"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4 text-slate-400 text-xs font-bold">ยังไม่มีข้อมูลวิชาเอกและจำนวนครู กรุณาเพิ่มข้อมูลด้านบน</div>
-                  )}
+                <div className="text-[11px] font-black text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 px-3 py-1 rounded-xl border border-rose-200">
+                  📍 ศูนย์ข้อมูลนักเรียน สพป.แม่ฮ่องสอน เขต 1
                 </div>
               </div>
 
-              {/* เบอร์ติดต่อโรงเรียน */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ติดต่อโรงเรียน</label>
-                <input
-                  type="text"
-                  required
-                  value={editSchoolPhone}
-                  onChange={(e) => setEditSchoolPhone(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
-              </div>
-
-              {/* เบอร์โทรศัพท์ผู้บริหาร */}
-              <div className="space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ส่วนตัวผู้บริหาร</label>
-                <input
-                  type="text"
-                  required
-                  value={editDirectorPhone}
-                  onChange={(e) => setEditDirectorPhone(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
-              </div>
-
-              {/* ความพิเศษของโรงเรียน / จุดเด่น */}
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
-                  ความพิเศษของโรงเรียน / จุดเด่น (Special Highlights)
-                </label>
-                <textarea
-                  rows={2}
-                  value={editSpecialHighlights}
-                  onChange={(e) => setEditSpecialHighlights(e.target.value)}
-                  placeholder="เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
-                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                />
-              </div>
-
-              {/* ข้อความแจ้งเตือน */}
-              <div className="sm:col-span-2 space-y-2">
-                {editSuccess && (
-                  <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
-                    {editSuccess}
-                  </div>
-                )}
-                {editError && (
-                  <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold">
-                    {editError}
-                  </div>
-                )}
-              </div>
-
-              <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={isSavingSchool || (isSuperAdmin && !selectedSchoolId)}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Save className="h-4.5 w-4.5" />
-                  {isSavingSchool ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถานศึกษา'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
-
-      {/* แผงเมนู (เฉพาะ Super Admin) */}
-      {isSuperAdmin && (
-        <div className="space-y-4">
-          {/* ข้อมูลการเชื่อมต่อฐานข้อมูล MHS1-DMC */}
-          <div className="bg-[#A0E7E5]/25 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-wrap gap-2 items-center justify-between text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5]">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <span>ระบบเชื่อมต่อสำเร็จ: <span className="text-emerald-600 dark:text-emerald-400">ฐานข้อมูลพร้อมใช้งานในเครือข่าย MHS1-DMC</span></span>
-            </div>
-            <div className="font-bold text-[10px] text-[#33272A]/80 dark:text-[#FFF9F5]/80">
-              Project ID: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">mhs1-dmc</span> | Database: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">ai-studio-mhs1bigdata-b097cba8...</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setAdminTab('upload')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
-                adminTab === 'upload' 
-                  ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <Upload className="h-4 w-4 inline-block mr-1.5" /> จัดการข้อมูล BIGDATA
-            </button>
-            <button
-              onClick={() => setAdminTab('g_students')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
-                adminTab === 'g_students' 
-                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <FileSpreadsheet className="h-4 w-4 inline-block mr-1.5 text-blue-600" /> อัปโหลดข้อมูลนักเรียนตัว G
-            </button>
-            <button
-              onClick={() => setAdminTab('users')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all ${
-                adminTab === 'users' 
-                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <Users className="h-4 w-4 inline-block mr-1.5" /> ทะเบียนผู้ใช้งาน
-              {pendingUsers.length > 0 && (
-                <span className="ml-1.5 bg-rose-500 text-white rounded-full px-2 py-0.5 text-[10px] animate-pulse">
-                  {pendingUsers.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setAdminTab('logs')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
-                adminTab === 'logs' 
-                  ? 'bg-[#FFD3B6] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <History className="h-4 w-4 inline-block mr-1.5" /> ประวัติการดาวน์โหลด
-            </button>
-            <button
-              onClick={() => setAdminTab('schools')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
-                adminTab === 'schools' 
-                  ? 'bg-[#FFAAA5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <Building className="h-4 w-4 inline-block mr-1.5" /> เพิ่ม/จัดการรายชื่อโรงเรียน ({schools.length})
-            </button>
-            <button
-              onClick={() => setAdminTab('settings')}
-              className={`px-4 py-2 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer ${
-                adminTab === 'settings' 
-                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <Settings className="h-4 w-4 inline-block mr-1.5" /> ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน
-            </button>
-          </div>
-
-          {adminTab === 'upload' && (
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="md:col-span-1 flex flex-col gap-6">
-                {/* สรุปสถานะการตั้งค่าระบบ (รวมศูนย์ไว้ที่แท็บตั้งค่าระบบ) */}
-                <div className="card p-6 bg-white dark:bg-[#1e1518]">
-                  <div className="flex items-center justify-between mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-[#FF8BA7]" /> สถานะนโยบายระบบ
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => setAdminTab('settings')}
-                      className="text-xs font-black text-[#FF8BA7] hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Settings className="h-3.5 w-3.5" /> ตั้งค่าระบบ
-                    </button>
-                  </div>
-                  <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed mb-4">
-                    นโยบายการทำงานและสิทธิ์ถูกปรับแต่งรวมกันในแท็บตั้งค่าระบบ:
-                  </p>
-                  <div className="space-y-2.5">
-                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">การดาวน์โหลดข้อมูลระบบ</span>
-                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowDataDownload ? 'bg-emerald-300 text-emerald-950' : 'bg-rose-200 text-rose-950'}`}>
-                        {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
-                      </span>
-                    </div>
-                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รับสมัครแอดมินโรงเรียน</span>
-                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowSchoolAdminRegistration ? 'bg-emerald-300 text-emerald-950' : 'bg-slate-200 text-slate-700'}`}>
-                        {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
-                      </span>
-                    </div>
-                    <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 แอดมินต่อโรงเรียน</span>
-                      <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${restrictOneAdminPerSchool ? 'bg-[#FF8BA7] text-[#33272A]' : 'bg-slate-200 text-slate-700'}`}>
-                        {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : '🔓 หลายคนได้'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
-                <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลตามปีการศึกษา
-                  </h3>
-                  <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
-                    เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลสถิตินักเรียนของทุกโรงเรียนออกทั้งหมด
-                  </p>
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={deleteYear}
-                          onChange={(e) => setDeleteYear(e.target.value)}
-                          pattern="[0-9]{4}"
-                          placeholder="เช่น 2567"
-                          maxLength={4}
-                          className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
-                        />
+              {studentSubTab === 'bigdata' && (
+                <div className="grid gap-6 md:grid-cols-3 animate-fade-in">
+                  <div className="md:col-span-1 flex flex-col gap-6">
+                    {/* สรุปสถานะการตั้งค่าระบบ (รวมศูนย์ไว้ที่แท็บตั้งค่าระบบ) */}
+                    <div className="card p-6 bg-white dark:bg-[#1e1518]">
+                      <div className="flex items-center justify-between mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                        <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                          <Shield className="h-5 w-5 text-[#FF8BA7]" /> สถานะนโยบายระบบ
+                        </h3>
                         <button
                           type="button"
-                          onClick={() => handleDeleteYear(deleteYear)}
-                          disabled={isDeletingYear || !deleteYear}
-                          className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
+                          onClick={() => setAdminTab('settings')}
+                          className="text-xs font-black text-[#FF8BA7] hover:underline flex items-center gap-1 cursor-pointer"
                         >
-                          {isDeletingYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
+                          <Settings className="h-3.5 w-3.5" /> ตั้งค่าระบบ
                         </button>
                       </div>
-                    </div>
-
-                    {/* แสดงรายการปีการศึกษาที่มีอยู่ในฐานข้อมูลเพื่อให้คลิกลบได้สะดวก */}
-                    {studentData && studentData.length > 0 && (() => {
-                      const yearsInDb = Array.from(new Set(studentData.map(d => d.academicYear))).sort().reverse();
-                      if (yearsInDb.length > 0) {
-                        return (
-                          <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                            <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาในระบบ (คลิกเพื่อลบ):</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {yearsInDb.map(yr => (
-                                <button
-                                  key={yr}
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteYear(yr);
-                                    handleDeleteYear(yr);
-                                  }}
-                                  className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                  {yr}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-
-                  {deleteError && (
-                    <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
-                      {deleteError}
-                    </p>
-                  )}
-
-                  {deleteSuccess && (
-                    <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
-                      {deleteSuccess}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* อัปโหลดไฟล์ CSV / Excel */}
-              <div className="card p-6 md:col-span-2">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
-                </h3>
-                <p className="text-[11px] text-[#33272A] dark:text-[#FFF9F5] font-bold mb-4 leading-relaxed bg-[#FFD3B6]/20 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
-                  ระบบนี้รองรับไฟล์ Excel (.xlsx) และ CSV ที่มีโครงสร้างเหมือนหัวข้อไฟล์ที่ได้รับ (รวมอนุบาล ประถม ม.1 - ม.3) ข้อมูลจะบันทึกประสานลงในระบบ dmc-mhs1 และแบ่งปันสถิติตลอดทั้งเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
-                </p>
-                <form onSubmit={handleUploadSubmit} className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
-                      <input
-                        type="text"
-                        value={uploadYear}
-                        onChange={(e) => setUploadYear(e.target.value)}
-                        pattern="[0-9]{4}"
-                        placeholder="เช่น 2568"
-                        required
-                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
-                      <input
-                        type="file"
-                        id="upload-file-input"
-                        accept=".xlsx, .xls, .csv"
-                        onChange={handleFileChange}
-                        className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
-                      />
-                    </div>
-                  </div>
-                  {uploadError && (
-                    <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
-                      <AlertCircle className="h-4.5 w-4.5 text-rose-600" />
-                      <span>{uploadError}</span>
-                    </div>
-                  )}
-                  {uploadSuccess && (
-                    <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
-                      {uploadSuccess}
-                    </div>
-                  )}
-                  {/* แถบอัปโหลด Progress Bar */}
-                  {(isUploading || uploadProgress > 0) && (
-                    <div className="space-y-2.5 rounded-2xl border-2 border-[#33272A] p-4 bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[3px_3px_0px_#FFD3B6] animate-fade-in">
-                      <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className={`h-4 w-4 text-[#FF8BA7] ${isUploading ? 'animate-spin' : ''}`} />
-                          <span className="truncate max-w-[280px] sm:max-w-md">{uploadStatusText || 'กำลังประมวลผลการอัปโหลด...'}</span>
+                      <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed mb-4">
+                        นโยบายการทำงานและสิทธิ์ถูกปรับแต่งรวมกันในแท็บตั้งค่าระบบ:
+                      </p>
+                      <div className="space-y-2.5">
+                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">การดาวน์โหลดข้อมูลระบบ</span>
+                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowDataDownload ? 'bg-emerald-300 text-emerald-950' : 'bg-rose-200 text-rose-950'}`}>
+                            {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
+                          </span>
                         </div>
-                        <span className="text-xs font-black text-[#33272A] bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6]">
-                          {uploadProgress}%
-                        </span>
+                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รับสมัครแอดมินโรงเรียน</span>
+                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowSchoolAdminRegistration ? 'bg-emerald-300 text-emerald-950' : 'bg-slate-200 text-slate-700'}`}>
+                            {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 แอดมินต่อโรงเรียน</span>
+                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${restrictOneAdminPerSchool ? 'bg-[#FF8BA7] text-[#33272A]' : 'bg-slate-200 text-slate-700'}`}>
+                            {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : '🔓 หลายคนได้'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
+                    <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10">
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                        <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลตามปีการศึกษา
+                      </h3>
+                      <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold leading-relaxed mb-4">
+                        เลือกหรือระบุปีการศึกษาเพื่อลบข้อมูลสถิตินักเรียนของทุกโรงเรียนออกทั้งหมด
+                      </p>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] block">ระบุปีการศึกษา (4 หลัก)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={deleteYear}
+                              onChange={(e) => setDeleteYear(e.target.value)}
+                              pattern="[0-9]{4}"
+                              placeholder="เช่น 2567"
+                              maxLength={4}
+                              className="flex-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteYear(deleteYear)}
+                              disabled={isDeletingYear || !deleteYear}
+                              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_0px_#33272A] cursor-pointer transition-all disabled:shadow-none shrink-0"
+                            >
+                              {isDeletingYear ? 'กำลังลบ...' : 'ลบข้อมูล'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* แสดงรายการปีการศึกษาที่มีอยู่ในฐานข้อมูลเพื่อให้คลิกลบได้สะดวก */}
+                        {studentData && studentData.length > 0 && (() => {
+                          const yearsInDb = Array.from(new Set(studentData.map(d => d.academicYear))).sort().reverse();
+                          if (yearsInDb.length > 0) {
+                            return (
+                              <div className="pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                                <span className="text-[9px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 block mb-1.5">ปีการศึกษาในระบบ (คลิกเพื่อลบ):</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {yearsInDb.map(yr => (
+                                    <button
+                                      key={yr}
+                                      type="button"
+                                      onClick={() => {
+                                        setDeleteYear(yr);
+                                        handleDeleteYear(yr);
+                                      }}
+                                      className="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 border border-rose-300 text-[10px] font-bold text-rose-700 dark:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      {yr}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
 
-                      {/* แถบ Progress Bar สไตล์ Cute Neo-brutalism */}
-                      <div className="w-full h-5 rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#150e10] overflow-hidden p-0.5 shadow-inner dark:border-[#FFD3B6]">
-                        <div
-                          className="h-full rounded-lg bg-gradient-to-r from-[#FF8BA7] via-[#FFD3B6] to-[#A0E7E5] transition-all duration-300 ease-out flex items-center justify-end pr-1"
-                          style={{ width: `${Math.max(3, uploadProgress)}%` }}
-                        >
-                          {uploadProgress > 15 && (
-                            <span className="text-[9px] font-black text-[#33272A] drop-shadow-sm select-none">
+                      {deleteError && (
+                        <p className="mt-3 text-[10px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-500 text-center animate-fade-in">
+                          {deleteError}
+                        </p>
+                      )}
+
+                      {deleteSuccess && (
+                        <p className="mt-3 text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-500 text-center animate-fade-in">
+                          {deleteSuccess}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* อัปโหลดไฟล์ CSV / Excel */}
+                  <div className="card p-6 md:col-span-2">
+                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                      <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
+                    </h3>
+                    <p className="text-[11px] text-[#33272A] dark:text-[#FFF9F5] font-bold mb-4 leading-relaxed bg-[#FFD3B6]/20 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                      ระบบนี้รองรับไฟล์ Excel (.xlsx) และ CSV ที่มีโครงสร้างเหมือนหัวข้อไฟล์ที่ได้รับ (รวมอนุบาล ประถม ม.1 - ม.3) ข้อมูลจะบันทึกประสานลงในระบบ dmc-mhs1 และแบ่งปันสถิติตตลอดทั้งเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
+                    </p>
+                    <form onSubmit={handleUploadSubmit} className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุปีการศึกษาของไฟล์ที่จะนำเข้า</label>
+                          <input
+                            type="text"
+                            value={uploadYear}
+                            onChange={(e) => setUploadYear(e.target.value)}
+                            pattern="[0-9]{4}"
+                            placeholder="เช่น 2568"
+                            required
+                            className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกไฟล์ข้อมูล (.xlsx, .csv)</label>
+                          <input
+                            type="file"
+                            id="upload-file-input"
+                            accept=".xlsx, .xls, .csv"
+                            onChange={handleFileChange}
+                            className="w-full rounded-xl border-2 border-[#33272A] bg-white px-2 py-1.5 text-xs text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] font-bold"
+                          />
+                        </div>
+                      </div>
+                      {uploadError && (
+                        <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
+                          <AlertCircle className="h-4.5 w-4.5 text-rose-600" />
+                          <span>{uploadError}</span>
+                        </div>
+                      )}
+                      {uploadSuccess && (
+                        <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                          {uploadSuccess}
+                        </div>
+                      )}
+                      {/* แถบอัปโหลด Progress Bar */}
+                      {(isUploading || uploadProgress > 0) && (
+                        <div className="space-y-2.5 rounded-2xl border-2 border-[#33272A] p-4 bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[3px_3px_0px_#FFD3B6] animate-fade-in">
+                          <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                            <div className="flex items-center gap-2">
+                              <RefreshCw className={`h-4 w-4 text-[#FF8BA7] ${isUploading ? 'animate-spin' : ''}`} />
+                              <span className="truncate max-w-[280px] sm:max-w-md">{uploadStatusText || 'กำลังประมวลผลการอัปโหลด...'}</span>
+                            </div>
+                            <span className="text-xs font-black text-[#33272A] bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6]">
                               {uploadProgress}%
                             </span>
-                          )}
+                          </div>
+
+                          {/* แถบ Progress Bar สไตล์ Cute Neo-brutalism */}
+                          <div className="w-full h-5 rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#150e10] overflow-hidden p-0.5 shadow-inner dark:border-[#FFD3B6]">
+                            <div
+                              className="h-full rounded-lg bg-gradient-to-r from-[#FF8BA7] via-[#FFD3B6] to-[#A0E7E5] transition-all duration-300 ease-out flex items-center justify-end pr-1"
+                              style={{ width: `${Math.max(3, uploadProgress)}%` }}
+                            >
+                              {uploadProgress > 15 && (
+                                <span className="text-[9px] font-black text-[#33272A] drop-shadow-sm select-none">
+                                  {uploadProgress}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 pt-0.5">
+                            <span>รายการที่ประมวลผลแล้ว: {processedRowsCount} / {totalRowsCount} โรงเรียน</span>
+                            <span>สถิตินักเรียน ปีการศึกษา {uploadYear}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {previewData.length > 0 && (
+                        <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
+                          <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                              <thead>
+                                <tr className="border-b border-[#33272A] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">
+                                  {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
+                                    <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#33272A]/10 font-bold">
+                                {previewData.slice(1, 5).map((row: any, i: number) => (
+                                   <tr key={i}>
+                                     {row?.slice(0, 6).map((cell: any, ci: number) => (
+                                       <td key={ci} className="p-1 text-[#33272A]/80 dark:text-slate-300">{String(cell || '')}</td>
+                                     ))}
+                                   </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={isUploading || previewData.length === 0}
+                          className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Upload className="h-4.5 w-4.5" />
+                          {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* ตารางข้อมูลนักเรียน BIGDATA ในระบบ (แสดง แก้ไข ลบ) - แสดงแบบเต็มหน้าจอ */}
+                  <div className="card p-6 space-y-4 col-span-full">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                      <div>
+                        <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                          <FileSpreadsheet className="h-4.5 w-4.5 text-[#FF8BA7]" />
+                          ตารางข้อมูลนักเรียน BIGDATA ({studentData.filter(d => d.academicYear === (bigdataYear || bigdataAvailableYears[0])).length} สถานศึกษา)
+                        </h3>
+                        <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                          ตารางแสดงเต็มหน้าจอ - สามารถดู แก้ไขจำนวนนักเรียนรายโรงเรียน หรือลบข้อมูลที่ไม่ถูกต้องได้
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ปีการศึกษา:</label>
+                          <select
+                            value={bigdataYear || bigdataAvailableYears[0]}
+                            onChange={(e) => setBigdataYear(e.target.value)}
+                            className="rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-2 py-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+                          >
+                            {bigdataAvailableYears.map(yr => (
+                              <option key={yr} value={yr}>{yr}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="ค้นหาชื่อโรงเรียน หรือรหัส..."
+                            value={bigdataSearchQuery}
+                            onChange={(e) => setBigdataSearchQuery(e.target.value)}
+                            className="w-full input-cute pl-8 p-1.5 text-xs"
+                          />
                         </div>
                       </div>
-
-                      <div className="flex justify-between items-center text-[10px] font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 pt-0.5">
-                        <span>รายการที่ประมวลผลแล้ว: {processedRowsCount} / {totalRowsCount} โรงเรียน</span>
-                        <span>สถิตินักเรียน ปีการศึกษา {uploadYear}</span>
-                      </div>
                     </div>
-                  )}
 
-                  {previewData.length > 0 && (
-                    <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
-                      <h4 className="font-black text-[#FF8BA7]">ตัวอย่างข้อมูลแถวเริ่มต้นที่จะบันทึก ({previewData.length - 1} แถวตัวอย่าง):</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="border-b border-[#33272A] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-bold">
-                              {previewData[0]?.slice(0, 6).map((h: any, i: number) => (
-                                <th key={i} className="p-1">{String(h || '').substring(0, 10)}</th>
-                              ))}
+                    <div className="overflow-x-auto w-full">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-[#FFF9F5] dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] sticky top-0">
+                          <tr>
+                            <th className="p-2.5">รหัส</th>
+                            <th className="p-2.5">ชื่อสถานศึกษา</th>
+                            <th className="p-2.5 text-center">ชาย (คน)</th>
+                            <th className="p-2.5 text-center">หญิง (คน)</th>
+                            <th className="p-2.5 text-center">รวมทั้งหมด (คน)</th>
+                            <th className="p-2.5 text-center">จำนวนห้องเรียน</th>
+                            <th className="p-2.5 text-center">การจัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-700 font-bold">
+                          {studentData
+                            .filter(d => d.academicYear === (bigdataYear || bigdataAvailableYears[0]))
+                            .filter(d => !bigdataSearchQuery || (d.schoolName || '').includes(bigdataSearchQuery) || (d.schoolId || '').includes(bigdataSearchQuery))
+                            .map((d) => {
+                              const totalRooms = d.grades ? Object.values(d.grades).reduce((acc: number, g: any) => acc + (g?.rooms || 0), 0) : 0;
+                              return (
+                                <tr key={`${d.schoolId}_${d.academicYear}`} className="hover:bg-rose-50/50 dark:hover:bg-slate-800/50">
+                                  <td className="p-2.5 font-mono text-[11px]">{d.schoolId}</td>
+                                  <td className="p-2.5 font-black text-[#33272A] dark:text-[#FFF9F5]">{d.schoolName}</td>
+                                  <td className="p-2.5 text-center text-blue-600 dark:text-blue-400">{d.totalMale || 0}</td>
+                                  <td className="p-2.5 text-center text-pink-600 dark:text-pink-400">{d.totalFemale || 0}</td>
+                                  <td className="p-2.5 text-center font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 rounded-lg">
+                                    {d.totalStudents || 0}
+                                  </td>
+                                  <td className="p-2.5 text-center text-slate-600 dark:text-slate-300">{totalRooms}</td>
+                                  <td className="p-2.5 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditStudentData(d)}
+                                        className="p-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300 rounded-lg border border-teal-300 font-bold flex items-center gap-1 transition-colors cursor-pointer text-[11px]"
+                                        title="แก้ไขข้อมูล (Slide-over)"
+                                      >
+                                        <Edit3 className="h-3.5 w-3.5" /> แก้ไข
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSingleStudentData(d)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300 rounded-lg border border-rose-300 transition-colors cursor-pointer"
+                                        title="ลบรายการสถิตินี้"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          {studentData.filter(d => d.academicYear === (bigdataYear || bigdataAvailableYears[0])).length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
+                                ยังไม่มีข้อมูลนักเรียน BIGDATA ในปีการศึกษา {bigdataYear || bigdataAvailableYears[0]}
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#33272A]/10 font-bold">
-                            {previewData.slice(1, 5).map((row: any, i: number) => (
-                               <tr key={i}>
-                                 {row?.slice(0, 6).map((cell: any, ci: number) => (
-                                   <td key={ci} className="p-1 text-[#33272A]/80 dark:text-slate-300">{String(cell || '')}</td>
-                                 ))}
-                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      disabled={isUploading || previewData.length === 0}
-                      className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Upload className="h-4.5 w-4.5" />
-                      {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
-                    </button>
                   </div>
-                </form>
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          {adminTab === 'g_students' && (
-            <div className="space-y-6 animate-fade-in">
+              {studentSubTab === 'g_students' && (
+                <div className="space-y-6 animate-fade-in">
               {/* ส่วนบน: การลบข้อมูลตามปีการศึกษา & ฟอร์มอัปโหลดไฟล์ใหญ่ */}
               <div className="grid gap-6 md:grid-cols-3">
                 {/* ลบข้อมูลนักเรียนตัว G รายปีการศึกษา (เฉพาะ Super Admin) */}
@@ -2694,14 +2647,24 @@ export default function AdminPanel({
                               </td>
                               <td className="p-2 text-[10px] text-slate-500">{g.notes || '-'}</td>
                               <td className="p-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSingleGRecord(g.schoolId, g.schoolName, g.academicYear)}
-                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
-                                  title="ลบรายการโรงเรียนนี้"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditGRecord(g)}
+                                    className="p-1 text-teal-600 hover:text-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded transition-colors cursor-pointer"
+                                    title="แก้ไขจำนวนนักเรียนตัว G"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSingleGRecord(g.schoolId, g.schoolName, g.academicYear)}
+                                    className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                                    title="ลบรายการโรงเรียนนี้"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -2717,6 +2680,37 @@ export default function AdminPanel({
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+          {adminTab === 'system_status' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* 1. ผู้ใช้งานออนไลน์ขณะนี้ (Active Online Users - Live) */}
+              <ActiveUserSessionMonitor currentUserProfile={userProfile} />
+
+              {/* 2. สถานะทรัพยากรและโควตาฐานข้อมูล (Database Quota & Storage) */}
+              <DatabaseQuotaMonitor 
+                studentData={studentData} 
+                studentGData={studentGData} 
+                userProfiles={approvedUsers} 
+                schools={schools} 
+              />
+
+              {/* 3. สถานะ Server และโครงสร้างพื้นฐานสถานศึกษา (Server & School Infrastructure Status) */}
+              <InfrastructureView 
+                schools={schools} 
+                onSelectSchool={(schoolId) => {
+                  setAdminTab('schools');
+                }}
+                systemConfig={{
+                  allowDataDownload,
+                  electricityOptions,
+                  internetOptions
+                }}
+                userProfile={userProfile}
+              />
+            </div>
           )}
 
           {adminTab === 'users' && (
@@ -2916,6 +2910,277 @@ export default function AdminPanel({
 
           {adminTab === 'schools' && (
             <div className="space-y-6">
+              {/* แผงแก้ไขข้อมูลสถานศึกษาสำหรับ แอดมินโรงเรียน และ Super Admin */}
+              <div className="card p-6 border-l-4 border-l-[#FF8BA7]">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" /> 
+                  {isSuperAdmin ? 'แก้ไขข้อมูลพื้นฐานสถานศึกษาในระบบ (สิทธิ์ Super Admin)' : 'แก้ไขข้อมูลพื้นฐานของสถานศึกษาตนเอง'}
+                </h3>
+
+                {!isSuperAdmin && userProfile.status === 'pending' ? (
+                  <div className="rounded-2xl bg-[#FFD3B6] p-4 text-xs font-bold text-[#33272A] border-2 border-[#33272A] flex gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-[#FF8BA7]" />
+                    <span>บัญชีของคุณยังไม่ได้รับการอนุมัติจาก Super Admin (tamrri@gmail.com) จึงยังไม่สามารถบันทึกข้อมูลแก้ไขได้ในขณะนี้</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {isSuperAdmin && (
+                      <div className="space-y-1.5 bg-[#FFD3B6]/20 p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                          <Building className="h-4 w-4 text-[#FF8BA7]" /> เลือกโรงเรียนที่จะทำการแก้ไขข้อมูลทั้งหมด
+                        </label>
+                        <select
+                          value={selectedSchoolId}
+                          onChange={(e) => setSelectedSchoolId(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        >
+                          <option value="">-- กรุณาเลือกสถานศึกษา --</option>
+                          {schools.map(s => (
+                            <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSaveSchoolInfo} className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อสถานศึกษา</label>
+                        <input
+                          type="text"
+                          required
+                          value={editSchoolName}
+                          onChange={(e) => setEditSchoolName(e.target.value)}
+                          disabled={!isSuperAdmin}
+                          title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถเปลี่ยนชื่อโรงเรียนได้' : ''}
+                          className={`w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] ${!isSuperAdmin ? 'opacity-70 bg-gray-100 cursor-not-allowed dark:bg-gray-800' : ''}`}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อำเภอ (พื้นที่ตั้ง)</label>
+                        <select
+                          value={editAmphoe}
+                          onChange={(e) => setEditAmphoe(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        >
+                          <option value="">-- กรุณาเลือกอำเภอ --</option>
+                          <option value="เมืองแม่ฮ่องสอน">เมืองแม่ฮ่องสอน</option>
+                          <option value="ขุนยวม">ขุนยวม</option>
+                          <option value="ปาย">ปาย</option>
+                          <option value="ปางมะผ้า">ปางมะผ้า</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มพัฒนาคุณภาพการศึกษา (เครือข่าย)</label>
+                        <select
+                          value={editNetworkGroup}
+                          onChange={(e) => setEditNetworkGroup(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        >
+                          <option value="">-- เลือกกลุ่มเครือข่าย --</option>
+                          {availableNetworkGroups.map(group => (
+                            <option key={group} value={group}>{group}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ตที่ใช้งาน</label>
+                        <select
+                          value={String(editInternet)}
+                          onChange={(e) => setEditInternet(e.target.value as any)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        >
+                          {internetOptions.map(opt => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กระแสไฟฟ้า / พลังงานที่ใช้</label>
+                        <select
+                          value={typeof editElectricity === 'boolean' ? (editElectricity ? 'has_electric' : 'none') : String(editElectricity)}
+                          onChange={(e) => setEditElectricity(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        >
+                          {electricityOptions.map(opt => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากรในโรงเรียน (คน)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          required
+                          value={editStaffCount}
+                          onChange={(e) => setEditStaffCount(Number(e.target.value))}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">วิชาเอกที่มีความพร้อม (คั่นด้วยจุลภาค ",")</label>
+                        <input
+                          type="text"
+                          value={editMajorsStr}
+                          onChange={(e) => setEditMajorsStr(e.target.value)}
+                          placeholder="เช่น ปฐมวัย, คณิตศาสตร์, ภาษาอังกฤษ"
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-3">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                          <GraduationCap className="h-4 w-4 text-[#FF8BA7]" /> ระบุวิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
+                        </label>
+                        
+                        <div className="flex flex-wrap gap-2 items-end bg-white dark:bg-slate-800 p-2.5 rounded-xl border-2 border-[#33272A]/20">
+                          <div className="flex-1 min-w-[120px] space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500">ชื่อวิชาเอก</span>
+                            <input 
+                              type="text"
+                              placeholder="เช่น ภาษาไทย, คอมพิวเตอร์"
+                              value={newMajorName}
+                              onChange={(e) => setNewMajorName(e.target.value)}
+                              className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none focus:ring-1 focus:ring-[#FF8BA7]"
+                            />
+                          </div>
+                          <div className="w-24 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500">จำนวนครู (คน)</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={newMajorCount}
+                              onChange={(e) => setNewMajorCount(Number(e.target.value))}
+                              className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newMajorName.trim()) return;
+                              if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
+                                alert('วิชาเอกนี้มีอยู่ในรายการแล้ว');
+                                return;
+                              }
+                              setEditMajorsWithStaff(prev => [...prev, { name: newMajorName.trim(), teachersCount: newMajorCount }]);
+                              setNewMajorName('');
+                              setNewMajorCount(1);
+                            }}
+                            className="btn-cute bg-[#A0E7E5] text-[#33272A] text-xs font-black px-4 py-1.5 cursor-pointer shrink-0"
+                          >
+                            + เพิ่มวิชาเอก
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {editMajorsWithStaff.length > 0 ? (
+                            editMajorsWithStaff.map((m, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-white dark:bg-[#1e1518] p-2 rounded-xl border border-[#33272A]/20 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                                <span>{m.name}</span>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-gray-500 font-semibold">จำนวนครู:</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={m.teachersCount}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
+                                      }}
+                                      className="w-12 rounded border border-[#33272A]/30 bg-white p-0.5 text-center text-xs font-bold text-[#33272A]"
+                                    />
+                                    <span>คน</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-sm px-1"
+                                    title="ลบ"
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-center py-4 text-slate-400 text-xs font-bold">ยังไม่มีข้อมูลวิชาเอกและจำนวนครู กรุณาเพิ่มข้อมูลด้านบน</div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ติดต่อโรงเรียน</label>
+                        <input
+                          type="text"
+                          required
+                          value={editSchoolPhone}
+                          onChange={(e) => setEditSchoolPhone(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ส่วนตัวผู้บริหาร</label>
+                        <input
+                          type="text"
+                          required
+                          value={editDirectorPhone}
+                          onChange={(e) => setEditDirectorPhone(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
+                          ความพิเศษของโรงเรียน / จุดเด่น (Special Highlights)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={editSpecialHighlights}
+                          onChange={(e) => setEditSpecialHighlights(e.target.value)}
+                          placeholder="เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-2">
+                        {editSuccess && (
+                          <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                            {editSuccess}
+                          </div>
+                        )}
+                        {editError && (
+                          <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold">
+                            {editError}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSavingSchool || (isSuperAdmin && !selectedSchoolId)}
+                          className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Save className="h-4.5 w-4.5" />
+                          {isSavingSchool ? 'กำลังบันทึกข้อมูล...' : 'บันทึกข้อมูลสถานศึกษา'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+
               {/* ฟอร์มเพิ่มโรงเรียนใหม่ */}
               <div className="card p-6 bg-[#FFF9F5] dark:bg-[#1e1518]">
                 <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
@@ -3202,13 +3467,28 @@ export default function AdminPanel({
                           <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
                           <td className="p-3 text-center">{s.staffCount}</td>
                           <td className="p-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
-                              className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
-                            >
-                              <Trash2 className="h-3 w-3" /> ลบโรงเรียน
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSchoolId(s.id);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
+                                title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
+                              >
+                                <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
+                              </button>
+                              {isSuperAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
+                                  className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
+                                >
+                                  <Trash2 className="h-3 w-3" /> ลบโรงเรียน
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -3220,7 +3500,8 @@ export default function AdminPanel({
           )}
 
           {adminTab === 'settings' && (
-            <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
+            <div className="space-y-6">
+              <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
                 <div className="flex items-center gap-2">
                   <Settings className="h-6 w-6 text-[#FF8BA7]" />
@@ -3246,6 +3527,151 @@ export default function AdminPanel({
                 </div>
               )}
 
+              {/* ส่วนเลือกธีมและการแสดงผลของระบบ */}
+              <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#33272A]/20 pb-2">
+                  <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-[#FF8BA7]" />
+                    เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
+                  </h4>
+                  <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
+                    ธีมปัจจุบัน: {
+                      themeStyle === 'pastel' ? '🌸 พาสเทล' :
+                      themeStyle === 'modern' ? '🎨 โมเดิร์น' :
+                      themeStyle === 'darktech' ? '⚡ ดาร์กเทค' :
+                      themeStyle === 'minimal-slate' ? '📱 มินิมอล สเลต' :
+                      themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' : '🍃 เอ็มเมอรัลด์ มินต์'
+                    }
+                  </span>
+                </div>
+                <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
+                  เลือกสไตล์ธีมการแสดงผลของระบบเพื่อปรับประสบการณ์การใช้งานตามความชอบ โดยทุกธีมถูกออกแบบให้รองรับการเปิดใช้งานบนมือถือ สมาร์ตโฟน และแท็บเล็ตได้อย่างราบรื่น
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* 1. ธีมพาสเทล */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('pastel')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'pastel'
+                        ? 'bg-[#FF8BA7] text-[#33272A] shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Sparkles className="h-6 w-6 text-rose-600" />
+                    <span className="text-xs font-black">🌸 ธีมพาสเทล (Pastel Cute)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สดใสน่ารัก ซิกเนเจอร์ สพป.แม่ฮ่องสอน เขต 1</span>
+                  </button>
+
+                  {/* 2. ธีมโมเดิร์น */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('modern')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'modern'
+                        ? 'bg-indigo-600 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Palette className="h-6 w-6 text-indigo-400" />
+                    <span className="text-xs font-black">🎨 ธีมโมเดิร์น (Modern Clean)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">เรียบหรู ดูสบายตา สไตล์ทางการ</span>
+                  </button>
+
+                  {/* 3. ธีมดาร์กเทค */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('darktech')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'darktech'
+                        ? 'bg-emerald-500 text-slate-950 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Zap className="h-6 w-6 text-emerald-300" />
+                    <span className="text-xs font-black">⚡ ธีมดาร์กเทค (Dark Tech)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">ล้ำสมัย ถนอมสายตาสำหรับใช้งานกลางคืน</span>
+                  </button>
+
+                  {/* 4. ธีมมินิมอล สเลต (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('minimal-slate')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'minimal-slate'
+                        ? 'bg-slate-800 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Layers className="h-5 w-5 text-sky-400" />
+                      <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">📱 มินิมอล สเลต (Minimal Slate)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">คลีน นอร์ดิก กรอบบางสบายตาที่สุดสำหรับจอมือถือ</span>
+                  </button>
+
+                  {/* 5. ธีมวอร์ม เนเชอร์ (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('warm-nature')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'warm-nature'
+                        ? 'bg-amber-700 text-amber-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Sun className="h-5 w-5 text-amber-400" />
+                      <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">🌱 วอร์ม เนเชอร์ (Warm Nature)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">โทนสีครีมธรรมชาติ อุ่นสายตา ไม่สะท้อนจอมือถือ</span>
+                  </button>
+
+                  {/* 6. ธีมเอ็มเมอรัลด์ มินต์ (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('emerald-mint')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'emerald-mint'
+                        ? 'bg-emerald-700 text-emerald-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Sparkles className="h-5 w-5 text-emerald-300" />
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">🍃 เอ็มเมอรัลด์ มินต์ (iOS Dashboard)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">มินต์คลีน สดใส สไตล์ Dashboard กดง่ายบนสมาร์ตโฟน</span>
+                  </button>
+                </div>
+
+                {/* สวิตช์ Dark Mode / Light Mode */}
+                {setIsDarkMode && (
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm mt-3">
+                    <div>
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        โหมดการแสดงผลหน้าจอ (Dark / Light Mode)
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-0.5">
+                        {isDarkMode ? '🌙 โหมดมืด (Dark Mode) เปิดใช้งานอยู่' : '☀️ โหมดสว่าง (Light Mode) เปิดใช้งานอยู่'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDarkMode(!isDarkMode)}
+                      className="btn-cute bg-[#FFD3B6] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ffbe94]"
+                    >
+                      {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-600" />}
+                      <span>{isDarkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Grid 2 คอลัมน์: สวิตช์นโยบายระบบ & โครงสร้างพื้นฐาน */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* คอลัมน์ 1: นโยบายและสิทธิ์ระบบ */}
@@ -3255,7 +3681,96 @@ export default function AdminPanel({
                     สิทธิ์การเข้าถึงและนโยบายผู้ใช้งาน
                   </h4>
 
-                  {/* 1. เปิด/ปิด การดาวน์โหลดข้อมูล */}
+                  {/* 1. ระบบ Pop-up แจ้งเตือนผู้ใช้งานหนาแน่น */}
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                          <Activity className="h-4 w-4 text-rose-500" />
+                          Pop-up แจ้งเตือนผู้ใช้งานหนาแน่น (High Traffic Notice)
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
+                          {highTrafficAlertEnabled
+                            ? '✓ เปิดใช้งาน: แจ้งเตือนอัตโนมัติทันทีเมื่อสถานะเซิร์ฟเวอร์เป็นสีแดง (🔴 ผู้ใช้หนาแน่น)'
+                            : '❌ ปิดใช้งาน: ไม่แสดง Pop-up แจ้งเตือน'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSetting('highTrafficAlertEnabled', !highTrafficAlertEnabled)}
+                        disabled={isSavingSettings}
+                        className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
+                          highTrafficAlertEnabled
+                            ? 'bg-rose-400 text-rose-950 shadow-[2px_2px_0px_#33272A]'
+                            : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
+                        }`}
+                      >
+                        {highTrafficAlertEnabled ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
+                      </button>
+                    </div>
+
+                    {highTrafficAlertEnabled && (
+                      <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                        {/* Status Badge & Auto Trigger Note */}
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs font-bold">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-600 dark:text-slate-400">สถานะระบบ Server ปัจจุบัน:</span>
+                            <span className={`px-2 py-0.5 rounded-lg font-black text-[11px] ${
+                              serverStatus === 'red' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300' :
+                              serverStatus === 'yellow' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-300' :
+                              'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
+                            }`}>
+                              {serverStatus === 'red' ? '🔴 สีแดง (High Traffic / Pop-up ทำงาน)' :
+                               serverStatus === 'yellow' ? '🟡 สีเหลือง (เฝ้าระวัง)' :
+                               '🟢 สีเขียว (ปกติ)'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed">
+                            💡 ระบบจะเฝ้าระวังภาระคำขอ/ผู้ใช้แบบ Real-time เมื่อสถานะเซิร์ฟเวอร์เปลี่ยนเป็น <strong className="text-rose-600 dark:text-rose-400 font-extrabold">สีแดง (🔴)</strong> Pop-up จะเด้งแจ้งเตือนอัตโนมัติบนหน้าจอของผู้ใช้ทุกคน
+                          </p>
+                        </div>
+
+                        {/* Simulation Toggle Button for Admin Testing */}
+                        <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 flex items-center justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-black text-amber-950 dark:text-amber-200 flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                              ทดสอบ / บังคับสถานะเซิร์ฟเวอร์สีแดง
+                            </span>
+                            <p className="text-[10px] text-amber-800 dark:text-amber-300 font-bold">
+                              {simulateRedServerStatus ? '🔴 เปิดโหมดจำลองสถานะสีแดงอยู่ (Pop-up ทำงานแสดงผล)' : 'ปกติ (คำนวณตามภาระเซิร์ฟเวอร์จริง)'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSetting('simulateRedServerStatus', !simulateRedServerStatus)}
+                            disabled={isSavingSettings}
+                            className={`px-3 py-1.5 text-xs font-black rounded-lg border-2 border-[#33272A] cursor-pointer transition-all ${
+                              simulateRedServerStatus
+                                ? 'bg-rose-500 text-white shadow-[2px_2px_0px_#33272A]'
+                                : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] shadow-[2px_2px_0px_#33272A]'
+                            }`}
+                          >
+                            {simulateRedServerStatus ? '🔴 ปิดการจำลอง' : '⚡ บังคับสีแดง'}
+                          </button>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                            ข้อความแจ้งเตือน Pop-up (Message Text)
+                          </label>
+                          <input
+                            type="text"
+                            value={highTrafficAlertMessage}
+                            onChange={(e) => setHighTrafficAlertMessage(e.target.value)}
+                            className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#251b1e] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. เปิด/ปิด การดาวน์โหลดข้อมูล */}
                   <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -3439,144 +3954,413 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
+
+      {/* Slide-over Drawer: สถานะระบบและโควตาฐานข้อมูล */}
+      {isQuotaDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsQuotaDrawerOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-2xl bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl">
+              <div>
+                <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-4 mb-4 dark:border-[#FFD3B6]">
+                  <h3 className="font-black text-base text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-emerald-500 animate-pulse" />
+                    สถานะการทำงานระบบ &amp; โควตาฐานข้อมูล MHS1-DMC
+                  </h3>
+                  <button
+                    onClick={() => setIsQuotaDrawerOpen(false)}
+                    className="btn-cute bg-rose-100 hover:bg-rose-200 text-rose-800 px-3 py-1 rounded-xl text-xs font-black cursor-pointer"
+                  >
+                    ปิด ✕
+                  </button>
+                </div>
+
+                <DatabaseQuotaMonitor
+                  schools={schools}
+                  studentData={studentData}
+                  studentGData={studentGData}
+                  userProfiles={[...pendingUsers, ...approvedUsers]}
+                  onRefreshData={onRefreshData}
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 text-right">
+                <button
+                  onClick={() => setIsQuotaDrawerOpen(false)}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer"
+                >
+                  เรียบร้อย
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modal แก้ไขข้อมูลผู้ใช้งานโดย Super Admin */}
+      {/* Slide-over Drawer: แก้ไขข้อมูลผู้ใช้งานโดย Super Admin */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white dark:bg-[#1e1518] rounded-3xl border-4 border-[#33272A] dark:border-[#FFD3B6] p-6 max-w-md w-full shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6] space-y-4">
-            <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-              <h3 className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <Edit3 className="h-5 w-5 text-[#FF8BA7]" /> แก้ไขข้อมูลและรีเซ็ตรหัสผ่านแอดมิน
-              </h3>
-              <button 
-                onClick={() => setEditingUser(null)} 
-                className="text-gray-500 hover:text-gray-700 font-bold text-lg cursor-pointer"
-              >
-                &times;
-              </button>
+        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setEditingUser(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-md bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <h3 className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                    <Edit3 className="h-5 w-5 text-[#FF8BA7]" /> แก้ไขข้อมูลและรีเซ็ตรหัสผ่านแอดมิน
+                  </h3>
+                  <button 
+                    onClick={() => setEditingUser(null)} 
+                    className="text-gray-500 hover:text-gray-700 font-bold text-lg cursor-pointer p-1"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveUserEdit} className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
+                        <input
+                          type="text"
+                          required
+                          value={editUserFirstName}
+                          onChange={(e) => setEditUserFirstName(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
+                        <input
+                          type="text"
+                          required
+                          value={editUserLastName}
+                          onChange={(e) => setEditUserLastName(e.target.value)}
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
+                      <input
+                        type="email"
+                        required
+                        value={editUserEmail}
+                        onChange={(e) => setEditUserEmail(e.target.value)}
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">บทบาทผู้ใช้งาน</label>
+                      <select
+                        value={editUserRole}
+                        onChange={(e) => setEditUserRole(e.target.value as 'super_admin' | 'school_admin')}
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                      >
+                        <option value="school_admin">School Admin (แอดมินโรงเรียน)</option>
+                        <option value="super_admin">Super Admin (แอดมินเขตพื้นที่)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">โรงเรียนสังกัด</label>
+                      <select
+                        value={editUserSchoolId}
+                        onChange={(e) => setEditUserSchoolId(e.target.value)}
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                      >
+                        <option value="all">สพป.แม่ฮ่องสอน เขต 1 (ส่วนกลาง/เขตพื้นที่)</option>
+                        {schools.map(s => (
+                          <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* ส่วนรีเซ็ตรหัสผ่านด่วน */}
+                  <div className="bg-[#FFD3B6]/20 p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-2">
+                    <p className="text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-black flex items-center gap-1">
+                      <Key className="h-4 w-4 text-[#FF8BA7]" /> รีเซ็ตรหัสผ่านสำหรับแอดมินท่านนี้
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-semibold leading-relaxed">
+                      ระบบจะส่งอีเมลลิงก์สำหรับกำหนดรหัสผ่านใหม่ไปยังที่อยู่อีเมลของผู้ใช้ท่านนี้โดยตรง เพื่อความปลอดภัยและเป็นความลับ
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isResettingPassword}
+                      onClick={handleSendPasswordReset}
+                      className="w-full py-1.5 bg-[#FF8BA7]/20 border-2 border-[#33272A] text-[#33272A] hover:bg-[#FF8BA7]/30 rounded-xl text-xs font-black transition-colors cursor-pointer"
+                    >
+                      {isResettingPassword ? 'กำลังดำเนินการส่งอีเมล...' : 'ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน'}
+                    </button>
+                    <div className="bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 p-2.5 rounded-xl border border-amber-200/50 text-[10px] font-semibold space-y-1">
+                      <p className="font-bold">💡 ทำไมผู้ใช้ไม่ได้รับอีเมลรีเซ็ตรหัสผ่าน?</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        <li><span className="font-bold text-rose-500">ตรวจสอบโฟลเดอร์ "อีเมลขยะ" (Spam / Junk Mail):</span> อีเมลเริ่มต้นของระบบ Firebase มักจะถูกกรองเป็นสแปม</li>
+                        <li><span className="font-bold text-[#FF8BA7]">เข้าสู่ระบบด้วย Google:</span> หากผู้ใช้รายนี้สมัครเข้าใช้งานด้วยการกดปุ่ม "Gmail (Google)" เขาจะไม่มีรหัสผ่านในระบบ</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {userEditSuccess && (
+                    <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
+                      {userEditSuccess}
+                    </div>
+                  )}
+
+                  {userEditError && (
+                    <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
+                      {userEditError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 justify-end pt-2 border-t-2 border-[#33272A] dark:border-[#FFD3B6]">
+                    <button
+                      type="button"
+                      onClick={() => setEditingUser(null)}
+                      className="rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-4 py-2 text-xs font-black cursor-pointer hover:bg-gray-200 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingUserEdit}
+                      className="rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#A0E7E5]/80 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingUserEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleSaveUserEdit} className="space-y-4">
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
-                    <input
-                      type="text"
-                      required
-                      value={editUserFirstName}
-                      onChange={(e) => setEditUserFirstName(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
-                    <input
-                      type="text"
-                      required
-                      value={editUserLastName}
-                      onChange={(e) => setEditUserLastName(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
-                  <input
-                    type="email"
-                    required
-                    value={editUserEmail}
-                    onChange={(e) => setEditUserEmail(e.target.value)}
-                    className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">บทบาทผู้ใช้งาน</label>
-                  <select
-                    value={editUserRole}
-                    onChange={(e) => setEditUserRole(e.target.value as 'super_admin' | 'school_admin')}
-                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+      {/* Slide-over Drawer: แก้ไขข้อมูลนักเรียน BIGDATA */}
+      {editingStudentDataRecord && (
+        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setEditingStudentDataRecord(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-lg bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                    <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
+                    แก้ไขจำนวนนักเรียน BIGDATA: {editingStudentDataRecord.schoolName}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setEditingStudentDataRecord(null)}
+                    className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 cursor-pointer"
                   >
-                    <option value="school_admin">School Admin (แอดมินโรงเรียน)</option>
-                    <option value="super_admin">Super Admin (แอดมินเขตพื้นที่)</option>
-                  </select>
+                    &times;
+                  </button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">โรงเรียนสังกัด</label>
-                  <select
-                    value={editUserSchoolId}
-                    onChange={(e) => setEditUserSchoolId(e.target.value)}
-                    className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                  >
-                    <option value="all">สพป.แม่ฮ่องสอน เขต 1 (ส่วนกลาง/เขตพื้นที่)</option>
-                    {schools.map(s => (
-                      <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
-                    ))}
-                  </select>
+                <div className="space-y-3 text-xs font-bold">
+                  <div className="p-2.5 bg-[#FFD3B6]/30 rounded-xl border border-[#33272A]/20">
+                    <span>ปีการศึกษา: </span>
+                    <span className="font-mono text-rose-600">{editingStudentDataRecord.academicYear}</span>
+                    <span className="ml-4">รหัสโรงเรียน: </span>
+                    <span className="font-mono text-blue-600">{editingStudentDataRecord.schoolId}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชาย (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editStudentMale}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditStudentMale(val);
+                          setEditStudentTotal(val + editStudentFemale);
+                        }}
+                        className="w-full input-cute p-2 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิง (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editStudentFemale}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditStudentFemale(val);
+                          setEditStudentTotal(editStudentMale + val);
+                        }}
+                        className="w-full input-cute p-2 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">รวมทั้งหมด (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editStudentTotal}
+                        onChange={(e) => setEditStudentTotal(Number(e.target.value))}
+                        className="w-full input-cute p-2 font-mono bg-rose-50 dark:bg-rose-950/20 text-rose-600 font-black"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">จำนวนห้องเรียน</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editStudentClasses}
+                        onChange={(e) => setEditStudentClasses(Number(e.target.value))}
+                        className="w-full input-cute p-2 font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* ส่วนรีเซ็ตรหัสผ่านด่วน */}
-              <div className="bg-[#FFD3B6]/20 p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-2">
-                <p className="text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-black flex items-center gap-1">
-                  <Key className="h-4 w-4 text-[#FF8BA7]" /> รีเซ็ตรหัสผ่านสำหรับแอดมินท่านนี้
-                </p>
-                <p className="text-[10px] text-gray-500 font-semibold leading-relaxed">
-                  ระบบจะส่งอีเมลลิงก์สำหรับกำหนดรหัสผ่านใหม่ไปยังที่อยู่อีเมลของผู้ใช้ท่านนี้โดยตรง เพื่อความปลอดภัยและเป็นความลับ
-                </p>
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
                 <button
                   type="button"
-                  disabled={isResettingPassword}
-                  onClick={handleSendPasswordReset}
-                  className="w-full py-1.5 bg-[#FF8BA7]/20 border-2 border-[#33272A] text-[#33272A] hover:bg-[#FF8BA7]/30 rounded-xl text-xs font-black transition-colors cursor-pointer"
-                >
-                  {isResettingPassword ? 'กำลังดำเนินการส่งอีเมล...' : 'ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน'}
-                </button>
-                <div className="bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 p-2.5 rounded-xl border border-amber-200/50 text-[10px] font-semibold space-y-1">
-                  <p className="font-bold">💡 ทำไมผู้ใช้ไม่ได้รับอีเมลรีเซ็ตรหัสผ่าน?</p>
-                  <ul className="list-disc list-inside space-y-0.5">
-                    <li><span className="font-bold text-rose-500">ตรวจสอบโฟลเดอร์ "อีเมลขยะ" (Spam / Junk Mail):</span> อีเมลเริ่มต้นของระบบ Firebase มักจะถูกกรองเป็นสแปม</li>
-                    <li><span className="font-bold text-[#FF8BA7]">เข้าสู่ระบบด้วย Google:</span> หากผู้ใช้รายนี้สมัครเข้าใช้งานด้วยการกดปุ่ม "Gmail (Google)" เขาจะไม่มีรหัสผ่านในระบบ (ให้ล็อกอินผ่านปุ่ม Gmail ตามเดิมได้เลยโดยไม่ต้องรีเซ็ตรหัสผ่าน)</li>
-                    <li><span className="font-bold">การเปิดใช้งานใน Firebase Console:</span> ตรวจสอบให้แน่ใจว่าได้เปิดใช้งาน Email Template ในส่วนของ "Password reset" ในหน้า Firebase Console &gt; Authentication &gt; Templates แล้ว</li>
-                  </ul>
-                </div>
-              </div>
-
-              {userEditSuccess && (
-                <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
-                  {userEditSuccess}
-                </div>
-              )}
-
-              {userEditError && (
-                <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
-                  {userEditError}
-                </div>
-              )}
-
-              <div className="flex gap-2 justify-end pt-2 border-t-2 border-[#33272A] dark:border-[#FFD3B6]">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-4 py-2 text-xs font-black cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => setEditingStudentDataRecord(null)}
+                  className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
-                  type="submit"
-                  disabled={isSavingUserEdit}
-                  className="rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#A0E7E5]/80 transition-colors disabled:opacity-50"
+                  type="button"
+                  onClick={handleSaveStudentDataEdit}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
                 >
-                  {isSavingUserEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+                  บันทึกข้อมูล
                 </button>
               </div>
-            </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Drawer: แก้ไขจำนวนนักเรียนตัว G */}
+      {editingGRecord && (
+        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setEditingGRecord(null)}
+          />
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div className="w-screen max-w-lg bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                    <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
+                    แก้ไขจำนวนนักเรียนตัว G: {editingGRecord.schoolName}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setEditingGRecord(null)}
+                    className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 cursor-pointer"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs font-bold">
+                  <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200">
+                    <span>ปีการศึกษา: </span>
+                    <span className="font-mono text-blue-600">{editingGRecord.academicYear}</span>
+                    <span className="ml-4">รหัสโรงเรียน: </span>
+                    <span className="font-mono text-slate-700 dark:text-slate-200">{editingGRecord.schoolId}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชายตัว G (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editGMale}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditGMale(val);
+                          setEditGTotal(val + editGFemale);
+                        }}
+                        className="w-full input-cute p-2 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิงตัว G (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editGFemale}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditGFemale(val);
+                          setEditGTotal(editGMale + val);
+                        }}
+                        className="w-full input-cute p-2 font-mono"
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">รวมจำนวนนักเรียนตัว G ทั้งหมด (คน)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editGTotal}
+                        onChange={(e) => setEditGTotal(Number(e.target.value))}
+                        className="w-full input-cute p-2 font-mono bg-blue-50 dark:bg-blue-950/20 text-blue-600 font-black text-sm"
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-slate-600 dark:text-slate-300">หมายเหตุ</label>
+                      <input
+                        type="text"
+                        value={editGNotes}
+                        onChange={(e) => setEditGNotes(e.target.value)}
+                        placeholder="เช่น ข้อมูลปรับปรุงล่าสุด..."
+                        className="w-full input-cute p-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setEditingGRecord(null)}
+                  className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveGRecordEdit}
+                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
+                >
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

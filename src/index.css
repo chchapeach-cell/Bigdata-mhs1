@@ -6,8 +6,8 @@
   --color-primary: #FF8BA7;
   --color-secondary: #A0E7E5;
   --color-accent: #FFD3B6;
-  --color-bg-vibrant: #FFF9F5;
-  --color-text-vibrant: #33272A;
+  --color-bg-vibrant: var(--bg-vibrant, #FFF9F5);
+  --color-text-vibrant: var(--text-vibrant, #33272A);
 }
 
 :root {
@@ -26,6 +26,7 @@ body {
   overflow-x: clip;
   margin: 0;
   padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 html, #root {
@@ -33,6 +34,353 @@ html, #root {
   overflow-x: clip;
 }
 
+/* -------------------------------------------------------------
+   THEME 1: PASTEL CUTE (Default Neo-Brutalist)
+   ------------------------------------------------------------- */
+.theme-pastel, html.theme-pastel {
+  --bg-vibrant: #FFF9F5;
+  --text-vibrant: #33272A;
+  --color-bg-vibrant: #FFF9F5;
+  --color-text-vibrant: #33272A;
+}
+
+.theme-pastel.dark, html.theme-pastel.dark, .dark.theme-pastel, .theme-pastel .dark {
+  --bg-vibrant: #1e1518;
+  --text-vibrant: #FFF9F5;
+  --color-bg-vibrant: #1e1518;
+  --color-text-vibrant: #FFF9F5;
+}
+
+.theme-pastel body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-pastel .card {
+  background-color: white;
+  border: 2px solid #33272A;
+  border-radius: 20px;
+  box-shadow: 4px 4px 0px #33272A;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.theme-pastel.dark .card,
+.theme-pastel .dark .card,
+.dark.theme-pastel .card {
+  background-color: #1e1518;
+  border: 2px solid #FFD3B6;
+  box-shadow: 4px 4px 0px #FFD3B6;
+  color: #FFF9F5;
+}
+
+.theme-pastel .btn-cute {
+  border: 2px solid #33272A;
+  border-radius: 999px;
+  box-shadow: 3px 3px 0px #33272A;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-pastel.dark .btn-cute,
+.theme-pastel .dark .btn-cute,
+.dark.theme-pastel .btn-cute {
+  border: 2px solid #FFD3B6;
+  box-shadow: 3px 3px 0px #FFD3B6;
+}
+
+/* -------------------------------------------------------------
+   THEME 2: MODERN CLEAN CORPORATE
+   ------------------------------------------------------------- */
+.theme-modern, html.theme-modern {
+  --bg-vibrant: #F8FAFC;
+  --text-vibrant: #0F172A;
+  --color-bg-vibrant: #F8FAFC;
+  --color-text-vibrant: #0F172A;
+}
+
+.theme-modern.dark, html.theme-modern.dark, .dark.theme-modern, .theme-modern .dark {
+  --bg-vibrant: #0F172A;
+  --text-vibrant: #F8FAFC;
+  --color-bg-vibrant: #0F172A;
+  --color-text-vibrant: #F8FAFC;
+}
+
+.theme-modern body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-modern .card {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02) !important;
+  color: #0F172A !important;
+  transition: all 0.2s ease;
+}
+
+.theme-modern .card:hover {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.07) !important;
+}
+
+.theme-modern.dark .card,
+.theme-modern .dark .card,
+.dark.theme-modern .card {
+  background-color: #1E293B !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3) !important;
+  color: #F8FAFC !important;
+}
+
+.theme-modern .btn-cute {
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-modern.dark .btn-cute,
+.theme-modern .dark .btn-cute,
+.dark.theme-modern .btn-cute {
+  border: 1px solid #475569 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.2) !important;
+}
+
+/* -------------------------------------------------------------
+   THEME 3: DARK TECH CYBER / MINIMAL DARK
+   ------------------------------------------------------------- */
+.theme-darktech, html.theme-darktech {
+  --bg-vibrant: #0B0F19;
+  --text-vibrant: #F1F5F9;
+  --color-bg-vibrant: #0B0F19;
+  --color-text-vibrant: #F1F5F9;
+}
+
+.theme-darktech body {
+  background-color: #0B0F19 !important;
+  color: #F1F5F9 !important;
+}
+
+.theme-darktech .card {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  color: #F8FAFC !important;
+  transition: all 0.2s ease;
+}
+
+.theme-darktech .btn-cute {
+  border: 1px solid rgba(139, 92, 246, 0.4) !important;
+  border-radius: 12px !important;
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.15) !important;
+  color: #F8FAFC !important;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------
+   THEME 4: MINIMAL SLATE (นอร์ดิก มินิมอล อ่านง่ายบนมือถือ)
+   ------------------------------------------------------------- */
+.theme-minimal-slate, html.theme-minimal-slate {
+  --bg-vibrant: #F1F5F9;
+  --text-vibrant: #0F172A;
+  --color-bg-vibrant: #F1F5F9;
+  --color-text-vibrant: #0F172A;
+}
+
+.theme-minimal-slate.dark, html.theme-minimal-slate.dark, .dark.theme-minimal-slate, .theme-minimal-slate .dark {
+  --bg-vibrant: #0F172A;
+  --text-vibrant: #F8FAFC;
+  --color-bg-vibrant: #0F172A;
+  --color-text-vibrant: #F8FAFC;
+}
+
+.theme-minimal-slate body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-minimal-slate .card {
+  background-color: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+  color: #0F172A !important;
+  transition: all 0.2s ease;
+}
+
+.theme-minimal-slate.dark .card,
+.theme-minimal-slate .dark .card,
+.dark.theme-minimal-slate .card {
+  background-color: #1E293B !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
+  color: #F8FAFC !important;
+}
+
+.theme-minimal-slate .btn-cute {
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-minimal-slate.dark .btn-cute,
+.theme-minimal-slate .dark .btn-cute,
+.dark.theme-minimal-slate .btn-cute {
+  border: 1px solid #475569 !important;
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+/* -------------------------------------------------------------
+   THEME 5: WARM NATURE (ครีมธรรมชาติ ถนอมสายตามือถือ)
+   ------------------------------------------------------------- */
+.theme-warm-nature, html.theme-warm-nature {
+  --bg-vibrant: #F5F2EB;
+  --text-vibrant: #292524;
+  --color-bg-vibrant: #F5F2EB;
+  --color-text-vibrant: #292524;
+}
+
+.theme-warm-nature.dark, html.theme-warm-nature.dark, .dark.theme-warm-nature, .theme-warm-nature .dark {
+  --bg-vibrant: #1C1917;
+  --text-vibrant: #FAFAF9;
+  --color-bg-vibrant: #1C1917;
+  --color-text-vibrant: #FAFAF9;
+}
+
+.theme-warm-nature body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-warm-nature .card {
+  background-color: #FFFCF7 !important;
+  border: 1px solid #E7E5E4 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 8px -2px rgba(28, 25, 23, 0.06) !important;
+  color: #292524 !important;
+  transition: all 0.2s ease;
+}
+
+.theme-warm-nature.dark .card,
+.theme-warm-nature .dark .card,
+.dark.theme-warm-nature .card {
+  background-color: #292524 !important;
+  border: 1px solid #44403C !important;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.4) !important;
+  color: #FAFAF9 !important;
+}
+
+.theme-warm-nature .btn-cute {
+  border: 1px solid #D6D3D1 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  background-color: #FFFCF7 !important;
+  color: #292524 !important;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-warm-nature.dark .btn-cute,
+.theme-warm-nature .dark .btn-cute,
+.dark.theme-warm-nature .btn-cute {
+  border: 1px solid #57534E !important;
+  background-color: #292524 !important;
+  color: #FAFAF9 !important;
+}
+
+/* -------------------------------------------------------------
+   THEME 6: EMERALD MINT (มินต์ สดใส คลีนสไตล์ iOS Mobile)
+   ------------------------------------------------------------- */
+.theme-emerald-mint, html.theme-emerald-mint {
+  --bg-vibrant: #ECFDF5;
+  --text-vibrant: #064E3B;
+  --color-bg-vibrant: #ECFDF5;
+  --color-text-vibrant: #064E3B;
+}
+
+.theme-emerald-mint.dark, html.theme-emerald-mint.dark, .dark.theme-emerald-mint, .theme-emerald-mint .dark {
+  --bg-vibrant: #062C22;
+  --text-vibrant: #ECFDF5;
+  --color-bg-vibrant: #062C22;
+  --color-text-vibrant: #ECFDF5;
+}
+
+.theme-emerald-mint body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-emerald-mint .card {
+  background-color: #FFFFFF !important;
+  border: 1px solid #A7F3D0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.12) !important;
+  color: #064E3B !important;
+  transition: all 0.2s ease;
+}
+
+.theme-emerald-mint.dark .card,
+.theme-emerald-mint .dark .card,
+.dark.theme-emerald-mint .card {
+  background-color: #064E3B !important;
+  border: 1px solid #059669 !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4) !important;
+  color: #ECFDF5 !important;
+}
+
+.theme-emerald-mint .btn-cute {
+  border: 1px solid #6EE7B7 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px 0 rgba(16, 185, 129, 0.1) !important;
+  background-color: #FFFFFF !important;
+  color: #064E3B !important;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.theme-emerald-mint.dark .btn-cute,
+.theme-emerald-mint .dark .btn-cute,
+.dark.theme-emerald-mint .btn-cute {
+  border: 1px solid #047857 !important;
+  background-color: #064E3B !important;
+  color: #ECFDF5 !important;
+}
+
+/* Fallback default styles if theme class not set */
 .card {
   background: white;
   border: 2px solid #33272A;
@@ -41,21 +389,11 @@ html, #root {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
-.card:hover {
-  transform: none;
-  box-shadow: 4px 4px 0px #33272A;
-}
-
 .dark .card {
   background: #1e1518;
   border: 2px solid #FFD3B6;
   box-shadow: 4px 4px 0px #FFD3B6;
   color: #FFF9F5;
-}
-
-.dark .card:hover {
-  transform: none;
-  box-shadow: 4px 4px 0px #FFD3B6;
 }
 
 .btn-cute {
@@ -70,22 +408,9 @@ html, #root {
   font-weight: 600;
 }
 
-.btn-cute:hover {
-  transform: none;
-}
-
-.btn-cute:active {
-  transform: none;
-  box-shadow: 2px 2px 0px #33272A;
-}
-
 .dark .btn-cute {
   border: 2px solid #FFD3B6;
   box-shadow: 3px 3px 0px #FFD3B6;
-}
-
-.dark .btn-cute:active {
-  box-shadow: 1px 1px 0px #FFD3B6;
 }
 
 .sidebar-link {
