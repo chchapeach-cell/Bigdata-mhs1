@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -231,9 +231,18 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings'>('students_center');
+  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings'>(
+    isSuperAdmin ? 'students_center' : 'schools'
+  );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
   const [isQuotaDrawerOpen, setIsQuotaDrawerOpen] = useState<boolean>(false);
+
+  // ป้องกันกรณีแอดมินโรงเรียนเข้าถึงเมนูศูนย์ข้อมูลนักเรียน
+  useEffect(() => {
+    if (!isSuperAdmin && adminTab === 'students_center') {
+      setAdminTab('schools');
+    }
+  }, [isSuperAdmin, adminTab]);
 
   // State สำหรับจัดการข้อมูลนักเรียนตัว G
   const [gYear, setGYear] = useState<string>('2568');
@@ -1170,6 +1179,7 @@ export default function AdminPanel({
   const [headerBannerEnabled, setHeaderBannerEnabled] = useState<boolean>(systemConfig?.headerBannerEnabled ?? true);
 
   const handleHeaderBannerUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!isSuperAdmin) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -1296,6 +1306,7 @@ export default function AdminPanel({
 
   // เพิ่มตัวเลือกไฟฟ้า
   const handleAddElectricityOption = () => {
+    if (!isSuperAdmin) return;
     if (!newElecLabel.trim()) return;
     const id = newElecId.trim() || `elec_${Date.now()}`;
     if (electricityOptions.some(o => o.id === id)) {
@@ -1309,6 +1320,7 @@ export default function AdminPanel({
   };
 
   const handleRemoveElectricityOption = (id: string) => {
+    if (!isSuperAdmin) return;
     if (electricityOptions.length <= 1) {
       alert('ต้องมีประเภทไฟฟ้าอย่างน้อย 1 รายการ');
       return;
@@ -1318,6 +1330,7 @@ export default function AdminPanel({
 
   // เพิ่มตัวเลือกอินเทอร์เน็ต
   const handleAddInternetOption = () => {
+    if (!isSuperAdmin) return;
     if (!newNetLabel.trim()) return;
     const id = newNetId.trim() || `net_${Date.now()}`;
     if (internetOptions.some(o => o.id === id)) {
@@ -1331,6 +1344,7 @@ export default function AdminPanel({
   };
 
   const handleRemoveInternetOption = (id: string) => {
+    if (!isSuperAdmin) return;
     if (internetOptions.length <= 1) {
       alert('ต้องมีประเภทอินเทอร์เน็ตอย่างน้อย 1 รายการ');
       return;
@@ -1868,13 +1882,15 @@ export default function AdminPanel({
             <div className="inline-flex items-center gap-1.5 bg-white/80 dark:bg-black/40 px-2.5 py-1 rounded-xl border border-[#33272A]/30 text-[10px] font-bold">
               <Activity className="h-3 w-3 text-emerald-500" />
               <span>โควตาฐานข้อมูล: <strong className="text-emerald-700 dark:text-emerald-300">1.2% Safe</strong></span>
-              <button
-                type="button"
-                onClick={() => setIsQuotaDrawerOpen(true)}
-                className="text-rose-600 dark:text-rose-400 hover:underline font-black cursor-pointer ml-1 text-[10px] bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-300"
-              >
-                ดูรายละเอียด ➔
-              </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsQuotaDrawerOpen(true)}
+                  className="text-rose-600 dark:text-rose-400 hover:underline font-black cursor-pointer ml-1 text-[10px] bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-300"
+                >
+                  ดูรายละเอียด ➔
+                </button>
+              )}
             </div>
           </div>
 
@@ -1885,17 +1901,19 @@ export default function AdminPanel({
 
         {/* แถบนำทางเมนูหลัก */}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setAdminTab('students_center')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
-              adminTab === 'students_center' 
-                ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-            }`}
-          >
-            <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
-            <span>ศูนย์ข้อมูลนักเรียน (Student Data Center)</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setAdminTab('students_center')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                adminTab === 'students_center' 
+                  ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
+              <span>ศูนย์ข้อมูลนักเรียน (Student Data Center)</span>
+            </button>
+          )}
 
           <button
             onClick={() => setAdminTab('schools')}
@@ -1906,7 +1924,7 @@ export default function AdminPanel({
             }`}
           >
             <Building className="h-4 w-4" />
-            <span>จัดการรายชื่อโรงเรียน ({schools.length})</span>
+            <span>{isSuperAdmin ? `จัดการรายชื่อโรงเรียน (${schools.length})` : 'จัดการข้อมูลสถานศึกษาตนเอง'}</span>
           </button>
 
           {isSuperAdmin && (
@@ -1957,7 +1975,8 @@ export default function AdminPanel({
       </div>
 
           {adminTab === 'students_center' && (
-            <div className="space-y-6 animate-fade-in">
+            isSuperAdmin ? (
+              <div className="space-y-6 animate-fade-in">
               {/* แถบเมนูกลุ่มย่อยภายในศูนย์ข้อมูลนักเรียน */}
               <div className="card p-3 bg-white dark:bg-[#1e1518] flex flex-wrap gap-2 items-center justify-between border-2 border-[#33272A] dark:border-[#FFD3B6]">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2719,7 +2738,18 @@ export default function AdminPanel({
               </div>
             )}
           </div>
-        )}
+        ) : (
+          <div className="card p-6 bg-rose-50 dark:bg-rose-950/30 border-2 border-rose-300 text-rose-900 dark:text-rose-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-rose-500 shrink-0" />
+              <h3 className="font-black text-sm">จำกัดสิทธิ์การเข้าถึง</h3>
+            </div>
+            <p className="text-xs font-bold">
+              เมนูศูนย์ข้อมูลนักเรียน (Student Data Center) อนุญาตให้เฉพาะผู้ใช้งานระดับ Super Admin จัดการและเข้าถึงได้เท่านั้น
+            </p>
+          </div>
+        )
+      )}
 
           {adminTab === 'system_status' && (
             <div className="space-y-6 animate-fade-in">
@@ -3218,13 +3248,14 @@ export default function AdminPanel({
                 )}
               </div>
 
-              {/* ฟอร์มเพิ่มโรงเรียนใหม่ */}
-              <div className="card p-6 bg-[#FFF9F5] dark:bg-[#1e1518]">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> เพิ่มข้อมูลสถานศึกษาใหม่เข้าสู่ระบบ
-                </h3>
+              {/* ฟอร์มเพิ่มโรงเรียนใหม่ (เฉพาะ Super Admin) */}
+              {isSuperAdmin && (
+                <div className="card p-6 bg-[#FFF9F5] dark:bg-[#1e1518]">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> เพิ่มข้อมูลสถานศึกษาใหม่เข้าสู่ระบบ
+                  </h3>
 
-                <form onSubmit={handleAddSchoolSubmit} className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  <form onSubmit={handleAddSchoolSubmit} className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-1">
                     <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
                       รหัสสถานศึกษา (8 หลัก) <span className="text-rose-500">*</span>
@@ -3384,6 +3415,7 @@ export default function AdminPanel({
                   </div>
                 </form>
               </div>
+            )}
 
               {/* ส่วนจัดการและแก้ไขชื่อกลุ่มเครือข่ายสถานศึกษา (เฉพาะ Super Admin) */}
               {isSuperAdmin && (
@@ -3479,60 +3511,62 @@ export default function AdminPanel({
                 </div>
               )}
 
-              {/* ตารางรายชื่อโรงเรียนทั้งหมดพร้อมปุ่มลบ */}
-              <div className="card p-6 space-y-4">
-                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> ตารางรายชื่อโรงเรียนในระบบทั้งหมด ({schools.length} แห่ง)
-                </h3>
+              {/* ตารางรายชื่อโรงเรียนทั้งหมดพร้อมปุ่มลบ (เฉพาะ Super Admin) */}
+              {isSuperAdmin && (
+                <div className="card p-6 space-y-4">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> ตารางรายชื่อโรงเรียนในระบบทั้งหมด ({schools.length} แห่ง)
+                  </h3>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
-                        <th className="p-3">รหัสโรงเรียน</th>
-                        <th className="p-3">ชื่อสถานศึกษา</th>
-                        <th className="p-3">อำเภอ</th>
-                        <th className="p-3 text-center">ครู (คน)</th>
-                        <th className="p-3 text-center">จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-bold">
-                      {schools.map((s) => (
-                        <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
-                          <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
-                          <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
-                          <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
-                          <td className="p-3 text-center">{s.staffCount}</td>
-                          <td className="p-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedSchoolId(s.id);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
-                                title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
-                              >
-                                <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
-                              </button>
-                              {isSuperAdmin && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                          <th className="p-3">รหัสโรงเรียน</th>
+                          <th className="p-3">ชื่อสถานศึกษา</th>
+                          <th className="p-3">อำเภอ</th>
+                          <th className="p-3 text-center">ครู (คน)</th>
+                          <th className="p-3 text-center">จัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-bold">
+                        {schools.map((s) => (
+                          <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
+                            <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
+                            <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
+                            <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
+                            <td className="p-3 text-center">{s.staffCount}</td>
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
-                                  className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
+                                  onClick={() => {
+                                    setSelectedSchoolId(s.id);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
+                                  title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
                                 >
-                                  <Trash2 className="h-3 w-3" /> ลบโรงเรียน
+                                  <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                                {isSuperAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
+                                    className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
+                                  >
+                                    <Trash2 className="h-3 w-3" /> ลบโรงเรียน
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -3549,8 +3583,9 @@ export default function AdminPanel({
                 <button
                   type="button"
                   onClick={handleSaveAllSystemConfig}
-                  disabled={isSavingSettings}
+                  disabled={isSavingSettings || !isSuperAdmin}
                   className="btn-cute bg-[#A0E7E5] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 disabled:opacity-50"
+                  title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถบันทึกได้' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
                 >
                   <Save className="h-4 w-4" />
                   {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
@@ -3577,7 +3612,8 @@ export default function AdminPanel({
                     <button
                       type="button"
                       onClick={() => setHeaderBannerEnabled(!headerBannerEnabled)}
-                      className={`btn-cute px-3 py-1.5 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-all ${
+                      disabled={!isSuperAdmin}
+                      className={`btn-cute px-3 py-1.5 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                         headerBannerEnabled
                           ? 'bg-emerald-400 text-[#33272A]'
                           : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
@@ -3588,6 +3624,13 @@ export default function AdminPanel({
                     </button>
                   </div>
                 </div>
+
+                {!isSuperAdmin && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>🔒 เฉพาะผู้ใช้งานระดับ Super Admin เท่านั้นที่สามารถแก้ไขตั้งค่ารูปภาพแบนเนอร์ได้</span>
+                  </div>
+                )}
 
                 <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
                   อัปโหลดรูปภาพป้ายแบนเนอร์ หรือใส่ลิงก์ URL เพื่อแสดงบนส่วนหัวของเว็บไซต์ (Header) พร้อมปรับขนาดความสูง และรูปแบบการจัดวางรูปภาพได้อย่างอิสระ
@@ -3603,12 +3646,13 @@ export default function AdminPanel({
                         อัปโหลดรูปภาพแบนเนอร์ใหม่ (ไฟล์ภาพ .jpg, .png, .webp)
                       </label>
                       <div className="flex items-center gap-2">
-                        <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-rose-300 shrink-0">
+                        <label className={`btn-cute bg-[#FF8BA7] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-rose-300'} shrink-0`}>
                           <Upload className="h-4 w-4" /> เลือกรูปภาพจากเครื่อง
                           <input
                             type="file"
                             accept="image/*"
                             onChange={handleHeaderBannerUpload}
+                            disabled={!isSuperAdmin}
                             className="hidden"
                           />
                         </label>
@@ -3616,7 +3660,8 @@ export default function AdminPanel({
                           <button
                             type="button"
                             onClick={() => setHeaderBannerUrl('')}
-                            className="btn-cute bg-rose-500 text-white px-3 py-2 text-xs font-black flex items-center gap-1 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-rose-600"
+                            disabled={!isSuperAdmin}
+                            className="btn-cute bg-rose-500 text-white px-3 py-2 text-xs font-black flex items-center gap-1 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-3.5 w-3.5" /> ลบรูปภาพ
                           </button>
@@ -3633,8 +3678,9 @@ export default function AdminPanel({
                         type="url"
                         value={headerBannerUrl}
                         onChange={(e) => setHeaderBannerUrl(e.target.value)}
+                        disabled={!isSuperAdmin}
                         placeholder="https://example.com/banner.jpg"
-                        className="w-full text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5] focus:outline-none"
+                        className="w-full text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
 
@@ -3654,7 +3700,8 @@ export default function AdminPanel({
                           step="5"
                           value={headerBannerHeight}
                           onChange={(e) => setHeaderBannerHeight(Number(e.target.value))}
-                          className="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer dark:bg-rose-950 accent-rose-500"
+                          disabled={!isSuperAdmin}
+                          className="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer dark:bg-rose-950 accent-rose-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <input
                           type="number"
@@ -3662,7 +3709,8 @@ export default function AdminPanel({
                           max="500"
                           value={headerBannerHeight}
                           onChange={(e) => setHeaderBannerHeight(Number(e.target.value) || 100)}
-                          className="w-20 text-xs font-black p-1.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] text-center"
+                          disabled={!isSuperAdmin}
+                          className="w-20 text-xs font-black p-1.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] text-center disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
                       {/* ปุ่มขนาดสำเร็จรูป */}
@@ -3678,7 +3726,8 @@ export default function AdminPanel({
                             key={preset.val}
                             type="button"
                             onClick={() => setHeaderBannerHeight(preset.val)}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border border-[#33272A] transition-all cursor-pointer ${
+                            disabled={!isSuperAdmin}
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-md border border-[#33272A] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                               headerBannerHeight === preset.val
                                 ? 'bg-[#FF8BA7] text-[#33272A]'
                                 : 'bg-[#FFF9F5] dark:bg-[#251b1e] text-[#33272A] dark:text-[#FFF9F5] hover:bg-rose-100'
@@ -3706,7 +3755,8 @@ export default function AdminPanel({
                             key={mode.id}
                             type="button"
                             onClick={() => setHeaderBannerFit(mode.id as any)}
-                            className={`p-2 text-left rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] transition-all cursor-pointer ${
+                            disabled={!isSuperAdmin}
+                            className={`p-2 text-left rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                               headerBannerFit === mode.id
                                 ? 'bg-[#A0E7E5] text-[#33272A] font-black shadow-[2px_2px_0px_#33272A]'
                                 : 'bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] hover:bg-teal-50 dark:hover:bg-teal-950/30'
@@ -3924,6 +3974,13 @@ export default function AdminPanel({
                     สิทธิ์การเข้าถึงและนโยบายผู้ใช้งาน
                   </h4>
 
+                  {!isSuperAdmin && (
+                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>🔒 เฉพาะ Super Admin เท่านั้นที่สามารถแก้ไขนโยบายผู้ใช้งานได้</span>
+                    </div>
+                  )}
+
                   {/* 1. ระบบ Pop-up แจ้งเตือนผู้ใช้งานหนาแน่น */}
                   <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
@@ -3941,8 +3998,8 @@ export default function AdminPanel({
                       <button
                         type="button"
                         onClick={() => handleToggleSetting('highTrafficAlertEnabled', !highTrafficAlertEnabled)}
-                        disabled={isSavingSettings}
-                        className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
+                        disabled={isSavingSettings || !isSuperAdmin}
+                        className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                           highTrafficAlertEnabled
                             ? 'bg-rose-400 text-rose-950 shadow-[2px_2px_0px_#33272A]'
                             : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
@@ -3987,8 +4044,8 @@ export default function AdminPanel({
                           <button
                             type="button"
                             onClick={() => handleToggleSetting('simulateRedServerStatus', !simulateRedServerStatus)}
-                            disabled={isSavingSettings}
-                            className={`px-3 py-1.5 text-xs font-black rounded-lg border-2 border-[#33272A] cursor-pointer transition-all ${
+                            disabled={isSavingSettings || !isSuperAdmin}
+                            className={`px-3 py-1.5 text-xs font-black rounded-lg border-2 border-[#33272A] cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                               simulateRedServerStatus
                                 ? 'bg-rose-500 text-white shadow-[2px_2px_0px_#33272A]'
                                 : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] shadow-[2px_2px_0px_#33272A]'
@@ -4006,7 +4063,8 @@ export default function AdminPanel({
                             type="text"
                             value={highTrafficAlertMessage}
                             onChange={(e) => setHighTrafficAlertMessage(e.target.value)}
-                            className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#251b1e] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                            disabled={!isSuperAdmin}
+                            className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#251b1e] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </div>
                       </div>
@@ -4028,8 +4086,8 @@ export default function AdminPanel({
                     <button
                       type="button"
                       onClick={() => handleToggleSetting('allowDataDownload', !allowDataDownload)}
-                      disabled={isSavingSettings}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
+                      disabled={isSavingSettings || !isSuperAdmin}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                         allowDataDownload
                           ? 'bg-emerald-400 text-emerald-950 shadow-[2px_2px_0px_#33272A]'
                           : 'bg-rose-200 text-rose-950 shadow-[2px_2px_0px_#33272A]'
@@ -4054,8 +4112,8 @@ export default function AdminPanel({
                     <button
                       type="button"
                       onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                      disabled={isSavingSettings}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
+                      disabled={isSavingSettings || !isSuperAdmin}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                         restrictOneAdminPerSchool
                           ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
                           : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
@@ -4080,8 +4138,8 @@ export default function AdminPanel({
                     <button
                       type="button"
                       onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                      disabled={isSavingSettings}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 ${
+                      disabled={isSavingSettings || !isSuperAdmin}
+                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                         allowSchoolAdminRegistration
                           ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_#33272A]'
                           : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
@@ -4099,6 +4157,13 @@ export default function AdminPanel({
                     จัดการตัวเลือกโครงสร้างพื้นฐาน (เพิ่ม/ลด รายละเอียด)
                   </h4>
 
+                  {!isSuperAdmin && (
+                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>🔒 เฉพาะ Super Admin เท่านั้นที่สามารถจัดการตัวเลือกโครงสร้างพื้นฐานได้</span>
+                    </div>
+                  )}
+
                   {/* ข้อมูลไฟฟ้า */}
                   <div className="space-y-2">
                     <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
@@ -4110,14 +4175,16 @@ export default function AdminPanel({
                         <div key={opt.id} className="bg-white dark:bg-[#1a1214] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 dark:text-white">
                           <span>{opt.label}</span>
                           <span className="text-[10px] text-slate-400 font-mono">({opt.id})</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveElectricityOption(opt.id)}
-                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
-                            title="ลบตัวเลือกนี้"
-                          >
-                            &times;
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveElectricityOption(opt.id)}
+                              className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
+                              title="ลบตัวเลือกนี้"
+                            >
+                              &times;
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -4128,19 +4195,22 @@ export default function AdminPanel({
                         placeholder="รหัส (เช่น nuclear)"
                         value={newElecId}
                         onChange={(e) => setNewElecId(e.target.value)}
-                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <input
                         type="text"
                         placeholder="ชื่อแสดง (เช่น ⚡ พลังงานนิวเคลียร์)"
                         value={newElecLabel}
                         onChange={(e) => setNewElecLabel(e.target.value)}
-                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
                         onClick={handleAddElectricityOption}
-                        className="btn-cute bg-amber-300 text-amber-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto"
+                        disabled={!isSuperAdmin}
+                        className="btn-cute bg-amber-300 text-amber-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         + เพิ่มไฟฟ้า
                       </button>
@@ -4158,14 +4228,16 @@ export default function AdminPanel({
                         <div key={opt.id} className="bg-white dark:bg-[#1a1214] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 dark:text-white">
                           <span>{opt.label}</span>
                           <span className="text-[10px] text-slate-400 font-mono">({opt.id})</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveInternetOption(opt.id)}
-                            className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
-                            title="ลบตัวเลือกนี้"
-                          >
-                            &times;
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveInternetOption(opt.id)}
+                              className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
+                              title="ลบตัวเลือกนี้"
+                            >
+                              &times;
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -4176,19 +4248,22 @@ export default function AdminPanel({
                         placeholder="รหัส (เช่น starlink)"
                         value={newNetId}
                         onChange={(e) => setNewNetId(e.target.value)}
-                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <input
                         type="text"
                         placeholder="ชื่อแสดง (เช่น 📡 Starlink)"
                         value={newNetLabel}
                         onChange={(e) => setNewNetLabel(e.target.value)}
-                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold"
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
                         onClick={handleAddInternetOption}
-                        className="btn-cute bg-sky-300 text-sky-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto"
+                        disabled={!isSuperAdmin}
+                        className="btn-cute bg-sky-300 text-sky-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         + เพิ่มเน็ต
                       </button>
@@ -4201,7 +4276,7 @@ export default function AdminPanel({
         )}
 
       {/* Slide-over Drawer: สถานะระบบและโควตาฐานข้อมูล */}
-      {isQuotaDrawerOpen && (
+      {isQuotaDrawerOpen && isSuperAdmin && (
         <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
