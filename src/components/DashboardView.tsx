@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -48,7 +48,7 @@ export default function DashboardView({
 
   // หมวดหมู่โครงสร้างพื้นฐานที่เลือกเปิดดูรายชื่อโรงเรียนใน Modal
   const [selectedInfraCategory, setSelectedInfraCategory] = useState<
-    'electricity_yes' | 'electricity_no' | 'fiber' | 'satellite' | 'sim' | 'none' | null
+    'electricity_yes' | 'electricity_solar' | 'electricity_hybrid' | 'electricity_no' | 'fiber' | 'satellite' | 'sim' | 'none' | null
   >(null);
   const [infraSearchQuery, setInfraSearchQuery] = useState<string>('');
 
@@ -63,12 +63,25 @@ export default function DashboardView({
     
     return schools.filter(school => {
       let matchesCategory = false;
-      if (selectedInfraCategory === 'electricity_yes') matchesCategory = school.electricity === true;
-      else if (selectedInfraCategory === 'electricity_no') matchesCategory = !school.electricity;
-      else if (selectedInfraCategory === 'fiber') matchesCategory = school.internetType === 'fiber';
-      else if (selectedInfraCategory === 'satellite') matchesCategory = school.internetType === 'satellite';
-      else if (selectedInfraCategory === 'sim') matchesCategory = school.internetType === 'sim';
-      else if (selectedInfraCategory === 'none') matchesCategory = school.internetType === 'none' || !school.internetType;
+      const elecVal = String(school.electricity ?? '').toLowerCase();
+
+      if (selectedInfraCategory === 'electricity_yes') {
+        matchesCategory = elecVal === 'has_electric' || elecVal === 'grid' || elecVal === 'true' || school.electricity === true;
+      } else if (selectedInfraCategory === 'electricity_solar') {
+        matchesCategory = elecVal === 'solar' || elecVal.includes('โซลาร์') || elecVal.includes('solar');
+      } else if (selectedInfraCategory === 'electricity_hybrid') {
+        matchesCategory = elecVal === 'hybrid' || elecVal.includes('ผสมผสาน') || elecVal.includes('hybrid');
+      } else if (selectedInfraCategory === 'electricity_no') {
+        matchesCategory = elecVal === 'none' || elecVal === 'false' || elecVal.includes('ไม่มี') || elecVal.includes('ขาด') || school.electricity === false;
+      } else if (selectedInfraCategory === 'fiber') {
+        matchesCategory = school.internetType === 'fiber';
+      } else if (selectedInfraCategory === 'satellite') {
+        matchesCategory = school.internetType === 'satellite';
+      } else if (selectedInfraCategory === 'sim') {
+        matchesCategory = school.internetType === 'sim';
+      } else if (selectedInfraCategory === 'none') {
+        matchesCategory = school.internetType === 'none' || !school.internetType;
+      }
 
       const matchesSearch = !infraSearchQuery || 
         school.name.toLowerCase().includes(infraSearchQuery.toLowerCase()) ||
@@ -83,21 +96,39 @@ export default function DashboardView({
     switch (cat) {
       case 'electricity_yes':
         return {
-          title: 'สถานศึกษาที่มีระบบไฟฟ้าใช้งานหลัก',
-          subtitle: 'โรงเรียนที่มีไฟฟ้าเข้าถึงและใช้งานได้อย่างต่อเนื่อง',
+          title: 'สถานศึกษาที่มีระบบไฟฟ้าถาวร / ไฟฟ้าภาครัฐ',
+          subtitle: 'โรงเรียนที่มีไฟฟ้าจากสายส่งภาครัฐเข้าถึงและใช้งานหลัก',
           icon: <Zap className="h-5 w-5 text-amber-500 fill-amber-500" />,
           badgeColor: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-700',
           netFilter: undefined,
-          electricityFilter: 'yes'
+          electricityFilter: 'has_electric'
+        };
+      case 'electricity_solar':
+        return {
+          title: 'สถานศึกษาที่ใช้ระบบพลังงานโซลาร์เซลล์',
+          subtitle: 'โรงเรียนที่ผลิตและใช้งานพลังงานแสงอาทิตย์ (Solar Cell)',
+          icon: <Sun className="h-5 w-5 text-amber-600 fill-amber-300" />,
+          badgeColor: 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950 dark:text-yellow-200 dark:border-yellow-700',
+          netFilter: undefined,
+          electricityFilter: 'solar'
+        };
+      case 'electricity_hybrid':
+        return {
+          title: 'สถานศึกษาที่ใช้ไฟฟ้าภาครัฐและโซลาร์เซลล์ (ระบบผสมผสาน)',
+          subtitle: 'โรงเรียนที่ใช้ทั้งไฟฟ้าจากสายส่งภาครัฐร่วมกับโซลาร์เซลล์เสริม',
+          icon: <Zap className="h-5 w-5 text-emerald-600 fill-emerald-300" />,
+          badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-700',
+          netFilter: undefined,
+          electricityFilter: 'hybrid'
         };
       case 'electricity_no':
         return {
-          title: 'สถานศึกษาที่ใช้พลังงานโซลาร์เซลล์ / ไม่มีระบบไฟฟ้าหลัก',
-          subtitle: 'โรงเรียนในพื้นที่ห่างไกลที่ผลิตไฟฟ้าจากแสงอาทิตย์หรือเครื่องปั่นไฟ',
-          icon: <ZapOff className="h-5 w-5 text-slate-500" />,
-          badgeColor: 'bg-slate-100 text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+          title: 'สถานศึกษาที่ไม่มีไฟฟ้าใช้งาน',
+          subtitle: 'โรงเรียนในพื้นที่ห่างไกลที่ไม่มีระบบไฟฟ้าใช้งาน',
+          icon: <ZapOff className="h-5 w-5 text-rose-500" />,
+          badgeColor: 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-700',
           netFilter: undefined,
-          electricityFilter: 'no'
+          electricityFilter: 'none'
         };
       case 'fiber':
         return {
@@ -439,8 +470,10 @@ export default function DashboardView({
 
   // สถิติระบบไฟฟ้าและอินเทอร์เน็ตของสถานศึกษา
   const infraStats = useMemo(() => {
-    let hasElectricity = 0;
-    let noElectricity = 0;
+    let elecGrid = 0;
+    let elecSolar = 0;
+    let elecHybrid = 0;
+    let elecNone = 0;
 
     let fiber = 0;
     let satellite = 0;
@@ -463,11 +496,16 @@ export default function DashboardView({
     };
 
     schools.forEach(s => {
-      // Electricity
-      if (s.electricity) {
-        hasElectricity++;
+      // Electricity classification
+      const elecVal = String(s.electricity ?? '').toLowerCase();
+      if (elecVal === 'solar' || elecVal.includes('โซลาร์') || elecVal.includes('solar')) {
+        elecSolar++;
+      } else if (elecVal === 'hybrid' || elecVal.includes('ผสมผสาน') || elecVal.includes('hybrid')) {
+        elecHybrid++;
+      } else if (elecVal === 'none' || elecVal === 'false' || elecVal.includes('ไม่มี') || elecVal.includes('ขาด') || s.electricity === false) {
+        elecNone++;
       } else {
-        noElectricity++;
+        elecGrid++;
       }
 
       // Internet
@@ -481,7 +519,7 @@ export default function DashboardView({
       const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe || "อื่นๆ/ไม่ระบุ";
       const target = amphoeData[amp] || amphoeData["อื่นๆ/ไม่ระบุ"];
       target.total++;
-      if (s.electricity) target.hasElectricity++;
+      if (s.electricity && elecVal !== 'none' && elecVal !== 'false') target.hasElectricity++;
       if (type === 'fiber') target.fiber++;
       else if (type === 'satellite') target.satellite++;
       else if (type === 'sim') target.sim++;
@@ -490,10 +528,19 @@ export default function DashboardView({
 
     const totalSchools = schools.length || 1;
     const connectedInternet = fiber + satellite + sim;
+    const hasElectricity = elecGrid + elecSolar + elecHybrid;
 
     return {
+      elecGrid,
+      elecSolar,
+      elecHybrid,
+      elecNone,
       hasElectricity,
-      noElectricity,
+      noElectricity: elecNone,
+      elecGridPercent: ((elecGrid / totalSchools) * 100).toFixed(1),
+      elecSolarPercent: ((elecSolar / totalSchools) * 100).toFixed(1),
+      elecHybridPercent: ((elecHybrid / totalSchools) * 100).toFixed(1),
+      elecNonePercent: ((elecNone / totalSchools) * 100).toFixed(1),
       electricityPercent: ((hasElectricity / totalSchools) * 100).toFixed(1),
       connectedInternet,
       internetPercent: ((connectedInternet / totalSchools) * 100).toFixed(1),
@@ -508,8 +555,10 @@ export default function DashboardView({
         { name: 'ไม่มีอินเทอร์เน็ต (None)', value: none, color: '#FF8BA7' }
       ],
       electricityPie: [
-        { name: 'มีไฟฟ้าใช้งาน', value: hasElectricity, color: '#F59E0B' },
-        { name: 'ไม่มีไฟฟ้า / ใช้โซลาร์เซลล์', value: noElectricity, color: '#94A3B8' }
+        { name: 'ไฟฟ้าถาวร/ภาครัฐ', value: elecGrid, color: '#F59E0B' },
+        { name: 'โซลาร์เซลล์', value: elecSolar, color: '#FACC15' },
+        { name: 'ไฟฟ้าภาครัฐ & โซลาร์เซลล์', value: elecHybrid, color: '#10B981' },
+        { name: 'ไม่มีไฟฟ้าใช้งาน', value: elecNone, color: '#EF4444' }
       ],
       amphoeData
     };
@@ -1426,8 +1475,14 @@ export default function DashboardView({
                         <div className="flex items-center gap-1.5">
                           <Zap className="h-4 w-4 text-amber-500 fill-amber-500 shrink-0" />
                           <span>ระบบไฟฟ้า:</span>
-                          <span className={`font-bold ${mapSchool.electricity ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500'}`}>
-                            {mapSchool.electricity ? '⚡ มีไฟฟ้าใช้งาน' : '🔌 ใช้โซลาร์เซลล์ / ไม่มีไฟฟ้า'}
+                          <span className={`font-bold ${mapSchool.electricity && String(mapSchool.electricity) !== 'none' && String(mapSchool.electricity) !== 'false' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-600'}`}>
+                            {(() => {
+                              const elecVal = String(mapSchool.electricity ?? '').toLowerCase();
+                              if (elecVal === 'solar' || elecVal.includes('โซลาร์')) return '☀️ ใช้โซลาร์เซลล์';
+                              if (elecVal === 'hybrid' || elecVal.includes('ผสมผสาน')) return '⚡☀️ ไฟฟ้าภาครัฐ & โซลาร์เซลล์';
+                              if (elecVal === 'none' || elecVal === 'false' || elecVal.includes('ไม่มี') || mapSchool.electricity === false) return '❌ ไม่มีไฟฟ้าใช้งาน';
+                              return '⚡ ไฟฟ้าถาวร/ไฟฟ้าภาครัฐ';
+                            })()}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -1592,22 +1647,22 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* 6 การ์ดสรุป KPI โครงสร้างพื้นฐานแต่ละประเภทโดยตรง (ไม่มีหัวข้อรวม) */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {/* 1. มีไฟฟ้าใช้งาน */}
+        {/* 8 การ์ดสรุป KPI โครงสร้างพื้นฐานแยกประเภทชัดเจน */}
+        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+          {/* 1. ไฟฟ้าถาวร/ไฟฟ้าภาครัฐ */}
           <div 
             onClick={() => setSelectedInfraCategory('electricity_yes')}
             className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-amber-900 dark:text-amber-200">มีไฟฟ้าใช้งาน</span>
+              <span className="text-xs font-black text-amber-900 dark:text-amber-200">ไฟฟ้าถาวร/ไฟฟ้าภาครัฐ</span>
               <div className="h-8 w-8 rounded-xl bg-amber-400 border border-[#33272A] flex items-center justify-center shrink-0">
                 <Zap className="h-4 w-4 text-[#33272A] fill-[#33272A]" />
               </div>
             </div>
             <div>
-              <div className="text-2xl font-black text-amber-900 dark:text-amber-100">{infraStats.hasElectricity} <span className="text-xs font-bold text-amber-700 dark:text-amber-300">แห่ง</span></div>
-              <div className="text-[11px] font-semibold text-amber-800/80 dark:text-amber-300/80 mt-0.5">{infraStats.electricityPercent}% ของโรงเรียนทั้งหมด</div>
+              <div className="text-2xl font-black text-amber-900 dark:text-amber-100">{infraStats.elecGrid} <span className="text-xs font-bold text-amber-700 dark:text-amber-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-amber-800/80 dark:text-amber-300/80 mt-0.5">{infraStats.elecGridPercent}% ของโรงเรียนทั้งหมด</div>
             </div>
             <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/50 flex items-center justify-between text-[11px] font-bold text-amber-800 dark:text-amber-300 group-hover:underline">
               <span>ดูรายชื่อโรงเรียน</span>
@@ -1615,28 +1670,70 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* 2. ไม่มีไฟฟ้า / ใช้โซลาร์เซลล์ */}
+          {/* 2. โซลาร์เซลล์ */}
           <div 
-            onClick={() => setSelectedInfraCategory('electricity_no')}
-            className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between gap-3 cursor-pointer hover:border-slate-500 hover:shadow-md transition-all group"
+            onClick={() => setSelectedInfraCategory('electricity_solar')}
+            className="p-4 rounded-2xl bg-yellow-50 dark:bg-yellow-950/20 border-2 border-yellow-300 dark:border-yellow-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-yellow-500 hover:shadow-md transition-all group"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-slate-800 dark:text-slate-200">โซลาร์เซลล์/ไม่มีไฟฟ้า</span>
-              <div className="h-8 w-8 rounded-xl bg-slate-300 dark:bg-slate-700 border border-[#33272A] dark:border-slate-500 flex items-center justify-center shrink-0">
-                <ZapOff className="h-4 w-4 text-slate-800 dark:text-slate-100" />
+              <span className="text-xs font-black text-yellow-900 dark:text-yellow-200">ใช้ระบบโซลาร์เซลล์</span>
+              <div className="h-8 w-8 rounded-xl bg-yellow-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Sun className="h-4 w-4 text-[#33272A] fill-[#33272A]" />
               </div>
             </div>
             <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{infraStats.noElectricity} <span className="text-xs font-bold text-slate-600 dark:text-slate-400">แห่ง</span></div>
-              <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-0.5">{((infraStats.noElectricity/schools.length)*100).toFixed(1)}% พลังงานแสงอาทิตย์</div>
+              <div className="text-2xl font-black text-yellow-900 dark:text-yellow-100">{infraStats.elecSolar} <span className="text-xs font-bold text-yellow-700 dark:text-yellow-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-yellow-800/80 dark:text-yellow-300/80 mt-0.5">{infraStats.elecSolarPercent}% พลังงานแสงอาทิตย์</div>
             </div>
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 group-hover:underline">
+            <div className="pt-2 border-t border-yellow-200/60 dark:border-yellow-800/50 flex items-center justify-between text-[11px] font-bold text-yellow-800 dark:text-yellow-300 group-hover:underline">
               <span>ดูรายชื่อโรงเรียน</span>
               <span>➔</span>
             </div>
           </div>
 
-          {/* 3. ไฟเบอร์ออพติก */}
+          {/* 3. ไฟฟ้าภาครัฐ & โซลาร์เซลล์ */}
+          <div 
+            onClick={() => setSelectedInfraCategory('electricity_hybrid')}
+            className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/20 border-2 border-teal-300 dark:border-teal-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-teal-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-teal-900 dark:text-teal-200">ไฟฟ้าภาครัฐ & โซลาร์เซลล์</span>
+              <div className="h-8 w-8 rounded-xl bg-teal-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Zap className="h-4 w-4 text-[#33272A]" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-teal-900 dark:text-teal-100">{infraStats.elecHybrid} <span className="text-xs font-bold text-teal-700 dark:text-teal-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-teal-800/80 dark:text-teal-300/80 mt-0.5">{infraStats.elecHybridPercent}% ระบบผสมผสาน</div>
+            </div>
+            <div className="pt-2 border-t border-teal-200/60 dark:border-teal-800/50 flex items-center justify-between text-[11px] font-bold text-teal-800 dark:text-teal-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 4. ไม่มีไฟฟ้าใช้งาน */}
+          <div 
+            onClick={() => setSelectedInfraCategory('electricity_no')}
+            className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border-2 border-rose-300 dark:border-rose-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-rose-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-rose-900 dark:text-rose-200">ไม่มีไฟฟ้าใช้งาน</span>
+              <div className="h-8 w-8 rounded-xl bg-rose-300 dark:bg-rose-800 border border-[#33272A] flex items-center justify-center shrink-0">
+                <ZapOff className="h-4 w-4 text-rose-900 dark:text-rose-100" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-rose-900 dark:text-rose-100">{infraStats.elecNone} <span className="text-xs font-bold text-rose-700 dark:text-rose-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-rose-800/80 dark:text-rose-300/80 mt-0.5">{infraStats.elecNonePercent}% พื้นที่อับพลังงาน</div>
+            </div>
+            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-800/50 flex items-center justify-between text-[11px] font-bold text-rose-800 dark:text-rose-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 5. ไฟเบอร์ออพติก */}
           <div 
             onClick={() => setSelectedInfraCategory('fiber')}
             className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all group"
@@ -1657,7 +1754,7 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* 4. จานดาวเทียม */}
+          {/* 6. จานดาวเทียม */}
           <div 
             onClick={() => setSelectedInfraCategory('satellite')}
             className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/20 border-2 border-sky-300 dark:border-sky-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-sky-500 hover:shadow-md transition-all group"
@@ -1678,7 +1775,7 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* 5. ซิมมือถือ */}
+          {/* 7. ซิมมือถือ */}
           <div 
             onClick={() => setSelectedInfraCategory('sim')}
             className="p-4 rounded-2xl bg-orange-50 dark:bg-orange-950/20 border-2 border-orange-300 dark:border-orange-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-orange-500 hover:shadow-md transition-all group"
@@ -1699,22 +1796,22 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* 6. ไม่มีอินเทอร์เน็ต */}
+          {/* 8. ไม่มีอินเทอร์เน็ต */}
           <div 
             onClick={() => setSelectedInfraCategory('none')}
-            className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border-2 border-rose-300 dark:border-rose-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-rose-500 hover:shadow-md transition-all group"
+            className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 flex flex-col justify-between gap-3 cursor-pointer hover:border-slate-500 hover:shadow-md transition-all group"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-rose-900 dark:text-rose-200">ไม่มีอินเทอร์เน็ต</span>
-              <div className="h-8 w-8 rounded-xl bg-rose-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <WifiOff className="h-4 w-4 text-[#33272A]" />
+              <span className="text-xs font-black text-slate-900 dark:text-slate-200">ไม่มีอินเทอร์เน็ต</span>
+              <div className="h-8 w-8 rounded-xl bg-slate-300 dark:bg-slate-700 border border-[#33272A] flex items-center justify-center shrink-0">
+                <WifiOff className="h-4 w-4 text-[#33272A] dark:text-slate-200" />
               </div>
             </div>
             <div>
-              <div className="text-2xl font-black text-rose-900 dark:text-rose-100">{infraStats.none} <span className="text-xs font-bold text-rose-700 dark:text-rose-300">แห่ง</span></div>
-              <div className="text-[11px] font-semibold text-rose-800/80 dark:text-rose-300/80 mt-0.5">{((infraStats.none/schools.length)*100).toFixed(1)}% พื้นที่อับสัญญาณ</div>
+              <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{infraStats.none} <span className="text-xs font-bold text-slate-700 dark:text-slate-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-slate-800/80 dark:text-slate-300/80 mt-0.5">{((infraStats.none/schools.length)*100).toFixed(1)}% พื้นที่อับสัญญาณ</div>
             </div>
-            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-800/50 flex items-center justify-between text-[11px] font-bold text-rose-800 dark:text-rose-300 group-hover:underline">
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/50 flex items-center justify-between text-[11px] font-bold text-slate-800 dark:text-slate-300 group-hover:underline">
               <span>ดูรายชื่อโรงเรียน</span>
               <span>➔</span>
             </div>
@@ -2145,10 +2242,10 @@ export default function DashboardView({
         </div>
       )}
 
-      {/* แถบการวิเคราะห์ข้อมูลเชิงลึก (AI-Data Insights) */}
+      {/* แถบการวิเคราะห์ข้อมูลเชิงลึกอัตโนมัติแบบเรียลไทม์ (Real-time Data Analytics Insights) */}
       <div className="card bg-[#FFEEE2] dark:bg-[#2c2023] p-6">
         <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2 mb-4">
-          <Sparkles className="h-5 w-5 text-[#FF8BA7]" />
+          <TrendingUp className="h-5 w-5 text-[#FF8BA7]" />
           บทสรุปและผลการวิเคราะห์ข้อมูลระดับเขตพื้นที่
         </h3>
         <div className="grid gap-4 md:grid-cols-2">

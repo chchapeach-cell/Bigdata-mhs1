@@ -479,6 +479,62 @@ export default function App() {
 
   useEffect(() => {
     fetchAllData();
+
+    // ฟังการเปลี่ยนแปลงข้อมูล schools แบบ Real-time
+    const unsubSchools = onSnapshot(collection(db, 'schools'), (snapshot) => {
+      const list: School[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ ...docSnap.data() } as School);
+      });
+      if (list.length > 0) {
+        setSchools(list);
+      }
+    }, (err) => console.warn('Schools real-time listener warning:', err));
+
+    // ฟังการเปลี่ยนแปลงข้อมูล students แบบ Real-time
+    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+      const list: StudentData[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ ...docSnap.data(), id: docSnap.id } as StudentData);
+      });
+      if (list.length > 0) {
+        setStudentData(list);
+        const years = Array.from(new Set(list.map(s => s.academicYear)));
+        if (years.length > 0) {
+          years.sort((a, b) => b.localeCompare(a));
+          setAvailableYears(years);
+        }
+      }
+    }, (err) => console.warn('Students real-time listener warning:', err));
+
+    // ฟังการเปลี่ยนแปลงข้อมูล students_g แบบ Real-time
+    const unsubStudentsG = onSnapshot(collection(db, 'students_g'), (snapshot) => {
+      const list: StudentGData[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as StudentGData;
+        let year = data.academicYear;
+        if (!year || !/^\d{4}$/.test(year)) {
+          const parts = docSnap.id.split('_');
+          if (parts.length > 1 && /^\d{4}$/.test(parts[parts.length - 1])) {
+            year = parts[parts.length - 1];
+          }
+        }
+        list.push({
+          ...data,
+          id: docSnap.id,
+          academicYear: year || data.academicYear || 'ไม่ระบุ'
+        });
+      });
+      if (list.length > 0) {
+        setStudentGData(list);
+      }
+    }, (err) => console.warn('Students_g real-time listener warning:', err));
+
+    return () => {
+      unsubSchools();
+      unsubStudents();
+      unsubStudentsG();
+    };
   }, []);
 
   // ออกจากระบบ

@@ -38,8 +38,8 @@ export default function Header({
   systemConfig
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-50 w-full border-b-2 border-[#33272A] bg-white/95 dark:border-[#FFD3B6] dark:bg-[#1e1518]/95 backdrop-blur-md shadow-md transition-colors duration-300">
-      {/* 🖼️ Custom Header Banner Image (ถ้ามีการตั้งค่าและเปิดใช้งาน) */}
+    <>
+      {/* 🖼️ Custom Header Banner Image (เลื่อนหายไปตามการเลื่อนหน้าเว็บ) */}
       {systemConfig?.headerBannerUrl && systemConfig?.headerBannerEnabled !== false && (
         <div className="w-full bg-[#FFF9F5] dark:bg-[#150e10] border-b-2 border-[#33272A]/15 dark:border-[#FFD3B6]/15 overflow-hidden flex items-center justify-center relative transition-all">
           <img
@@ -55,6 +55,8 @@ export default function Header({
           />
         </div>
       )}
+
+      <header className="sticky top-0 z-50 w-full border-b-2 border-[#33272A] bg-white/95 dark:border-[#FFD3B6] dark:bg-[#1e1518]/95 backdrop-blur-md shadow-md transition-colors duration-300">
 
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 w-full max-w-full overflow-hidden">
         {/* LOGO (Clickable to Home/Dashboard) */}
@@ -196,8 +198,8 @@ export default function Header({
         </div>
       </div>
 
-      {/* Main Navigation Row directly below header */}
-      <nav className="border-t-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 bg-[#FFF9F5] dark:bg-[#150e10] py-1.5 transition-colors">
+      {/* Main Navigation Row directly below header (Desktop only) */}
+      <nav className="hidden lg:block border-t-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 bg-[#FFF9F5] dark:bg-[#150e10] py-1.5 transition-colors">
         <div className="mx-auto max-w-7xl px-3 sm:px-6 flex items-center justify-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none py-0.5">
           <button
             onClick={() => setActiveTab('dashboard')}
@@ -255,7 +257,7 @@ export default function Header({
       </nav>
 
       {/* Mobile & Tablet Bottom Tab Navigation */}
-      <div className="xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
         {/* Tab 1: ภาพรวม */}
         <button
           onClick={() => setActiveTab('dashboard')}
@@ -334,5 +336,6 @@ export default function Header({
         )}
       </div>
     </header>
+    </>
   );
 }
