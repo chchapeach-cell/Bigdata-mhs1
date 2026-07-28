@@ -231,7 +231,7 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings'>(
+  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings' | 'theme'>(
     isSuperAdmin ? 'students_center' : 'schools'
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
@@ -1961,16 +1961,30 @@ export default function AdminPanel({
           )}
 
           <button
-            onClick={() => setAdminTab('settings')}
+            onClick={() => setAdminTab('theme')}
             className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
-              adminTab === 'settings' 
-                ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+              adminTab === 'theme' 
+                ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                 : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
             }`}
           >
-            <Settings className="h-4 w-4" />
-            <span>ตั้งค่าระบบ</span>
+            <Palette className="h-4 w-4" />
+            <span>ธีม</span>
           </button>
+
+          {isSuperAdmin && (
+            <button
+              onClick={() => setAdminTab('settings')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                adminTab === 'settings' 
+                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+              }`}
+            >
+              <Settings className="h-4 w-4" />
+              <span>ตั้งค่าระบบ</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3568,7 +3582,158 @@ export default function AdminPanel({
             </div>
           )}
 
-          {adminTab === 'settings' && (
+          {adminTab === 'theme' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-6 w-6 text-[#FF8BA7]" />
+                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
+                    </h3>
+                  </div>
+                  <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
+                    ธีมปัจจุบัน: {
+                      themeStyle === 'pastel' ? '🌸 พาสเทล' :
+                      themeStyle === 'modern' ? '🎨 โมเดิร์น' :
+                      themeStyle === 'darktech' ? '⚡ ดาร์กเทค' :
+                      themeStyle === 'minimal-slate' ? '📱 มินิมอล สเลต' :
+                      themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' : '🍃 เอ็มเมอรัลด์ มินต์'
+                    }
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
+                  เลือกสไตล์ธีมการแสดงผลของระบบเพื่อปรับประสบการณ์การใช้งานตามความชอบ โดยทุกธีมถูกออกแบบให้รองรับการเปิดใช้งานบนมือถือ สมาร์ตโฟน และแท็บเล็ตได้อย่างราบรื่น
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* 1. ธีมพาสเทล */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('pastel')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'pastel'
+                        ? 'bg-[#FF8BA7] text-[#33272A] shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Sparkles className="h-6 w-6 text-rose-600" />
+                    <span className="text-xs font-black">🌸 ธีมพาสเทล (Pastel Cute)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สดใสน่ารัก ซิกเนเจอร์ สพป.แม่ฮ่องสอน เขต 1</span>
+                  </button>
+
+                  {/* 2. ธีมโมเดิร์น */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('modern')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'modern'
+                        ? 'bg-indigo-600 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Palette className="h-6 w-6 text-indigo-400" />
+                    <span className="text-xs font-black">🎨 ธีมโมเดิร์น (Modern Clean)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">เรียบหรู ดูสบายตา สไตล์ทางการ</span>
+                  </button>
+
+                  {/* 3. ธีมดาร์กเทค */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('darktech')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'darktech'
+                        ? 'bg-emerald-500 text-slate-950 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Zap className="h-6 w-6 text-emerald-300" />
+                    <span className="text-xs font-black">⚡ ธีมดาร์กเทค (Dark Tech)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">ล้ำสมัย ถนอมสายตาสำหรับใช้งานกลางคืน</span>
+                  </button>
+
+                  {/* 4. ธีมมินิมอล สเลต (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('minimal-slate')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'minimal-slate'
+                        ? 'bg-slate-800 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Layers className="h-5 w-5 text-sky-400" />
+                      <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">📱 มินิมอล สเลต (Minimal Slate)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">คลีน นอร์ดิก กรอบบางสบายตาที่สุดสำหรับจอมือถือ</span>
+                  </button>
+
+                  {/* 5. ธีมวอร์ม เนเชอร์ (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('warm-nature')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'warm-nature'
+                        ? 'bg-amber-700 text-amber-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Sun className="h-5 w-5 text-amber-400" />
+                      <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">🌱 วอร์ม เนเชอร์ (Warm Nature)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">โทนสีครีมธรรมชาติ อุ่นสายตา ไม่สะท้อนจอมือถือ</span>
+                  </button>
+
+                  {/* 6. ธีมเอ็มเมอรัลด์ มินต์ (ใหม่!) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('emerald-mint')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'emerald-mint'
+                        ? 'bg-emerald-700 text-emerald-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Sparkles className="h-5 w-5 text-emerald-300" />
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
+                    </div>
+                    <span className="text-xs font-black">🍃 เอ็มเมอรัลด์ มินต์ (iOS Dashboard)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">มินต์คลีน สดใส สไตล์ Dashboard กดง่ายบนสมาร์ตโฟน</span>
+                  </button>
+                </div>
+
+                {/* สวิตช์ Dark Mode / Light Mode */}
+                {setIsDarkMode && (
+                  <div className="p-4 bg-[#FFF9F5] dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm mt-3">
+                    <div>
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        โหมดการแสดงผลหน้าจอ (Dark / Light Mode)
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-0.5">
+                        {isDarkMode ? '🌙 โหมดมืด (Dark Mode) เปิดใช้งานอยู่' : '☀️ โหมดสว่าง (Light Mode) เปิดใช้งานอยู่'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDarkMode(!isDarkMode)}
+                      className="btn-cute bg-[#FFD3B6] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ffbe94]"
+                    >
+                      {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-600" />}
+                      <span>{isDarkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'settings' && isSuperAdmin && (
             <div className="space-y-6">
               <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
@@ -3813,150 +3978,7 @@ export default function AdminPanel({
                   </div>
                 )}
 
-                {/* ส่วนเลือกธีมและการแสดงผลของระบบ */}
-                <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#33272A]/20 pb-2">
-                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                      <Palette className="h-5 w-5 text-[#FF8BA7]" />
-                      เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
-                    </h4>
-                    <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
-                    ธีมปัจจุบัน: {
-                      themeStyle === 'pastel' ? '🌸 พาสเทล' :
-                      themeStyle === 'modern' ? '🎨 โมเดิร์น' :
-                      themeStyle === 'darktech' ? '⚡ ดาร์กเทค' :
-                      themeStyle === 'minimal-slate' ? '📱 มินิมอล สเลต' :
-                      themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' : '🍃 เอ็มเมอรัลด์ มินต์'
-                    }
-                  </span>
-                </div>
-                <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
-                  เลือกสไตล์ธีมการแสดงผลของระบบเพื่อปรับประสบการณ์การใช้งานตามความชอบ โดยทุกธีมถูกออกแบบให้รองรับการเปิดใช้งานบนมือถือ สมาร์ตโฟน และแท็บเล็ตได้อย่างราบรื่น
-                </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  {/* 1. ธีมพาสเทล */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('pastel')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'pastel'
-                        ? 'bg-[#FF8BA7] text-[#33272A] shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <Sparkles className="h-6 w-6 text-rose-600" />
-                    <span className="text-xs font-black">🌸 ธีมพาสเทล (Pastel Cute)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">สดใสน่ารัก ซิกเนเจอร์ สพป.แม่ฮ่องสอน เขต 1</span>
-                  </button>
-
-                  {/* 2. ธีมโมเดิร์น */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('modern')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'modern'
-                        ? 'bg-indigo-600 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <Palette className="h-6 w-6 text-indigo-400" />
-                    <span className="text-xs font-black">🎨 ธีมโมเดิร์น (Modern Clean)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">เรียบหรู ดูสบายตา สไตล์ทางการ</span>
-                  </button>
-
-                  {/* 3. ธีมดาร์กเทค */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('darktech')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'darktech'
-                        ? 'bg-emerald-500 text-slate-950 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <Zap className="h-6 w-6 text-emerald-300" />
-                    <span className="text-xs font-black">⚡ ธีมดาร์กเทค (Dark Tech)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">ล้ำสมัย ถนอมสายตาสำหรับใช้งานกลางคืน</span>
-                  </button>
-
-                  {/* 4. ธีมมินิมอล สเลต (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('minimal-slate')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'minimal-slate'
-                        ? 'bg-slate-800 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Layers className="h-5 w-5 text-sky-400" />
-                      <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">📱 มินิมอล สเลต (Minimal Slate)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">คลีน นอร์ดิก กรอบบางสบายตาที่สุดสำหรับจอมือถือ</span>
-                  </button>
-
-                  {/* 5. ธีมวอร์ม เนเชอร์ (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('warm-nature')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'warm-nature'
-                        ? 'bg-amber-700 text-amber-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Sun className="h-5 w-5 text-amber-400" />
-                      <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">🌱 วอร์ม เนเชอร์ (Warm Nature)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">โทนสีครีมธรรมชาติ อุ่นสายตา ไม่สะท้อนจอมือถือ</span>
-                  </button>
-
-                  {/* 6. ธีมเอ็มเมอรัลด์ มินต์ (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('emerald-mint')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'emerald-mint'
-                        ? 'bg-emerald-700 text-emerald-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Sparkles className="h-5 w-5 text-emerald-300" />
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">🍃 เอ็มเมอรัลด์ มินต์ (iOS Dashboard)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">มินต์คลีน สดใส สไตล์ Dashboard กดง่ายบนสมาร์ตโฟน</span>
-                  </button>
-                </div>
-
-                {/* สวิตช์ Dark Mode / Light Mode */}
-                {setIsDarkMode && (
-                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm mt-3">
-                    <div>
-                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        โหมดการแสดงผลหน้าจอ (Dark / Light Mode)
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-0.5">
-                        {isDarkMode ? '🌙 โหมดมืด (Dark Mode) เปิดใช้งานอยู่' : '☀️ โหมดสว่าง (Light Mode) เปิดใช้งานอยู่'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsDarkMode(!isDarkMode)}
-                      className="btn-cute bg-[#FFD3B6] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ffbe94]"
-                    >
-                      {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-600" />}
-                      <span>{isDarkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}</span>
-                    </button>
-                  </div>
-                )}
-              </div>
 
               {/* Grid 2 คอลัมน์: สวิตช์นโยบายระบบ & โครงสร้างพื้นฐาน */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
