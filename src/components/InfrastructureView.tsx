@@ -293,16 +293,16 @@ export default function InfrastructureView({
 
     const elecPie = [
       { name: '🔌 ไฟฟ้าถาวร', value: elecHas, percent: ((elecHas / totalCount) * 100).toFixed(1), color: '#F59E0B' },
-      { name: '☀️ โซลาร์เซลล์', value: elecSolar, percent: ((elecSolar / totalCount) * 100).toFixed(1), color: '#EAB308' },
-      { name: '⚡☀️ ผสมผสาน', value: elecHybrid, percent: ((elecHybrid / totalCount) * 100).toFixed(1), color: '#10B981' },
-      { name: '❌ ไม่มีไฟฟ้า', value: elecNone, percent: ((elecNone / totalCount) * 100).toFixed(1), color: '#EF4444' },
+      { name: '☀️ โซลาร์เซลล์', value: elecSolar, percent: ((elecSolar / totalCount) * 100).toFixed(1), color: '#FACC15' },
+      { name: '⚡☀️ ผสมผสาน', value: elecHybrid, percent: ((elecHybrid / totalCount) * 100).toFixed(1), color: '#D97706' },
+      { name: '❌ ไม่มีไฟฟ้า', value: elecNone, percent: ((elecNone / totalCount) * 100).toFixed(1), color: '#EAB308' },
     ].filter(d => d.value > 0);
 
     const netPie = [
-      { name: '🌐 Fiber Optic', value: netFiber, percent: ((netFiber / totalCount) * 100).toFixed(1), color: '#0EA5E9' },
-      { name: '🛰️ ดาวเทียม', value: netSat, percent: ((netSat / totalCount) * 100).toFixed(1), color: '#6366F1' },
-      { name: '📱 SIM 4G/5G', value: netSim, percent: ((netSim / totalCount) * 100).toFixed(1), color: '#A855F7' },
-      { name: '❌ ไม่มีเน็ต', value: netNone, percent: ((netNone / totalCount) * 100).toFixed(1), color: '#F43F5E' },
+      { name: '🌐 Fiber Optic', value: netFiber, percent: ((netFiber / totalCount) * 100).toFixed(1), color: '#0284C7' },
+      { name: '🛰️ ดาวเทียม', value: netSat, percent: ((netSat / totalCount) * 100).toFixed(1), color: '#38BDF8' },
+      { name: '📱 SIM 4G/5G', value: netSim, percent: ((netSim / totalCount) * 100).toFixed(1), color: '#60A5FA' },
+      { name: '❌ ไม่มีเน็ต', value: netNone, percent: ((netNone / totalCount) * 100).toFixed(1), color: '#0EA5E9' },
     ].filter(d => d.value > 0);
 
     const amphoeBar = Object.keys(amphoeMap).map(amp => ({

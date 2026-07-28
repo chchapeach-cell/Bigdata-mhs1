@@ -76,49 +76,51 @@ export default function Header({
         <nav className="hidden xl:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 ${
+            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
                 : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
             }`}
           >
-            ภาพรวมระบบ
+            <LayoutDashboard className="h-4 w-4 text-rose-600 fill-rose-300 dark:text-rose-400 dark:fill-rose-900" />
+            <span>ภาพรวมระบบ</span>
           </button>
           <button
             onClick={() => setActiveTab('schools')}
-            className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 ${
+            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'schools'
                 ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
                 : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
             }`}
           >
-            รายชื่อโรงเรียน
+            <Building2 className="h-4 w-4 text-sky-600 fill-sky-200 dark:text-sky-400 dark:fill-sky-900" />
+            <span>รายชื่อโรงเรียน</span>
           </button>
 
           <button
             onClick={() => setActiveTab('infrastructure')}
-            className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
+            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'infrastructure'
                 ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
                 : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
             }`}
           >
-            <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
-            โครงสร้างพื้นฐาน
+            <Zap className="h-4 w-4 text-amber-500 fill-amber-400" />
+            <span>โครงสร้างพื้นฐาน</span>
           </button>
           {userProfile && (
             <button
               onClick={() => setActiveTab('admin')}
-              className={`rounded-xl px-4 py-1 text-xs font-bold transition-all duration-200 flex items-center gap-1 ${
+              className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'admin'
                   ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
                   : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
               }`}
             >
-              <Shield className="h-3.5 w-3.5" />
-              ระบบจัดการ
+              <Shield className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900" />
+              <span>ระบบจัดการ</span>
               {userProfile.status === 'pending' && (
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
               )}
             </button>
           )}
@@ -222,7 +224,7 @@ export default function Header({
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
-          <LayoutDashboard className={`h-5 w-5 ${activeTab === 'dashboard' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+          <LayoutDashboard className={`h-5 w-5 text-rose-500 ${activeTab === 'dashboard' ? 'stroke-[2.5px] fill-rose-200' : 'stroke-2'}`} />
           <span className="text-[10px] font-black">ภาพรวม</span>
         </button>
 
@@ -235,7 +237,7 @@ export default function Header({
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
-          <Building2 className={`h-5 w-5 ${activeTab === 'schools' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+          <Building2 className={`h-5 w-5 text-sky-500 ${activeTab === 'schools' ? 'stroke-[2.5px] fill-sky-200' : 'stroke-2'}`} />
           <span className="text-[10px] font-black">โรงเรียน</span>
         </button>
 
@@ -248,7 +250,7 @@ export default function Header({
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
           }`}
         >
-          <Zap className={`h-5 w-5 ${activeTab === 'infrastructure' ? 'stroke-[2.5px] fill-amber-300' : 'stroke-2'}`} />
+          <Zap className={`h-5 w-5 text-amber-500 fill-amber-400 ${activeTab === 'infrastructure' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
           <span className="text-[10px] font-black">โครงสร้าง</span>
         </button>
 
@@ -262,7 +264,7 @@ export default function Header({
                 : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
             }`}
           >
-            <Shield className={`h-5 w-5 ${activeTab === 'admin' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+            <Shield className={`h-5 w-5 text-emerald-500 ${activeTab === 'admin' ? 'stroke-[2.5px] fill-emerald-200' : 'stroke-2'}`} />
             <span className="text-[10px] font-black">จัดการ</span>
             {userProfile.status === 'pending' && (
               <span className="absolute top-1 right-[25%] h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>

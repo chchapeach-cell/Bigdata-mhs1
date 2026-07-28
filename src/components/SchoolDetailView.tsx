@@ -1863,77 +1863,7 @@ export default function SchoolDetailView({
             </div>
           </div>
 
-          {/* แผงสรุปเปรียบเทียบข้อมูลแยกต่างหาก (โรงเรียนหลัก VS ห้องเรียนย่อยห่างไกล) */}
-          <div className="p-4 rounded-2xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3">
-            <div className="flex items-center justify-between border-b border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-2">
-              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
-                สรุปภาพรวมแยกตามประเภท (โรงเรียนหลัก VS ห้องเรียนย่อยห่างไกล)
-              </h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                ข้อมูลแยกกันตามบริบท
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* สถิติโรงเรียนหลัก */}
-              <div className="p-3 rounded-xl bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6]/40 shadow-xs">
-                <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Building className="h-3.5 w-3.5 text-purple-500" /> โรงเรียนหลัก ({school.name})
-                </div>
-                <div className="mt-1.5 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-600 dark:text-slate-300 font-bold">นักเรียนรวม:</span>
-                    <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">{remoteBranchStats.mainSchoolStudents} คน</span>
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-500">
-                    <span>(ชาย {remoteBranchStats.mainSchoolMale} / หญิง {remoteBranchStats.mainSchoolFemale})</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-600 dark:text-slate-300 font-bold">ครูและบุคลากร:</span>
-                    <span className="font-black text-purple-600 dark:text-purple-300">{school.staffCount} คน</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* สถิติห้องเรียนย่อยในพื้นที่ห่างไกล */}
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-400 dark:border-amber-700 shadow-xs">
-                <div className="text-[10px] font-black text-amber-900 dark:text-amber-300 flex items-center gap-1">
-                  <Navigation className="h-3.5 w-3.5 text-amber-600" /> ห้องเรียนย่อยพื้นที่ห่างไกล ({remoteBranchStats.branchCount} แห่ง)
-                </div>
-                <div className="mt-1.5 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-amber-900 dark:text-amber-200 font-bold">นักเรียนรวมห้องเรียนย่อย:</span>
-                    <span className="font-black text-amber-900 dark:text-amber-100">{remoteBranchStats.totalBranchStudents} คน</span>
-                  </div>
-                  <div className="flex justify-between text-[11px] text-amber-700/80 dark:text-amber-300/80">
-                    <span>(ชาย {remoteBranchStats.totalBranchMale} / หญิง {remoteBranchStats.totalBranchFemale})</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-amber-200 dark:border-amber-800">
-                    <span className="text-amber-900 dark:text-amber-200 font-bold">ครูประจำห้องเรียนย่อย:</span>
-                    <span className="font-black text-amber-800 dark:text-amber-200">{remoteBranchStats.totalBranchStaff} คน</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ยอดรวมทั้งสิ้น */}
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-700 shadow-xs">
-                <div className="text-[10px] font-black text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-emerald-600" /> ยอดรวมสุทธิ (โรงเรียนหลัก + ห้องเรียนย่อย)
-                </div>
-                <div className="mt-1.5 space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-emerald-900 dark:text-emerald-200 font-bold">นักเรียนรวมสุทธิ:</span>
-                    <span className="font-black text-emerald-950 dark:text-emerald-100 text-sm">{remoteBranchStats.grandTotalStudents} คน</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-emerald-200 dark:border-emerald-800">
-                    <span className="text-emerald-900 dark:text-emerald-200 font-bold">บุคลากรรวมสุทธิ:</span>
-                    <span className="font-black text-emerald-900 dark:text-emerald-100">{remoteBranchStats.grandTotalStaff} คน</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* รายชื่อห้องเรียนย่อยในพื้นที่ห่างไกล */}
           <div className="space-y-3">
@@ -2018,15 +1948,32 @@ export default function SchoolDetailView({
                     </div>
 
                     {/* ปุ่มจัดการห้องเรียนย่อย */}
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-amber-200 dark:border-amber-900/60">
-                      <button
-                        type="button"
-                        onClick={() => setViewingBranchDetail(branch)}
-                        className="p-1.5 px-3 text-xs font-black bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 rounded-xl hover:bg-purple-200 transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>ดูข้อมูลนักเรียนแยกรายชั้น</span>
-                      </button>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-amber-200 dark:border-amber-900/60 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setViewingBranchDetail(branch)}
+                          className="p-1.5 px-3 text-xs font-black bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 rounded-xl hover:bg-purple-200 transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
+                          <span>ดูข้อมูล & แผนที่</span>
+                        </button>
+
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${
+                            branch.latitude && branch.longitude
+                              ? `${branch.latitude},${branch.longitude}`
+                              : encodeURIComponent(`${branch.name} ${school.name}`)
+                          }`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 px-2.5 text-xs font-black bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-400 rounded-xl hover:bg-emerald-200 transition-colors cursor-pointer flex items-center gap-1"
+                          title="เปิดเส้นทางใน Google Maps"
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-emerald-600 fill-emerald-300 dark:text-emerald-400" />
+                          <span>แผนที่ Google</span>
+                        </a>
+                      </div>
 
                       {(userProfile?.role === 'super_admin' || (userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id)) && (
                         <div className="flex items-center gap-1.5">
@@ -2577,6 +2524,67 @@ export default function SchoolDetailView({
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* ส่วนแสดงแผนที่พิกัดตำแหน่งห้องเรียนย่อย */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-[#FF8BA7] fill-rose-200" /> แผนที่ตำแหน่งห้องเรียนย่อย
+                  </h5>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${
+                      viewingBranchDetail.latitude && viewingBranchDetail.longitude
+                        ? `${viewingBranchDetail.latitude},${viewingBranchDetail.longitude}`
+                        : encodeURIComponent(`${viewingBranchDetail.name} ${school.name}`)
+                    }`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] text-[11px] font-black hover:bg-teal-300 transition-all shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <Globe className="h-3.5 w-3.5 text-teal-700" />
+                    <span>นำทางด้วย Google Maps</span>
+                  </a>
+                </div>
+
+                <div className="relative rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] overflow-hidden group bg-slate-100 dark:bg-slate-900 shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6]">
+                  <iframe
+                    title={`แผนที่ ${viewingBranchDetail.name}`}
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                      viewingBranchDetail.latitude && viewingBranchDetail.longitude
+                        ? `${viewingBranchDetail.latitude},${viewingBranchDetail.longitude}`
+                        : `${viewingBranchDetail.name} ${school.name}`
+                    )}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                    className="w-full h-44 border-0 pointer-events-none group-hover:opacity-90 transition-opacity"
+                    loading="lazy"
+                  />
+                  
+                  {/* Click overlay opening Google Maps */}
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${
+                      viewingBranchDetail.latitude && viewingBranchDetail.longitude
+                        ? `${viewingBranchDetail.latitude},${viewingBranchDetail.longitude}`
+                        : encodeURIComponent(`${viewingBranchDetail.name} ${school.name}`)
+                    }`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 bg-black/10 hover:bg-black/25 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                  >
+                    <span className="px-4 py-2 rounded-2xl bg-white text-[#33272A] border-2 border-[#33272A] text-xs font-black shadow-[3px_3px_0px_#33272A] flex items-center gap-2 transform group-hover:scale-105 transition-transform">
+                      <MapPin className="h-4 w-4 text-rose-500 fill-rose-300" />
+                      กดเพื่อเปิดใน Google Maps 🗺️
+                    </span>
+                  </a>
+
+                  {/* Location label tag */}
+                  <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] shadow-xs flex items-center gap-1.5 pointer-events-none">
+                    <MapPin className="h-3 w-3 text-rose-500 fill-rose-300 shrink-0" />
+                    <span className="truncate max-w-[220px]">{viewingBranchDetail.name}</span>
+                    {viewingBranchDetail.latitude && viewingBranchDetail.longitude && (
+                      <span className="text-slate-500 font-mono text-[9px]">({viewingBranchDetail.latitude}, {viewingBranchDetail.longitude})</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* ตารางแสดงจำนวนนักเรียนแยกรายชั้นของห้องเรียนย่อย */}
