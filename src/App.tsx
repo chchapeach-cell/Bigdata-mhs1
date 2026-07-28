@@ -265,6 +265,10 @@ export default function App() {
           simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
           electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
           internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+          headerBannerUrl: data.headerBannerUrl || '',
+          headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
+          headerBannerFit: data.headerBannerFit || 'contain',
+          headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
         });
       }
     }, (err) => {
@@ -342,6 +346,10 @@ export default function App() {
             highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
             electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
             internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+            headerBannerUrl: data.headerBannerUrl || '',
+            headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
+            headerBannerFit: data.headerBannerFit || 'contain',
+            headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
           });
         }
       } catch (e) {
@@ -507,6 +515,7 @@ export default function App() {
         academicYear={academicYear}
         setAcademicYear={setAcademicYear}
         availableYears={availableYears}
+        systemConfig={systemConfig}
       />
 
       {/* MAIN CONTENT AREA */}

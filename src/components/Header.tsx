@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles } from 'lucide-react';
-import { UserProfile, ThemeStyle } from '../types';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { UserProfile, ThemeStyle, SystemConfig } from '../types';
 
 interface HeaderProps {
   userProfile: UserProfile | null;
@@ -17,6 +17,7 @@ interface HeaderProps {
   academicYear?: string;
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
+  systemConfig?: SystemConfig;
 }
 
 export default function Header({
@@ -33,10 +34,28 @@ export default function Header({
   setThemeStyle,
   academicYear,
   setAcademicYear,
-  availableYears
+  availableYears,
+  systemConfig
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b-2 border-[#33272A] bg-white/95 dark:border-[#FFD3B6] dark:bg-[#1e1518]/95 backdrop-blur-md shadow-md transition-colors duration-300">
+      {/* 🖼️ Custom Header Banner Image (ถ้ามีการตั้งค่าและเปิดใช้งาน) */}
+      {systemConfig?.headerBannerUrl && systemConfig?.headerBannerEnabled !== false && (
+        <div className="w-full bg-[#FFF9F5] dark:bg-[#150e10] border-b-2 border-[#33272A]/15 dark:border-[#FFD3B6]/15 overflow-hidden flex items-center justify-center relative transition-all">
+          <img
+            src={systemConfig.headerBannerUrl}
+            alt="Header Banner Header"
+            style={{
+              height: systemConfig.headerBannerHeight ? `${systemConfig.headerBannerHeight}px` : '100px',
+              maxHeight: systemConfig.headerBannerHeight ? `${systemConfig.headerBannerHeight}px` : '350px',
+              objectFit: systemConfig.headerBannerFit || 'contain',
+              width: systemConfig.headerBannerFit === 'fill' || systemConfig.headerBannerFit === 'cover' ? '100%' : 'auto'
+            }}
+            className="max-w-full block transition-all"
+          />
+        </div>
+      )}
+
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 w-full max-w-full overflow-hidden">
         {/* LOGO (Clickable to Home/Dashboard) */}
         <button
@@ -75,60 +94,6 @@ export default function Header({
             <p className="text-[10px] sm:text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold truncate">สพป.แม่ฮ่องสอน เขต 1</p>
           </div>
         </button>
-
-        {/* Navigation Tabs - Shown on large desktop screens, on mobile/tablet landscape uses bottom icon bar */}
-        <nav className="hidden xl:flex items-center gap-2 rounded-2xl bg-[#FFF9F5] p-1 border-2 border-[#33272A] dark:bg-[#33272A] dark:border-[#FFD3B6]">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'dashboard'
-                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
-                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
-            }`}
-          >
-            <LayoutDashboard className="h-4 w-4 text-rose-600 fill-rose-300 dark:text-rose-400 dark:fill-rose-900" />
-            <span>ภาพรวมระบบ</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('schools')}
-            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'schools'
-                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
-                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
-            }`}
-          >
-            <Building2 className="h-4 w-4 text-sky-600 fill-sky-200 dark:text-sky-400 dark:fill-sky-900" />
-            <span>รายชื่อโรงเรียน</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('infrastructure')}
-            className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'infrastructure'
-                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
-                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
-            }`}
-          >
-            <Zap className="h-4 w-4 text-amber-500 fill-amber-400" />
-            <span>โครงสร้างพื้นฐาน</span>
-          </button>
-          {userProfile && (
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={`rounded-xl px-4 py-1.5 text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'admin'
-                  ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-sm dark:border-[#FFD3B6] dark:text-[#33272A]'
-                  : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-700'
-              }`}
-            >
-              <Shield className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900" />
-              <span>ระบบจัดการ</span>
-              {userProfile.status === 'pending' && (
-                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
-              )}
-            </button>
-          )}
-        </nav>
 
         {/* Right side controls */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
@@ -230,6 +195,64 @@ export default function Header({
           )}
         </div>
       </div>
+
+      {/* Main Navigation Row directly below header */}
+      <nav className="border-t-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 bg-[#FFF9F5] dark:bg-[#150e10] py-1.5 transition-colors">
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 flex items-center justify-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none py-0.5">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+            }`}
+          >
+            <LayoutDashboard className="h-4 w-4 text-rose-600 fill-rose-300 dark:text-rose-400 dark:fill-rose-900 shrink-0" />
+            <span>ภาพรวมระบบ</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('schools')}
+            className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === 'schools'
+                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+            }`}
+          >
+            <Building2 className="h-4 w-4 text-sky-600 fill-sky-200 dark:text-sky-400 dark:fill-sky-900 shrink-0" />
+            <span>รายชื่อโรงเรียน</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('infrastructure')}
+            className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === 'infrastructure'
+                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+            }`}
+          >
+            <Zap className="h-4 w-4 text-amber-500 fill-amber-400 shrink-0" />
+            <span>โครงสร้างพื้นฐาน</span>
+          </button>
+
+          {userProfile && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                activeTab === 'admin'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                  : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+              }`}
+            >
+              <Shield className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900 shrink-0" />
+              <span>ระบบจัดการ</span>
+              {userProfile.status === 'pending' && (
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
+              )}
+            </button>
+          )}
+        </div>
+      </nav>
 
       {/* Mobile & Tablet Bottom Tab Navigation */}
       <div className="xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">

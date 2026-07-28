@@ -132,5 +132,9 @@ export interface SystemConfig {
   simulateRedServerStatus?: boolean; // จำลองสถานะเซิร์ฟเวอร์เป็นสีแดง (เพื่อทดสอบ Pop-up ผู้ใช้หนาแน่น)
   electricityOptions: InfrastructureOption[];
   internetOptions: InfrastructureOption[];
+  headerBannerUrl?: string; // URL หรือ Base64 รูปภาพ Banner บน Header
+  headerBannerHeight?: number; // ความสูงของ Banner (px)
+  headerBannerFit?: 'cover' | 'contain' | 'fill' | 'auto'; // รูปแบบการจัดวางรูปภาพ
+  headerBannerEnabled?: boolean; // เปิด/ปิดการแสดงรูปภาพ Banner
 }
 
