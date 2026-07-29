@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -51,6 +51,8 @@ export default function AdminPanel({
   const [editNetworkGroup, setEditNetworkGroup] = useState('');
   const [editInternet, setEditInternet] = useState<School['internetType']>('none');
   const [editElectricity, setEditElectricity] = useState<any>(true);
+  const [editWaterSystem, setEditWaterSystem] = useState<string>('government');
+  const [editWaterSystemDetail, setEditWaterSystemDetail] = useState<string>('');
   const [editStaffCount, setEditStaffCount] = useState(5);
   const [editDirectorPhone, setEditDirectorPhone] = useState('');
   const [editSchoolPhone, setEditSchoolPhone] = useState('');
@@ -209,6 +211,8 @@ export default function AdminPanel({
       setEditNetworkGroup(targetSchool.networkGroup || '');
       setEditInternet(targetSchool.internetType || 'none');
       setEditElectricity(targetSchool.electricity !== undefined ? targetSchool.electricity : true);
+      setEditWaterSystem(targetSchool.waterSystem || 'government');
+      setEditWaterSystemDetail(targetSchool.waterSystemDetail || '');
       setEditStaffCount(targetSchool.staffCount !== undefined ? targetSchool.staffCount : 5);
       setEditDirectorPhone(targetSchool.directorPhone || '');
       setEditSchoolPhone(targetSchool.schoolPhone || '');
@@ -1051,6 +1055,8 @@ export default function AdminPanel({
   const [newSchoolIsExpansion, setNewSchoolIsExpansion] = useState(false);
   const [newSchoolElectricity, setNewSchoolElectricity] = useState(true);
   const [newSchoolInternet, setNewSchoolInternet] = useState<School['internetType']>('fiber');
+  const [newSchoolWaterSystem, setNewSchoolWaterSystem] = useState<string>('government');
+  const [newSchoolWaterSystemDetail, setNewSchoolWaterSystemDetail] = useState<string>('');
   const [newSchoolStaffCount, setNewSchoolStaffCount] = useState(5);
   const [newSchoolDirectorPhone, setNewSchoolDirectorPhone] = useState('');
   const [newSchoolPhone, setNewSchoolPhone] = useState('');
@@ -1125,6 +1131,8 @@ export default function AdminPanel({
         isExpansion: newSchoolIsExpansion,
         electricity: newSchoolElectricity,
         internetType: newSchoolInternet,
+        waterSystem: newSchoolWaterSystem,
+        waterSystemDetail: newSchoolWaterSystemDetail.trim(),
         staffCount: Number(newSchoolStaffCount) || 0,
         majorSubjects: [],
         directorPhone: newSchoolDirectorPhone.trim(),
@@ -1228,6 +1236,14 @@ export default function AdminPanel({
       { id: 'none', label: '❌ ไม่มีเน็ต' },
     ]
   );
+  const [waterSystemOptions, setWaterSystemOptions] = useState<InfrastructureOption[]>(
+    systemConfig?.waterSystemOptions || [
+      { id: 'government', label: '🚰 น้ำประปาภาครัฐ' },
+      { id: 'mountain', label: '🏔️ น้ำประปาภูเขา' },
+      { id: 'none', label: '❌ ไม่มีน้ำใช้' },
+      { id: 'other', label: '📌 อื่นๆ' },
+    ]
+  );
 
   // --- ตั้งค่ารูปภาพ Header Banner หัวเว็บไซต์ ---
   const [headerBannerUrl, setHeaderBannerUrl] = useState<string>(systemConfig?.headerBannerUrl || '');
@@ -1259,6 +1275,8 @@ export default function AdminPanel({
   const [newElecLabel, setNewElecLabel] = useState('');
   const [newNetId, setNewNetId] = useState('');
   const [newNetLabel, setNewNetLabel] = useState('');
+  const [newWaterId, setNewWaterId] = useState('');
+  const [newWaterLabel, setNewWaterLabel] = useState('');
 
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState('');
@@ -1275,6 +1293,7 @@ export default function AdminPanel({
       if (systemConfig.simulateRedServerStatus !== undefined) setSimulateRedServerStatus(systemConfig.simulateRedServerStatus);
       if (systemConfig.electricityOptions) setElectricityOptions(systemConfig.electricityOptions);
       if (systemConfig.internetOptions) setInternetOptions(systemConfig.internetOptions);
+      if (systemConfig.waterSystemOptions) setWaterSystemOptions(systemConfig.waterSystemOptions);
       if (systemConfig.headerBannerUrl !== undefined) setHeaderBannerUrl(systemConfig.headerBannerUrl);
       if (systemConfig.headerBannerHeight !== undefined) setHeaderBannerHeight(systemConfig.headerBannerHeight);
       if (systemConfig.headerBannerFit !== undefined) setHeaderBannerFit(systemConfig.headerBannerFit);
@@ -1298,6 +1317,7 @@ export default function AdminPanel({
         if (data.simulateRedServerStatus !== undefined) setSimulateRedServerStatus(data.simulateRedServerStatus);
         if (data.electricityOptions) setElectricityOptions(data.electricityOptions);
         if (data.internetOptions) setInternetOptions(data.internetOptions);
+        if (data.waterSystemOptions) setWaterSystemOptions(data.waterSystemOptions);
         if (data.headerBannerUrl !== undefined) setHeaderBannerUrl(data.headerBannerUrl);
         if (data.headerBannerHeight !== undefined) setHeaderBannerHeight(data.headerBannerHeight);
         if (data.headerBannerFit !== undefined) setHeaderBannerFit(data.headerBannerFit);
@@ -1324,6 +1344,7 @@ export default function AdminPanel({
         simulateRedServerStatus,
         electricityOptions,
         internetOptions,
+        waterSystemOptions,
         headerBannerUrl,
         headerBannerHeight,
         headerBannerFit,
@@ -1411,6 +1432,30 @@ export default function AdminPanel({
       return;
     }
     setInternetOptions(prev => prev.filter(o => o.id !== id));
+  };
+
+  // เพิ่มตัวเลือกน้ำประปา
+  const handleAddWaterOption = () => {
+    if (!isSuperAdmin) return;
+    if (!newWaterLabel.trim()) return;
+    const id = newWaterId.trim() || `water_${Date.now()}`;
+    if (waterSystemOptions.some(o => o.id === id)) {
+      alert('มีรหัสประเภทน้ำประปานี้ในระบบแล้ว');
+      return;
+    }
+    const updated = [...waterSystemOptions, { id, label: newWaterLabel.trim() }];
+    setWaterSystemOptions(updated);
+    setNewWaterId('');
+    setNewWaterLabel('');
+  };
+
+  const handleRemoveWaterOption = (id: string) => {
+    if (!isSuperAdmin) return;
+    if (waterSystemOptions.length <= 1) {
+      alert('ต้องมีประเภทระบบน้ำประปาอย่างน้อย 1 รายการ');
+      return;
+    }
+    setWaterSystemOptions(prev => prev.filter(o => o.id !== id));
   };
 
   // ลบข้อมูลรายปีการศึกษา
@@ -1574,6 +1619,8 @@ export default function AdminPanel({
         networkGroup: editNetworkGroup,
         internetType: editInternet,
         electricity: editElectricity,
+        waterSystem: editWaterSystem,
+        waterSystemDetail: editWaterSystemDetail.trim(),
         staffCount: Number(editStaffCount),
         directorPhone: editDirectorPhone,
         schoolPhone: editSchoolPhone,
@@ -3151,6 +3198,31 @@ export default function AdminPanel({
                         </select>
                       </div>
 
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                          <Droplets className="h-3.5 w-3.5 text-blue-500" />
+                          ระบบน้ำประปา / แหล่งน้ำในโรงเรียน
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select
+                            value={editWaterSystem}
+                            onChange={(e) => setEditWaterSystem(e.target.value)}
+                            className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                          >
+                            {waterSystemOptions.map(opt => (
+                              <option key={opt.id} value={opt.id}>{opt.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={editWaterSystemDetail}
+                            onChange={(e) => setEditWaterSystemDetail(e.target.value)}
+                            placeholder="รายละเอียดระบบน้ำเพิ่มเติม (เช่น มีแท็งก์น้ำ/บ่อบาดาล)"
+                            className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                          />
+                        </div>
+                      </div>
+
                       {/* ช่องทางและข้อมูลติดต่อสถานศึกษา */}
                       <div className="space-y-3 sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
                         <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b border-[#33272A]/20 pb-2">
@@ -4178,6 +4250,59 @@ export default function AdminPanel({
                         className="btn-cute bg-sky-300 text-sky-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         + เพิ่มเน็ต
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ข้อมูลระบบน้ำประปา */}
+                  <div className="space-y-2 pt-2 border-t border-[#33272A]/10">
+                    <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                      <Droplets className="h-3.5 w-3.5 text-blue-500" />
+                      ประเภทประปา/แหล่งน้ำในระบบ:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {waterSystemOptions.map(opt => (
+                        <div key={opt.id} className="bg-white dark:bg-[#1a1214] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 dark:text-white">
+                          <span>{opt.label}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({opt.id})</span>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveWaterOption(opt.id)}
+                              className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-xs ml-1"
+                              title="ลบตัวเลือกนี้"
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="รหัส (เช่น groundwater)"
+                        value={newWaterId}
+                        onChange={(e) => setNewWaterId(e.target.value)}
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-1/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <input
+                        type="text"
+                        placeholder="ชื่อแสดง (เช่น 🚰 น้ำบาดาล)"
+                        value={newWaterLabel}
+                        onChange={(e) => setNewWaterLabel(e.target.value)}
+                        disabled={!isSuperAdmin}
+                        className="w-full sm:w-2/3 rounded-xl border border-[#33272A] bg-white dark:bg-[#1a1214] dark:text-white px-2 py-1 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddWaterOption}
+                        disabled={!isSuperAdmin}
+                        className="btn-cute bg-blue-300 text-blue-950 text-xs font-black px-3 py-1 rounded-xl border border-[#33272A] shrink-0 cursor-pointer w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        + เพิ่มระบบน้ำ
                       </button>
                     </div>
                   </div>

@@ -24,6 +24,12 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     { id: 'sim', label: '📱 SIM 4G/5G' },
     { id: 'none', label: '❌ ไม่มีเน็ต' },
   ],
+  waterSystemOptions: [
+    { id: 'government', label: '🚰 น้ำประปาภาครัฐ' },
+    { id: 'mountain', label: '🏔️ น้ำประปาภูเขา' },
+    { id: 'none', label: '❌ ไม่มีน้ำใช้' },
+    { id: 'other', label: '📌 อื่นๆ' },
+  ],
 };
 
 // นำเข้า Components
@@ -266,6 +272,7 @@ export default function App() {
           simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
           electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
           internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+          waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
           headerBannerUrl: data.headerBannerUrl || '',
           headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
           headerBannerFit: data.headerBannerFit || 'contain',

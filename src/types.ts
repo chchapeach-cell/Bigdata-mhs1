@@ -24,6 +24,8 @@ export interface ClassroomItem {
   hasSolarBattery?: boolean; // มีแบตเตอรี่สำรองหรือไม่
   solarBatteryCapacity?: string; // รายละเอียด/ความจุแบตเตอรี่
   internetType?: 'satellite' | 'fiber' | 'sim' | 'none'; // ระบบอินเทอร์เน็ต
+  waterSystem?: string; // ระบบน้ำประปา/แหล่งน้ำ
+  waterSystemDetail?: string; // รายละเอียดน้ำประปาเพิ่มเติม
   distanceFromMainSchool?: string; // ระยะทางจากโรงเรียนหลัก (กม. / ลักษณะเส้นทาง)
   latitude?: number; // ละติจูด
   longitude?: number; // ลองจิจูด
@@ -42,6 +44,8 @@ export interface School {
   networkGroup?: string; // เพิ่มกลุ่มเครือข่าย
   internetType: string; // ระบบเน็ต: ดาวเทียม, ไฟเบอร์, ซิม, ไม่ได้ใช้ หรือประเภทอื่นๆ
   electricity: string | boolean; // ระบบไฟฟ้า
+  waterSystem?: string; // ระบบน้ำประปา/แหล่งน้ำ: น้ำประปาภาครัฐ, น้ำประปาภูเขา, ไม่มีน้ำใช้, อื่นๆ
+  waterSystemDetail?: string; // รายละเอียดเพิ่มเติมระบบน้ำประปา
   solarKw?: string; // กำลังผลิตโซลาร์เซลล์ (kW)
   hasSolarBattery?: boolean; // มีแบตเตอรี่สำรองหรือไม่
   solarBatteryCapacity?: string; // รายละเอียด/ความจุแบตเตอรี่
@@ -148,6 +152,7 @@ export interface SystemConfig {
   simulateRedServerStatus?: boolean; // จำลองสถานะเซิร์ฟเวอร์เป็นสีแดง (เพื่อทดสอบ Pop-up ผู้ใช้หนาแน่น)
   electricityOptions: InfrastructureOption[];
   internetOptions: InfrastructureOption[];
+  waterSystemOptions?: InfrastructureOption[];
   headerBannerUrl?: string; // URL หรือ Base64 รูปภาพ Banner บน Header
   headerBannerHeight?: number; // ความสูงของ Banner (px)
   headerBannerFit?: 'cover' | 'contain' | 'fill' | 'auto'; // รูปแบบการจัดวางรูปภาพ
