@@ -34,6 +34,7 @@ import SchoolDetailView from './components/SchoolDetailView';
 import AdminPanel from './components/AdminPanel';
 import AuthModal from './components/AuthModal';
 import InfrastructureView from './components/InfrastructureView';
+import ContactView from './components/ContactView';
 import VisitorCounter from './components/VisitorCounter';
 import InactivityLogoutHandler from './components/InactivityLogoutHandler';
 
@@ -645,6 +646,14 @@ export default function App() {
                     }}
                     systemConfig={systemConfig}
                     userProfile={userProfile}
+                  />
+                )}
+
+                {activeTab === 'contact' && (
+                  <ContactView
+                    systemConfig={systemConfig}
+                    userProfile={userProfile}
+                    onRefreshData={fetchAllData}
                   />
                 )}
 

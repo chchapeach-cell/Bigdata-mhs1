@@ -55,6 +55,8 @@ export default function AdminPanel({
   const [editDirectorPhone, setEditDirectorPhone] = useState('');
   const [editSchoolPhone, setEditSchoolPhone] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [editLogoUrl, setEditLogoUrl] = useState('');
+  const [editDirectorImageUrl, setEditDirectorImageUrl] = useState('');
   const [editSpecialHighlights, setEditSpecialHighlights] = useState('');
   const [editMajorsStr, setEditMajorsStr] = useState('');
   const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
@@ -206,6 +208,8 @@ export default function AdminPanel({
       setEditDirectorPhone(targetSchool.directorPhone || '');
       setEditSchoolPhone(targetSchool.schoolPhone || '');
       setEditImageUrl(targetSchool.imageUrl || '');
+      setEditLogoUrl(targetSchool.logoUrl || '');
+      setEditDirectorImageUrl(targetSchool.directorImageUrl || '');
       setEditSpecialHighlights(targetSchool.specialHighlights || '');
       setEditMajorsStr(targetSchool.majorSubjects ? targetSchool.majorSubjects.join(', ') : '');
       
@@ -226,6 +230,13 @@ export default function AdminPanel({
       setSelectedSchoolId(schools[0].id);
     }
   }, [isSuperAdmin, schools, selectedSchoolId]);
+
+  // เอฟเฟ็กต์สำหรับกรณีเป็น School Admin ให้เลือกโรงเรียนของตนเองเสมอ
+  useEffect(() => {
+    if (!isSuperAdmin && userProfile?.schoolId) {
+      setSelectedSchoolId(userProfile.schoolId);
+    }
+  }, [isSuperAdmin, userProfile?.schoolId]);
 
   // State สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
@@ -1503,22 +1514,9 @@ export default function AdminPanel({
     try {
       const schoolRef = doc(db, 'schools', targetId);
       
-      // ดึงรายชื่อวิชาเอกจากทั้งส่วนคั่นจุลภาคและจากลิสต์ที่มีจำนวนครู
-      const textMajors = editMajorsStr.split(',').map(m => m.trim()).filter(m => m !== '');
-      const listMajors = editMajorsWithStaff.map(m => m.name);
-      
-      // รวมวิชาเอกทั้งหมดเข้าด้วยกันแบบ Unique
-      const combinedMajors = Array.from(new Set([...textMajors, ...listMajors]));
-      
-      // สร้างรายการ วิชาเอกพร้อมจำนวนครู
-      // ตัวใดที่มีอยู่ในลิสต์ ก็ใช้จำนวนครูเดิม ตัวที่กรอกใหม่ทางข้อความแต่ยังไม่มีในลิสต์ ให้ตั้งจำนวนครูเริ่มต้นเป็น 1 คน
-      const updatedMajorsWithStaff = combinedMajors.map(name => {
-        const found = editMajorsWithStaff.find(m => m.name === name);
-        return {
-          name,
-          teachersCount: found ? found.teachersCount : 1
-        };
-      });
+      // ดึงรายชื่อวิชาเอกจากลิสต์วิชาเอกพร้อมจำนวนครู
+      const combinedMajors = editMajorsWithStaff.map(m => m.name);
+      const updatedMajorsWithStaff = editMajorsWithStaff;
 
       const updatedFields = {
         name: editSchoolName,
@@ -1530,6 +1528,8 @@ export default function AdminPanel({
         directorPhone: editDirectorPhone,
         schoolPhone: editSchoolPhone,
         imageUrl: editImageUrl,
+        logoUrl: editLogoUrl,
+        directorImageUrl: editDirectorImageUrl,
         specialHighlights: editSpecialHighlights.trim(),
         majorSubjects: combinedMajors,
         majorSubjectsWithStaff: updatedMajorsWithStaff
@@ -1916,7 +1916,12 @@ export default function AdminPanel({
           )}
 
           <button
-            onClick={() => setAdminTab('schools')}
+            onClick={() => {
+              setAdminTab('schools');
+              if (!isSuperAdmin && userProfile?.schoolId) {
+                setSelectedSchoolId(userProfile.schoolId);
+              }
+            }}
             className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
               adminTab === 'schools' 
                 ? 'bg-[#FFAAA5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
@@ -1924,7 +1929,7 @@ export default function AdminPanel({
             }`}
           >
             <Building className="h-4 w-4" />
-            <span>{isSuperAdmin ? `จัดการรายชื่อโรงเรียน (${schools.length})` : 'จัดการข้อมูลสถานศึกษาตนเอง'}</span>
+            <span>{isSuperAdmin ? `จัดการรายชื่อโรงเรียน (${schools.length})` : '🏫 โรงเรียนของฉัน'}</span>
           </button>
 
           {isSuperAdmin && (
@@ -2995,7 +3000,7 @@ export default function AdminPanel({
               <div className="card p-6 border-l-4 border-l-[#FF8BA7]">
                 <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                   <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" /> 
-                  {isSuperAdmin ? 'แก้ไขข้อมูลพื้นฐานสถานศึกษาในระบบ (สิทธิ์ Super Admin)' : 'แก้ไขข้อมูลพื้นฐานของสถานศึกษาตนเอง'}
+                  {isSuperAdmin ? 'แก้ไขข้อมูลพื้นฐานสถานศึกษาในระบบ (สิทธิ์ Super Admin)' : `แก้ไขข้อมูลพื้นฐานของสถานศึกษาตนเอง (${mySchool ? mySchool.name : userProfile.schoolName || ''})`}
                 </h3>
 
                 {!isSuperAdmin && userProfile.status === 'pending' ? (
@@ -3100,17 +3105,6 @@ export default function AdminPanel({
                           required
                           value={editStaffCount}
                           onChange={(e) => setEditStaffCount(Number(e.target.value))}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">วิชาเอกที่มีความพร้อม (คั่นด้วยจุลภาค ",")</label>
-                        <input
-                          type="text"
-                          value={editMajorsStr}
-                          onChange={(e) => setEditMajorsStr(e.target.value)}
-                          placeholder="เช่น ปฐมวัย, คณิตศาสตร์, ภาษาอังกฤษ"
                           className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                         />
                       </div>
@@ -3232,6 +3226,136 @@ export default function AdminPanel({
                           placeholder="เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
                           className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                         />
+                      </div>
+
+                      {/* ส่วนเพิ่ม/อัปโหลดรูปภาพ 3 รายการ: ตราโรงเรียน, รูปโรงเรียน, และรูป ผอ. */}
+                      <div className="sm:col-span-2 p-4 rounded-2xl bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-4">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b border-[#33272A]/20 pb-2 dark:border-[#FFD3B6]/20">
+                          <ImageIcon className="h-4 w-4 text-[#FF8BA7]" /> 
+                          การจัดการรูปภาพสถานศึกษา (ตราโรงเรียน, รูปภาพโรงเรียน, และรูปภาพ ผอ.)
+                        </label>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* 1. ตราโรงเรียน (Logo) */}
+                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
+                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                              🏫 ตราสัญลักษณ์โรงเรียน (Logo)
+                            </span>
+                            <div className="flex flex-col items-center gap-2">
+                              {editLogoUrl ? (
+                                <img src={editLogoUrl} alt="Logo" className="w-20 h-20 object-contain rounded-lg border border-slate-300 bg-slate-50 p-1" />
+                              ) : (
+                                <div className="w-20 h-20 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
+                                  ไม่มีรูปตรา
+                                </div>
+                              )}
+                              <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-rose-300">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      if (ev.target?.result) setEditLogoUrl(ev.target.result as string);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                              <input
+                                type="url"
+                                placeholder="หรือใส่ URL ตราโรงเรียน"
+                                value={editLogoUrl}
+                                onChange={(e) => setEditLogoUrl(e.target.value)}
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 2. รูปภาพโรงเรียน / อาคารสถานที่ */}
+                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
+                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                              📷 รูปภาพโรงเรียน / อาคารสถานที่
+                            </span>
+                            <div className="flex flex-col items-center gap-2">
+                              {editImageUrl ? (
+                                <img src={editImageUrl} alt="School" className="w-28 h-20 object-cover rounded-lg border border-slate-300" />
+                              ) : (
+                                <div className="w-28 h-20 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
+                                  ไม่มีรูปโรงเรียน
+                                </div>
+                              )}
+                              <label className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-teal-300">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      if (ev.target?.result) setEditImageUrl(ev.target.result as string);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                              <input
+                                type="url"
+                                placeholder="หรือใส่ URL รูปภาพโรงเรียน"
+                                value={editImageUrl}
+                                onChange={(e) => setEditImageUrl(e.target.value)}
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 3. รูปภาพ ผอ. / ผู้บริหารโรงเรียน */}
+                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
+                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                              👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
+                            </span>
+                            <div className="flex flex-col items-center gap-2">
+                              {editDirectorImageUrl ? (
+                                <img src={editDirectorImageUrl} alt="Director" className="w-20 h-20 object-cover rounded-full border-2 border-[#FF8BA7]" />
+                              ) : (
+                                <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
+                                  ไม่มีรูป ผอ.
+                                </div>
+                              )}
+                              <label className="btn-cute bg-amber-200 text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-amber-300">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปภาพ ผอ.
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      if (ev.target?.result) setEditDirectorImageUrl(ev.target.result as string);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                              <input
+                                type="url"
+                                placeholder="หรือใส่ URL รูปภาพ ผอ."
+                                value={editDirectorImageUrl}
+                                onChange={(e) => setEditDirectorImageUrl(e.target.value)}
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="sm:col-span-2 space-y-2">

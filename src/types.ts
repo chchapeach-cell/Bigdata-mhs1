@@ -123,6 +123,17 @@ export interface InfrastructureOption {
 
 export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint';
 
+export interface ContactChannel {
+  id: string;
+  name: string;
+  type: 'phone' | 'email' | 'line' | 'facebook' | 'tiktok' | 'address' | 'qr_code' | 'other';
+  value: string;
+  description?: string;
+  qrImageUrl?: string;
+  enabled: boolean;
+  icon?: string;
+}
+
 export interface SystemConfig {
   allowDataDownload: boolean; // เปิด-ปิดระบบดาวน์โหลดข้อมูล
   restrictOneAdminPerSchool: boolean;
@@ -136,5 +147,8 @@ export interface SystemConfig {
   headerBannerHeight?: number; // ความสูงของ Banner (px)
   headerBannerFit?: 'cover' | 'contain' | 'fill' | 'auto'; // รูปแบบการจัดวางรูปภาพ
   headerBannerEnabled?: boolean; // เปิด/ปิดการแสดงรูปภาพ Banner
+  contactChannels?: ContactChannel[]; // รายการช่องทางติดต่อสื่อสาร
+  contactTitle?: string; // หัวข้อหน้าติดต่อ
+  contactSubtitle?: string; // คำอธิบายหน้าติดต่อ
 }
 
