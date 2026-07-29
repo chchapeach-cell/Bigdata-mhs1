@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -804,7 +804,16 @@ export default function SchoolListView({
                            school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
                         </span>
                       </td>
-                      <td className="p-3 text-right flex justify-end gap-2.5">
+                      <td className="p-3 text-right flex justify-end gap-1.5 items-center">
+                        {(school.schoolPhone || school.directorPhone) && (
+                          <a
+                            href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
+                            className="rounded-xl p-1.5 border-2 border-[#33272A] bg-emerald-100 hover:bg-emerald-200 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200 transition-colors cursor-pointer"
+                            title={`โทรติดต่อ ${school.schoolPhone ? 'โรงเรียน (' + school.schoolPhone + ')' : 'ผู้บริหาร (' + school.directorPhone + ')'}`}
+                          >
+                            <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          </a>
+                        )}
                         <button
                           onClick={() => onSelectSchool(school.id)}
                           className="rounded-xl p-1.5 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] transition-colors cursor-pointer"
@@ -936,7 +945,16 @@ export default function SchoolListView({
                       </div>
                     </div>
 
-                    <div className="flex gap-2.5 mt-4">
+                    <div className="flex gap-2 mt-4">
+                      {(school.schoolPhone || school.directorPhone) && (
+                        <a
+                          href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
+                          className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                          title="โทรติดต่อ"
+                        >
+                          <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
+                        </a>
+                      )}
                       <button
                         onClick={() => onSelectSchool(school.id)}
                         className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
@@ -947,7 +965,7 @@ export default function SchoolListView({
                         onClick={() => handleOpenDownload(school.id, school.name)}
                         className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
                       >
-                        <Download className="h-4 w-4" /> ดาวน์โหลด
+                        <Download className="h-4 w-4" /> โหลด
                       </button>
                     </div>
                   </div>

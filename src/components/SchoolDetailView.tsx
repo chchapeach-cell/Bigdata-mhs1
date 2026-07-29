@@ -7,7 +7,8 @@ import { generatePdfReport } from '../utils/exportPdf';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
-  Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText
+  Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
+  Mail, ExternalLink, MessageCircle
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -17,6 +18,7 @@ interface SchoolDetailViewProps {
   allStudentData?: StudentData[];
   allStudentGData?: StudentGData[];
   onBack: () => void;
+  onNavigateToContact?: () => void;
   userProfile: UserProfile | null;
   onRefreshData: () => Promise<void>;
   isDarkMode?: boolean;
@@ -38,6 +40,7 @@ export default function SchoolDetailView({
   allStudentData = [],
   allStudentGData = [],
   onBack,
+  onNavigateToContact,
   userProfile,
   onRefreshData,
   isDarkMode = false,
@@ -89,6 +92,11 @@ export default function SchoolDetailView({
   const [editNetworkGroup, setEditNetworkGroup] = useState(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
   const [editDirectorPhone, setEditDirectorPhone] = useState(school.directorPhone || '');
   const [editSchoolPhone, setEditSchoolPhone] = useState(school.schoolPhone || '');
+  const [editEmail, setEditEmail] = useState(school.email || '');
+  const [editFacebook, setEditFacebook] = useState(school.facebook || '');
+  const [editLine, setEditLine] = useState(school.line || '');
+  const [editWebsite, setEditWebsite] = useState(school.website || '');
+  const [editAddress, setEditAddress] = useState(school.address || '');
   const [editInternetType, setEditInternetType] = useState<School['internetType']>(school.internetType || 'none');
   const [editElectricity, setEditElectricity] = useState<'has_electric' | 'solar' | 'hybrid' | 'none'>(getInitialElectricity(school.electricity));
   const [editSolarKw, setEditSolarKw] = useState<string>(school.solarKw || '');
@@ -117,6 +125,11 @@ export default function SchoolDetailView({
     setEditNetworkGroup(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
     setEditDirectorPhone(school.directorPhone || '');
     setEditSchoolPhone(school.schoolPhone || '');
+    setEditEmail(school.email || '');
+    setEditFacebook(school.facebook || '');
+    setEditLine(school.line || '');
+    setEditWebsite(school.website || '');
+    setEditAddress(school.address || '');
     setEditInternetType(school.internetType || 'none');
     setEditElectricity(getInitialElectricity(school.electricity));
     setEditSolarKw(school.solarKw || '');
@@ -486,6 +499,11 @@ export default function SchoolDetailView({
         networkGroup: editNetworkGroup || '',
         directorPhone: editDirectorPhone || '',
         schoolPhone: editSchoolPhone || '',
+        email: editEmail || '',
+        facebook: editFacebook || '',
+        line: editLine || '',
+        website: editWebsite || '',
+        address: editAddress || '',
         internetType: editInternetType || 'none',
         electricity: editElectricity || 'has_electric',
         solarKw: editSolarKw || '',
@@ -776,7 +794,7 @@ export default function SchoolDetailView({
 
       {/* Hero Header Section */}
       <div className="overflow-hidden card">
-        <div className="relative h-48 md:h-64 overflow-hidden">
+        <div className="relative h-56 md:h-72 overflow-hidden">
           <img
             src={isEditing ? (editImageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80") : (school.imageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80")}
             alt={isEditing ? editName : school.name}
@@ -784,9 +802,9 @@ export default function SchoolDetailView({
           />
 
           {/* ตราโรงเรียนหรือรูปผู้บริหารด้านบนภาพ */}
-          <div className="absolute bottom-4 left-6 flex items-center gap-3.5 z-20">
+          <div className="absolute bottom-4 left-4 sm:left-6 flex items-end gap-4 z-20">
             <div className="relative">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border-2 border-[#33272A] p-1 dark:border-[#FFD3B6] dark:bg-[#1e1518] shadow-lg overflow-hidden">
+              <div className="flex h-24 w-24 sm:h-32 sm:w-32 items-center justify-center rounded-2xl bg-white border-3 sm:border-4 border-[#33272A] p-1.5 dark:border-[#FFD3B6] dark:bg-[#1e1518] shadow-2xl overflow-hidden">
                 {hasAdminAccess && adminViewType === 'director' ? (
                   (isEditing ? editDirectorImageUrl : school.directorImageUrl) ? (
                     <img
@@ -797,9 +815,9 @@ export default function SchoolDetailView({
                       title="คลิกเพื่อดูรูปขยาย"
                     />
                   ) : (
-                    <div className="h-full w-full rounded-xl bg-purple-100 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-black text-[9px] text-center leading-none p-0.5">
+                    <div className="h-full w-full rounded-xl bg-purple-100 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-black text-xs text-center leading-none p-1">
                       <span>ไม่มีรูป</span>
-                      <span className="mt-0.5">ผู้บริหาร</span>
+                      <span className="mt-1">ผู้บริหาร</span>
                     </div>
                   )
                 ) : (
@@ -812,7 +830,7 @@ export default function SchoolDetailView({
                       title="คลิกเพื่อดูรูปขยาย"
                     />
                   ) : (
-                    <div className="h-full w-full rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-xs">
+                    <div className="h-full w-full rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-base sm:text-lg">
                       {(isEditing ? editName : school.name).substring(8, 11) || "มฮ."}
                     </div>
                   )
@@ -821,11 +839,11 @@ export default function SchoolDetailView({
 
               {/* ปุ่มสลับแสดงผล ตราโรงเรียน / ผู้บริหาร (เห็นเฉพาะแอดมิน) */}
               {hasAdminAccess && (
-                <div className="absolute -top-3.5 -right-3.5 flex gap-1 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-full p-0.5 shadow-md">
+                <div className="absolute -top-3 -right-3 sm:-top-3.5 sm:-right-3.5 flex gap-1 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-full p-1 shadow-lg z-30">
                   <button
                     type="button"
                     onClick={() => setAdminViewType('logo')}
-                    className={`p-1 rounded-full text-[9px] font-black cursor-pointer transition-colors leading-none ${
+                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black cursor-pointer transition-colors leading-none ${
                       adminViewType === 'logo'
                         ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
                         : 'text-slate-400 dark:text-slate-500 hover:text-[#33272A]'
@@ -837,7 +855,7 @@ export default function SchoolDetailView({
                   <button
                     type="button"
                     onClick={() => setAdminViewType('director')}
-                    className={`p-1 rounded-full text-[9px] font-black cursor-pointer transition-colors leading-none ${
+                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black cursor-pointer transition-colors leading-none ${
                       adminViewType === 'director'
                         ? 'bg-[#A0E7E5] text-[#33272A] border border-[#33272A]'
                         : 'text-slate-400 dark:text-slate-500 hover:text-[#33272A]'
@@ -926,12 +944,12 @@ export default function SchoolDetailView({
                 <span className="text-[#33272A] dark:text-[#FFF9F5]">ผู้อำนวยการโรงเรียน</span>
               </div>
               {(isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
-                <div className="flex items-start gap-2.5 mt-2 p-2 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[240px]">
+                <div className="flex items-center gap-3 mt-2 p-2.5 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[280px]">
                   <img
                     src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
                     alt="รูปผู้บริหาร"
                     onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
-                    className="h-14 w-14 rounded-lg object-cover border border-[#33272A] dark:border-[#FFD3B6] shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200"
+                    className="h-20 w-20 rounded-xl object-cover border-2 border-[#33272A] dark:border-[#FFD3B6] shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200 shadow-md"
                     title="คลิกเพื่อขยายรูป"
                   />
                   <div>
@@ -947,7 +965,7 @@ export default function SchoolDetailView({
                 </div>
               )}
               <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">เบอร์ผู้บริหาร:</span>
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">เบอร์ผู้บริหาร:</span>
                 {isEditing ? (
                   <input
                     type="text"
@@ -975,8 +993,9 @@ export default function SchoolDetailView({
                   )
                 )}
               </div>
+
               <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">เบอร์โรงเรียน:</span>
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">เบอร์โรงเรียน:</span>
                 {isEditing ? (
                   <input
                     type="text"
@@ -1003,6 +1022,143 @@ export default function SchoolDetailView({
                   )
                 )}
               </div>
+
+              {/* อีเมลโรงเรียน */}
+              <div className="flex items-center gap-2">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">อีเมล:</span>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="ระบุอีเมลโรงเรียน"
+                  />
+                ) : (
+                  school.email ? (
+                    <a
+                      href={`mailto:${school.email}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-950 dark:bg-sky-950 dark:hover:bg-sky-900 dark:text-sky-100 border border-sky-400 font-bold text-xs cursor-pointer transition-colors"
+                      title="ส่งอีเมล"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                      <span className="truncate max-w-[160px]">{school.email}</span>
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A]/50 dark:text-[#FFF9F5]/50">-</span>
+                  )
+                )}
+              </div>
+
+              {/* Facebook Page */}
+              <div className="flex items-center gap-2">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">Facebook:</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editFacebook}
+                    onChange={(e) => setEditFacebook(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="ลิงก์ Facebook Page"
+                  />
+                ) : (
+                  school.facebook ? (
+                    <a
+                      href={school.facebook.startsWith('http') ? school.facebook : `https://${school.facebook}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-900 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-200 border border-blue-400 font-bold text-xs cursor-pointer transition-colors"
+                      title="เปิดหน้า Facebook"
+                    >
+                      <Globe className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>เพจ Facebook</span>
+                      <ExternalLink className="h-3 w-3 text-blue-500 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A]/50 dark:text-[#FFF9F5]/50">-</span>
+                  )
+                )}
+              </div>
+
+              {/* LINE */}
+              <div className="flex items-center gap-2">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">LINE:</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editLine}
+                    onChange={(e) => setEditLine(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="LINE ID หรือ ลิงก์ LINE"
+                  />
+                ) : (
+                  school.line ? (
+                    <a
+                      href={school.line.startsWith('http') ? school.line : `https://line.me/R/ti/p/${school.line}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 dark:bg-emerald-950 dark:hover:bg-emerald-900 dark:text-emerald-200 border border-emerald-400 font-bold text-xs cursor-pointer transition-colors"
+                      title="เปิด LINE"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{school.line}</span>
+                      <ExternalLink className="h-3 w-3 text-emerald-500 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A]/50 dark:text-[#FFF9F5]/50">-</span>
+                  )
+                )}
+              </div>
+
+              {/* เว็บไซต์โรงเรียน */}
+              <div className="flex items-center gap-2">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">เว็บไซต์:</span>
+                {isEditing ? (
+                  <input
+                    type="url"
+                    value={editWebsite}
+                    onChange={(e) => setEditWebsite(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="https://www.school.ac.th"
+                  />
+                ) : (
+                  school.website ? (
+                    <a
+                      href={school.website.startsWith('http') ? school.website : `https://${school.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-100 hover:bg-indigo-200 text-indigo-900 dark:bg-indigo-950 dark:hover:bg-indigo-900 dark:text-indigo-200 border border-indigo-400 font-bold text-xs cursor-pointer transition-colors"
+                      title="เข้าชมเว็บไซต์โรงเรียน"
+                    >
+                      <Globe className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      <span>เว็บไซต์โรงเรียน</span>
+                      <ExternalLink className="h-3 w-3 text-indigo-500 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="text-[#33272A]/50 dark:text-[#FFF9F5]/50">-</span>
+                  )
+                )}
+              </div>
+
+              {/* ที่อยู่โรงเรียน */}
+              <div className="flex items-start gap-2 pt-1 border-t border-dashed border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">ที่อยู่:</span>
+                {isEditing ? (
+                  <textarea
+                    rows={2}
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="ระบุที่อยู่ของโรงเรียน"
+                  />
+                ) : (
+                  <span className="text-[#33272A] dark:text-[#FFF9F5] text-xs font-medium leading-relaxed">
+                    {school.address || `อำเภอ${school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe} จังหวัดแม่ฮ่องสอน`}
+                  </span>
+                )}
+              </div>
+
+
             </div>
           </div>
 

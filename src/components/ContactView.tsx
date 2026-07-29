@@ -276,30 +276,43 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
 
           {/* ปุ่มจัดการสำหรับ Super Admin */}
           {isSuperAdmin && (
-            <div className="flex flex-wrap items-center gap-2 z-10 shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleContactMenu}
-                disabled={isSaving}
-                className={`btn-cute px-3.5 py-2 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer ${
-                  systemConfig?.contactEnabled !== false
-                    ? 'bg-emerald-300 text-emerald-950 hover:bg-emerald-400'
-                    : 'bg-amber-200 text-amber-950 hover:bg-amber-300'
-                }`}
-                title="Super Admin สามารถคลิกเพื่อเปิดหรือซ่อนเมนูติดต่อสำหรับผู้ใช้ทั่วไป"
-              >
-                {systemConfig?.contactEnabled !== false ? (
-                  <>
-                    <Eye className="h-4 w-4 text-emerald-800" />
-                    <span>เมนูติดต่อ: แสดงให้ทุกคนเห็น</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="h-4 w-4 text-amber-800" />
-                    <span>เมนูติดต่อ: ซ่อนอยู่ (เฉพาะ Super Admin)</span>
-                  </>
-                )}
-              </button>
+            <div className="flex flex-wrap items-center gap-3 z-10 shrink-0">
+              {/* Switch เปิด-ปิด เมนูติดต่อสำหรับผู้ใช้ทั่วไป */}
+              <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A]">
+                <div className="space-y-0.5 text-left">
+                  <div className="text-[11px] font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                    <span>เมนูติดต่อหลัก:</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                      systemConfig?.contactEnabled !== false
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-800 border-rose-400 dark:bg-rose-950 dark:text-rose-300'
+                    }`}>
+                      {systemConfig?.contactEnabled !== false ? '🟢 กำลังเปิดแสดงผล' : '🔴 กำลังปิดซ่อนอยู่'}
+                    </span>
+                  </div>
+                  <div className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                    {systemConfig?.contactEnabled !== false ? 'ทุกคนสามารถมองเห็นและเข้าดูได้' : 'ซ่อนจากผู้ใช้ทั่วไป (เฉพาะ Super Admin)'}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={systemConfig?.contactEnabled !== false}
+                  onClick={handleToggleContactMenu}
+                  disabled={isSaving}
+                  className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                    systemConfig?.contactEnabled !== false ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  title="คลิกสวิตช์เพื่อสลับ เปิด-ปิด การแสดงผลเมนูติดต่อ"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                      systemConfig?.contactEnabled !== false ? 'translate-x-7' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -496,17 +509,27 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleEnabled(item.id)}
-                        className={`btn-cute px-3 py-1 text-[11px] font-black flex items-center gap-1 border border-[#33272A] shadow-sm cursor-pointer ${
-                          item.enabled ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900'
-                        }`}
-                        title={item.enabled ? 'กดเพื่อซ่อนช่องทางนี้' : 'กดเพื่อเปิดแสดงผลช่องทางนี้'}
-                      >
-                        {item.enabled ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        <span>{item.enabled ? 'ซ่อน' : 'แสดง'}</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FFF9F5] dark:bg-slate-800 rounded-xl border border-[#33272A] dark:border-[#FFD3B6]">
+                        <span className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">
+                          {item.enabled ? '🟢 กำลังเปิดแสดงผล' : '🔴 กำลังปิดซ่อนอยู่'}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={item.enabled}
+                          onClick={() => handleToggleEnabled(item.id)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none ${
+                            item.enabled ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                          title={item.enabled ? 'คลิกสวิตช์เพื่อปิดซ่อนช่องทางนี้' : 'คลิกสวิตช์เพื่อเปิดแสดงผลช่องทางนี้'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm border border-[#33272A] transition duration-200 ease-in-out mt-[1px] ${
+                              item.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </div>
 
                       <button
                         type="button"

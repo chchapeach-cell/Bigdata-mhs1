@@ -54,6 +54,11 @@ export default function AdminPanel({
   const [editStaffCount, setEditStaffCount] = useState(5);
   const [editDirectorPhone, setEditDirectorPhone] = useState('');
   const [editSchoolPhone, setEditSchoolPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editFacebook, setEditFacebook] = useState('');
+  const [editLine, setEditLine] = useState('');
+  const [editWebsite, setEditWebsite] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [editLogoUrl, setEditLogoUrl] = useState('');
   const [editDirectorImageUrl, setEditDirectorImageUrl] = useState('');
@@ -207,6 +212,11 @@ export default function AdminPanel({
       setEditStaffCount(targetSchool.staffCount !== undefined ? targetSchool.staffCount : 5);
       setEditDirectorPhone(targetSchool.directorPhone || '');
       setEditSchoolPhone(targetSchool.schoolPhone || '');
+      setEditEmail(targetSchool.email || '');
+      setEditFacebook(targetSchool.facebook || '');
+      setEditLine(targetSchool.line || '');
+      setEditWebsite(targetSchool.website || '');
+      setEditAddress(targetSchool.address || '');
       setEditImageUrl(targetSchool.imageUrl || '');
       setEditLogoUrl(targetSchool.logoUrl || '');
       setEditDirectorImageUrl(targetSchool.directorImageUrl || '');
@@ -233,10 +243,33 @@ export default function AdminPanel({
 
   // เอฟเฟ็กต์สำหรับกรณีเป็น School Admin ให้เลือกโรงเรียนของตนเองเสมอ
   useEffect(() => {
-    if (!isSuperAdmin && userProfile?.schoolId) {
-      setSelectedSchoolId(userProfile.schoolId);
+    if (!isSuperAdmin) {
+      if (userProfile?.schoolId) {
+        setSelectedSchoolId(userProfile.schoolId);
+      } else if (userProfile?.schoolName) {
+        const matched = schools.find(s => s.name?.trim() === userProfile.schoolName?.trim());
+        if (matched) {
+          setSelectedSchoolId(matched.id);
+        }
+      }
     }
-  }, [isSuperAdmin, userProfile?.schoolId]);
+  }, [isSuperAdmin, userProfile?.schoolId, userProfile?.schoolName, schools]);
+
+  // คำนวณรายชื่อโรงเรียนที่ผู้ใช้มีสิทธิ์แสดงและจัดการในแผงผู้ดูแลระบบ
+  const manageableSchools = useMemo(() => {
+    if (isSuperAdmin) {
+      return schools;
+    }
+    if (userProfile?.schoolId) {
+      const matched = schools.filter(s => s.id === userProfile.schoolId);
+      if (matched.length > 0) return matched;
+    }
+    if (userProfile?.schoolName) {
+      const matchedByName = schools.filter(s => s.name?.trim() === userProfile.schoolName?.trim());
+      if (matchedByName.length > 0) return matchedByName;
+    }
+    return [];
+  }, [isSuperAdmin, userProfile, schools]);
 
   // State สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
@@ -1021,6 +1054,11 @@ export default function AdminPanel({
   const [newSchoolStaffCount, setNewSchoolStaffCount] = useState(5);
   const [newSchoolDirectorPhone, setNewSchoolDirectorPhone] = useState('');
   const [newSchoolPhone, setNewSchoolPhone] = useState('');
+  const [newSchoolEmail, setNewSchoolEmail] = useState('');
+  const [newSchoolFacebook, setNewSchoolFacebook] = useState('');
+  const [newSchoolLine, setNewSchoolLine] = useState('');
+  const [newSchoolWebsite, setNewSchoolWebsite] = useState('');
+  const [newSchoolAddress, setNewSchoolAddress] = useState('');
   const [newSchoolImageUrl, setNewSchoolImageUrl] = useState('');
   const [newSchoolLat, setNewSchoolLat] = useState('19.3000');
   const [newSchoolLng, setNewSchoolLng] = useState('97.9000');
@@ -1091,6 +1129,11 @@ export default function AdminPanel({
         majorSubjects: [],
         directorPhone: newSchoolDirectorPhone.trim(),
         schoolPhone: newSchoolPhone.trim(),
+        email: newSchoolEmail.trim(),
+        facebook: newSchoolFacebook.trim(),
+        line: newSchoolLine.trim(),
+        website: newSchoolWebsite.trim(),
+        address: newSchoolAddress.trim(),
         imageUrl: newSchoolImageUrl.trim() || 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80',
         latitude: parseFloat(newSchoolLat) || 19.3,
         longitude: parseFloat(newSchoolLng) || 97.9,
@@ -1148,6 +1191,9 @@ export default function AdminPanel({
   const [deleteSuccess, setDeleteSuccess] = useState('');
 
   // นโยบายระบบ และ ตัวเลือกโครงสร้างพื้นฐาน (Super Admin)
+  const [contactEnabled, setContactEnabled] = useState<boolean>(
+    systemConfig?.contactEnabled ?? true
+  );
   const [restrictOneAdminPerSchool, setRestrictOneAdminPerSchool] = useState<boolean>(
     systemConfig?.restrictOneAdminPerSchool ?? true
   );
@@ -1220,6 +1266,7 @@ export default function AdminPanel({
   // Sync states when systemConfig prop updates
   useEffect(() => {
     if (systemConfig) {
+      if (systemConfig.contactEnabled !== undefined) setContactEnabled(systemConfig.contactEnabled);
       if (systemConfig.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(systemConfig.restrictOneAdminPerSchool);
       if (systemConfig.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(systemConfig.allowSchoolAdminRegistration);
       if (systemConfig.allowDataDownload !== undefined) setAllowDataDownload(systemConfig.allowDataDownload);
@@ -1242,6 +1289,7 @@ export default function AdminPanel({
       const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
       if (configSnap.exists()) {
         const data = configSnap.data() as SystemConfig;
+        if (data.contactEnabled !== undefined) setContactEnabled(data.contactEnabled);
         if (data.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
         if (data.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
         if (data.allowDataDownload !== undefined) setAllowDataDownload(data.allowDataDownload);
@@ -1267,6 +1315,7 @@ export default function AdminPanel({
     setSettingsSuccess('');
     try {
       const configData = {
+        contactEnabled,
         restrictOneAdminPerSchool,
         allowSchoolAdminRegistration,
         allowDataDownload,
@@ -1298,6 +1347,7 @@ export default function AdminPanel({
     setIsSavingSettings(true);
     setSettingsSuccess('');
     try {
+      if (key === 'contactEnabled') setContactEnabled(value);
       if (key === 'allowSchoolAdminRegistration') setAllowSchoolAdminRegistration(value);
       if (key === 'restrictOneAdminPerSchool') setRestrictOneAdminPerSchool(value);
       if (key === 'allowDataDownload') setAllowDataDownload(value);
@@ -1527,6 +1577,11 @@ export default function AdminPanel({
         staffCount: Number(editStaffCount),
         directorPhone: editDirectorPhone,
         schoolPhone: editSchoolPhone,
+        email: editEmail.trim(),
+        facebook: editFacebook.trim(),
+        line: editLine.trim(),
+        website: editWebsite.trim(),
+        address: editAddress.trim(),
         imageUrl: editImageUrl,
         logoUrl: editLogoUrl,
         directorImageUrl: editDirectorImageUrl,
@@ -2951,7 +3006,6 @@ export default function AdminPanel({
                   </thead>
                   <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
                     {downloadLogs.map((log) => {
-                      // Format timestamp
                       let timeStr = '-';
                       if (log.timestamp) {
                         try {
@@ -3097,142 +3151,89 @@ export default function AdminPanel({
                         </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากรในโรงเรียน (คน)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          required
-                          value={editStaffCount}
-                          onChange={(e) => setEditStaffCount(Number(e.target.value))}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-3">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
-                          <GraduationCap className="h-4 w-4 text-[#FF8BA7]" /> ระบุวิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
+                      {/* ช่องทางและข้อมูลติดต่อสถานศึกษา */}
+                      <div className="space-y-3 sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b border-[#33272A]/20 pb-2">
+                          <Phone className="h-4 w-4 text-[#FF8BA7]" />
+                          📞 ข้อมูลและช่องทางติดต่อสถานศึกษา (Contact Information)
                         </label>
-                        
-                        <div className="flex flex-wrap gap-2 items-end bg-white dark:bg-slate-800 p-2.5 rounded-xl border-2 border-[#33272A]/20">
-                          <div className="flex-1 min-w-[120px] space-y-1">
-                            <span className="text-[10px] font-bold text-slate-500">ชื่อวิชาเอก</span>
-                            <input 
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">เบอร์โทรศัพท์โรงเรียน</label>
+                            <input
                               type="text"
-                              placeholder="เช่น ภาษาไทย, คอมพิวเตอร์"
-                              value={newMajorName}
-                              onChange={(e) => setNewMajorName(e.target.value)}
-                              className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none focus:ring-1 focus:ring-[#FF8BA7]"
+                              value={editSchoolPhone}
+                              onChange={(e) => setEditSchoolPhone(e.target.value)}
+                              placeholder="เช่น 053-123456"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                             />
                           </div>
-                          <div className="w-24 space-y-1">
-                            <span className="text-[10px] font-bold text-slate-500">จำนวนครู (คน)</span>
-                            <input 
-                              type="number"
-                              min="0"
-                              value={newMajorCount}
-                              onChange={(e) => setNewMajorCount(Number(e.target.value))}
-                              className="w-full rounded-lg border border-[#33272A]/40 bg-white p-1 text-xs font-bold outline-none"
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">เบอร์โทรศัพท์ผู้บริหาร</label>
+                            <input
+                              type="text"
+                              value={editDirectorPhone}
+                              onChange={(e) => setEditDirectorPhone(e.target.value)}
+                              placeholder="เช่น 081-9998888"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                             />
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!newMajorName.trim()) return;
-                              if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
-                                alert('วิชาเอกนี้มีอยู่ในรายการแล้ว');
-                                return;
-                              }
-                              setEditMajorsWithStaff(prev => [...prev, { name: newMajorName.trim(), teachersCount: newMajorCount }]);
-                              setNewMajorName('');
-                              setNewMajorCount(1);
-                            }}
-                            className="btn-cute bg-[#A0E7E5] text-[#33272A] text-xs font-black px-4 py-1.5 cursor-pointer shrink-0"
-                          >
-                            + เพิ่มวิชาเอก
-                          </button>
-                        </div>
-
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {editMajorsWithStaff.length > 0 ? (
-                            editMajorsWithStaff.map((m, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-white dark:bg-[#1e1518] p-2 rounded-xl border border-[#33272A]/20 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                                <span>{m.name}</span>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-gray-500 font-semibold">จำนวนครู:</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={m.teachersCount}
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
-                                      }}
-                                      className="w-12 rounded border border-[#33272A]/30 bg-white p-0.5 text-center text-xs font-bold text-[#33272A]"
-                                    />
-                                    <span>คน</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx));
-                                    }}
-                                    className="text-rose-500 hover:text-rose-700 font-black cursor-pointer text-sm px-1"
-                                    title="ลบ"
-                                  >
-                                    &times;
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-center py-4 text-slate-400 text-xs font-bold">ยังไม่มีข้อมูลวิชาเอกและจำนวนครู กรุณาเพิ่มข้อมูลด้านบน</div>
-                          )}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">อีเมลสถานศึกษา (Email)</label>
+                            <input
+                              type="email"
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              placeholder="เช่น school@mhs1.go.th"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">Facebook Page / ลิงก์</label>
+                            <input
+                              type="text"
+                              value={editFacebook}
+                              onChange={(e) => setEditFacebook(e.target.value)}
+                              placeholder="https://facebook.com/yourschool"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">LINE ID / ลิงก์ LINE</label>
+                            <input
+                              type="text"
+                              value={editLine}
+                              onChange={(e) => setEditLine(e.target.value)}
+                              placeholder="เช่น @schoolline หรือ https://line.me/ti/p/..."
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">เว็บไซต์สถานศึกษา (Website)</label>
+                            <input
+                              type="url"
+                              value={editWebsite}
+                              onChange={(e) => setEditWebsite(e.target.value)}
+                              placeholder="https://www.yourschool.ac.th"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">ที่อยู่สถานศึกษา (Address)</label>
+                            <input
+                              type="text"
+                              value={editAddress}
+                              onChange={(e) => setEditAddress(e.target.value)}
+                              placeholder="ระบุที่อยู่สถานศึกษา เช่น หมู่ 1 ต.ปางหมู อ.เมือง จ.แม่ฮ่องสอน 58000"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ติดต่อโรงเรียน</label>
-                        <input
-                          type="text"
-                          required
-                          value={editSchoolPhone}
-                          onChange={(e) => setEditSchoolPhone(e.target.value)}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ส่วนตัวผู้บริหาร</label>
-                        <input
-                          type="text"
-                          required
-                          value={editDirectorPhone}
-                          onChange={(e) => setEditDirectorPhone(e.target.value)}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                          <Sparkles className="h-4 w-4 text-[#FF8BA7]" />
-                          ความพิเศษของโรงเรียน / จุดเด่น (Special Highlights)
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={editSpecialHighlights}
-                          onChange={(e) => setEditSpecialHighlights(e.target.value)}
-                          placeholder="เช่น โรงเรียนในโครงการพระราชดำริ, มีอัตลักษณ์ด้านกีฬาและดนตรีพื้นเมือง, โรงเรียนคุณธรรม 5 ดาว..."
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-
-                      {/* ส่วนเพิ่ม/อัปโหลดรูปภาพ 3 รายการ: ตราโรงเรียน, รูปโรงเรียน, และรูป ผอ. */}
-                      <div className="sm:col-span-2 p-4 rounded-2xl bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-4">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b border-[#33272A]/20 pb-2 dark:border-[#FFD3B6]/20">
-                          <ImageIcon className="h-4 w-4 text-[#FF8BA7]" /> 
-                          การจัดการรูปภาพสถานศึกษา (ตราโรงเรียน, รูปภาพโรงเรียน, และรูปภาพ ผอ.)
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block mb-1">
+                          🖼️ รูปภาพและโลโก้สถานศึกษา (School Branding & Media)
                         </label>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3386,278 +3387,24 @@ export default function AdminPanel({
                 )}
               </div>
 
-              {/* ฟอร์มเพิ่มโรงเรียนใหม่ (เฉพาะ Super Admin) */}
-              {isSuperAdmin && (
-                <div className="card p-6 bg-[#FFF9F5] dark:bg-[#1e1518]">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> เพิ่มข้อมูลสถานศึกษาใหม่เข้าสู่ระบบ
-                  </h3>
-
-                  <form onSubmit={handleAddSchoolSubmit} className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      รหัสสถานศึกษา (8 หลัก) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น 10580101"
-                      value={newSchoolId}
-                      onChange={(e) => setNewSchoolId(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-
-                  <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      ชื่อสถานศึกษา <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น โรงเรียนบ้านห้วยเสือร้อง"
-                      value={newSchoolName}
-                      onChange={(e) => setNewSchoolName(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อำเภอ</label>
-                    <select
-                      value={newSchoolAmphoe}
-                      onChange={(e) => setNewSchoolAmphoe(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    >
-                      <option value="เมืองแม่ฮ่องสอน">เมืองแม่ฮ่องสอน</option>
-                      <option value="ขุนยวม">ขุนยวม</option>
-                      <option value="ปาย">ปาย</option>
-                      <option value="แม่สะเรียง">แม่สะเรียง</option>
-                      <option value="แม่ลาน้อย">แม่ลาน้อย</option>
-                      <option value="สบเมย">สบเมย</option>
-                      <option value="ปางมะผ้า">ปางมะผ้า</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">กลุ่มเครือข่ายสถานศึกษา</label>
-                    <select
-                      value={newSchoolNetworkGroup}
-                      onChange={(e) => setNewSchoolNetworkGroup(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    >
-                      <option value="">-- เลือกกลุ่มเครือข่าย --</option>
-                      {availableNetworkGroups.map(group => (
-                        <option key={group} value={group}>{group}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ขนาดโรงเรียน</label>
-                    <select
-                      value={newSchoolSize}
-                      onChange={(e) => setNewSchoolSize(e.target.value as School['size'])}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    >
-                      <option value="small">เล็ก (1 - 120 คน)</option>
-                      <option value="medium">กลาง (121 - 300 คน)</option>
-                      <option value="large">ใหญ่ (301 - 1,499 คน)</option>
-                      <option value="extra_large">ใหญ่พิเศษ (1,500 คนขึ้นไป)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ประเภทโรงเรียน</label>
-                    <select
-                      value={newSchoolIsExpansion ? 'true' : 'false'}
-                      onChange={(e) => setNewSchoolIsExpansion(e.target.value === 'true')}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    >
-                      <option value="false">ขยายโอกาส: ไม่ใช่ (สอนถึง ป.6)</option>
-                      <option value="true">ขยายโอกาส: ใช่ (สอนถึง ม.3)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบอินเทอร์เน็ต</label>
-                    <select
-                      value={newSchoolInternet}
-                      onChange={(e) => setNewSchoolInternet(e.target.value as School['internetType'])}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    >
-                      <option value="fiber">Fiber Optic</option>
-                      <option value="satellite">ดาวเทียม</option>
-                      <option value="sim">SIM 4G/5G</option>
-                      <option value="none">ไม่มีอินเทอร์เน็ต</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำนวนครูและบุคลากร (คน)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={newSchoolStaffCount}
-                      onChange={(e) => setNewSchoolStaffCount(Number(e.target.value))}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์โรงเรียน</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น 053-611234"
-                      value={newSchoolPhone}
-                      onChange={(e) => setNewSchoolPhone(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เบอร์โทรศัพท์ผู้บริหาร</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น 081-2345678"
-                      value={newSchoolDirectorPhone}
-                      onChange={(e) => setNewSchoolDirectorPhone(e.target.value)}
-                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold text-[#33272A] outline-none dark:border-[#FFD3B6] dark:bg-[#150e10] dark:text-[#FFF9F5]"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-3">
-                    {addSchoolSuccess && (
-                      <div className="p-3 bg-emerald-100 border-2 border-emerald-500 rounded-xl text-emerald-900 text-xs font-bold">
-                        {addSchoolSuccess}
-                      </div>
-                    )}
-                    {addSchoolError && (
-                      <div className="p-3 bg-rose-100 border-2 border-rose-500 rounded-xl text-rose-900 text-xs font-bold">
-                        {addSchoolError}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="md:col-span-3 flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={isAddingSchool}
-                      className="btn-cute bg-[#A0E7E5] text-[#33272A] px-6 py-2.5 text-xs font-black flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <Save className="h-4 w-4" />
-                      <span>{isAddingSchool ? 'กำลังบันทึกโรงเรียน...' : 'เพิ่มโรงเรียนเข้าสู่ระบบ'}</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-              {/* ส่วนจัดการและแก้ไขชื่อกลุ่มเครือข่ายสถานศึกษา (เฉพาะ Super Admin) */}
+              {/* ตารางแสดงรายชื่อโรงเรียนที่สามารถจัดการข้อมูลได้ (แสดงเฉพาะ Super Admin เพื่อเลือกโรงเรียนที่ต้องการแก้ไขหรือลบ) */}
               {isSuperAdmin && (
                 <div className="card p-6 space-y-4">
-                  <div className="flex flex-col gap-1 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                      <Layers className="h-4.5 w-4.5 text-purple-500" /> จัดการและแก้ไขชื่อกลุ่มเครือข่ายสถานศึกษา
-                    </h3>
-                    <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-                      Super Admin สามารถแก้ไขชื่อกลุ่มเครือข่ายที่นี่ ระบบจะอัปเดตชื่อกลุ่มในโรงเรียนทั้งหมดที่สังกัดกลุ่มนี้ให้อัตโนมัติ
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <div>
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        รายชื่อสถานศึกษาในสังกัด ({manageableSchools.length} โรงเรียน)
+                      </h3>
+                      <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+                        คลิกปุ่ม "แก้ไขข้อมูล" เพื่อดึงข้อมูลโรงเรียนขึ้นมาแก้ไขด้านบน
+                      </p>
+                    </div>
                   </div>
 
-                  {renameGroupSuccess && (
-                    <div className="p-3 bg-emerald-100 border-2 border-emerald-500 rounded-xl text-emerald-900 text-xs font-bold animate-fade-in">
-                      {renameGroupSuccess}
-                    </div>
-                  )}
-                  {renameGroupError && (
-                    <div className="p-3 bg-rose-100 border-2 border-rose-500 rounded-xl text-rose-900 text-xs font-bold animate-fade-in">
-                      {renameGroupError}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {allNetworkGroupList.map((group) => {
-                      const isEditingThis = editingGroupOldName === group.name;
-                      return (
-                        <div
-                          key={group.name}
-                          className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1">
-                              <span>อำเภอ{group.amphoe}</span>
-                              <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 px-2 py-0.5 rounded-full font-black border border-purple-200 dark:border-purple-800">
-                                {group.schoolCount} โรงเรียน
-                              </span>
-                            </div>
-
-                            {isEditingThis ? (
-                              <div className="space-y-2 my-1">
-                                <input
-                                  type="text"
-                                  value={editingGroupNewName}
-                                  onChange={(e) => setEditingGroupNewName(e.target.value)}
-                                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none"
-                                  placeholder="พิมพ์ชื่อกลุ่มเครือข่ายใหม่"
-                                />
-                                <div className="flex gap-1.5 justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingGroupOldName(null)}
-                                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-[#33272A] dark:border-[#FFD3B6] bg-slate-100 dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] cursor-pointer"
-                                  >
-                                    ยกเลิก
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={isRenamingGroup}
-                                    onClick={() => handleRenameNetworkGroup(group.name, editingGroupNewName)}
-                                    className="px-2.5 py-1 text-[11px] font-black rounded-lg border-2 border-[#33272A] bg-purple-500 text-white hover:bg-purple-600 cursor-pointer disabled:opacity-50"
-                                  >
-                                    {isRenamingGroup ? 'กำลังบันทึก...' : 'บันทึกชื่อใหม่'}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] my-1">
-                                🏫 {group.name}
-                              </h4>
-                            )}
-                          </div>
-
-                          {!isEditingThis && (
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingGroupOldName(group.name);
-                                  setEditingGroupNewName(group.name);
-                                }}
-                                className="text-[11px] font-black text-purple-600 hover:text-purple-800 dark:text-purple-400 flex items-center gap-1 cursor-pointer"
-                              >
-                                <Edit3 className="h-3 w-3" /> แก้ไขชื่อกลุ่ม
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ตารางรายชื่อโรงเรียนทั้งหมดพร้อมปุ่มลบ (เฉพาะ Super Admin) */}
-              {isSuperAdmin && (
-                <div className="card p-6 space-y-4">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Building className="h-4.5 w-4.5 text-[#FF8BA7]" /> ตารางรายชื่อโรงเรียนในระบบทั้งหมด ({schools.length} แห่ง)
-                  </h3>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="overflow-x-auto rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                    <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                        <tr className="bg-[#FFF9F5] dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
                           <th className="p-3">รหัสโรงเรียน</th>
                           <th className="p-3">ชื่อสถานศึกษา</th>
                           <th className="p-3">อำเภอ</th>
@@ -3666,26 +3413,32 @@ export default function AdminPanel({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-bold">
-                        {schools.map((s) => (
-                          <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
-                            <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
-                            <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
-                            <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
-                            <td className="p-3 text-center">{s.staffCount}</td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedSchoolId(s.id);
-                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                  }}
-                                  className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
-                                  title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
-                                >
-                                  <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
-                                </button>
-                                {isSuperAdmin && (
+                        {manageableSchools.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-6 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 font-bold">
+                              ไม่พบข้อมูลสถานศึกษาในระบบ
+                            </td>
+                          </tr>
+                        ) : (
+                          manageableSchools.map((s) => (
+                            <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
+                              <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
+                              <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
+                              <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
+                              <td className="p-3 text-center">{s.staffCount}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedSchoolId(s.id);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
+                                    title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
+                                  >
+                                    <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
@@ -3693,11 +3446,11 @@ export default function AdminPanel({
                                   >
                                     <Trash2 className="h-3 w-3" /> ลบโรงเรียน
                                   </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -3761,157 +3514,59 @@ export default function AdminPanel({
                     <span className="text-xs font-black">🎨 ธีมโมเดิร์น (Modern Clean)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">เรียบหรู ดูสบายตา สไตล์ทางการ</span>
                   </button>
-
-                  {/* 3. ธีมดาร์กเทค */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('darktech')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'darktech'
-                        ? 'bg-emerald-500 text-slate-950 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <Zap className="h-6 w-6 text-emerald-300" />
-                    <span className="text-xs font-black">⚡ ธีมดาร์กเทค (Dark Tech)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">ล้ำสมัย ถนอมสายตาสำหรับใช้งานกลางคืน</span>
-                  </button>
-
-                  {/* 4. ธีมมินิมอล สเลต (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('minimal-slate')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'minimal-slate'
-                        ? 'bg-slate-800 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Layers className="h-5 w-5 text-sky-400" />
-                      <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">📱 มินิมอล สเลต (Minimal Slate)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">คลีน นอร์ดิก กรอบบางสบายตาที่สุดสำหรับจอมือถือ</span>
-                  </button>
-
-                  {/* 5. ธีมวอร์ม เนเชอร์ (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('warm-nature')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'warm-nature'
-                        ? 'bg-amber-700 text-amber-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Sun className="h-5 w-5 text-amber-400" />
-                      <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">🌱 วอร์ม เนเชอร์ (Warm Nature)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">โทนสีครีมธรรมชาติ อุ่นสายตา ไม่สะท้อนจอมือถือ</span>
-                  </button>
-
-                  {/* 6. ธีมเอ็มเมอรัลด์ มินต์ (ใหม่!) */}
-                  <button
-                    type="button"
-                    onClick={() => setThemeStyle && setThemeStyle('emerald-mint')}
-                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
-                      themeStyle === 'emerald-mint'
-                        ? 'bg-emerald-700 text-emerald-50 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
-                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <Sparkles className="h-5 w-5 text-emerald-300" />
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">NEW</span>
-                    </div>
-                    <span className="text-xs font-black">🍃 เอ็มเมอรัลด์ มินต์ (iOS Dashboard)</span>
-                    <span className="text-[10px] opacity-80 leading-relaxed">มินต์คลีน สดใส สไตล์ Dashboard กดง่ายบนสมาร์ตโฟน</span>
-                  </button>
                 </div>
-
-                {/* สวิตช์ Dark Mode / Light Mode */}
-                {setIsDarkMode && (
-                  <div className="p-4 bg-[#FFF9F5] dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm mt-3">
-                    <div>
-                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        โหมดการแสดงผลหน้าจอ (Dark / Light Mode)
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-0.5">
-                        {isDarkMode ? '🌙 โหมดมืด (Dark Mode) เปิดใช้งานอยู่' : '☀️ โหมดสว่าง (Light Mode) เปิดใช้งานอยู่'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsDarkMode(!isDarkMode)}
-                      className="btn-cute bg-[#FFD3B6] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ffbe94]"
-                    >
-                      {isDarkMode ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-600" />}
-                      <span>{isDarkMode ? 'สลับเป็นโหมดสว่าง' : 'สลับเป็นโหมดมืด'}</span>
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
-          )}
 
-          {adminTab === 'settings' && isSuperAdmin && (
-            <div className="space-y-6">
-              <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
-                  <div className="flex items-center gap-2">
-                    <Settings className="h-6 w-6 text-[#FF8BA7]" />
-                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      ตั้งค่าระบบ &amp; โครงสร้างพื้นฐาน (System Configuration)
-                    </h3>
+              {/* จัดการป้ายแบนเนอร์ส่วนหัว (Header Banner) */}
+              <div className="bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#33272A]/20 pb-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-[#FF8BA7]" />
+                      ป้ายแบนเนอร์ประชาสัมพันธ์ส่วนหัว (Header Banner)
+                    </h4>
+                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-400 dark:bg-amber-950 dark:text-amber-200 flex items-center gap-1">
+                      <Shield className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                      สิทธิ์เฉพาะ Super Admin เท่านั้น
+                    </span>
                   </div>
-                  {isSuperAdmin && (
-                    <button
-                      type="button"
-                      onClick={handleSaveAllSystemConfig}
-                      disabled={isSavingSettings}
-                      className="btn-cute bg-[#A0E7E5] text-[#33272A] px-5 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 disabled:opacity-50"
-                    >
-                      <Save className="h-4 w-4" />
-                      {isSavingSettings ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าระบบทั้งหมด'}
-                    </button>
-                  )}
-                </div>
 
-                {settingsSuccess && (
-                  <div className="p-3 bg-emerald-100 text-emerald-900 border-2 border-emerald-400 rounded-2xl text-xs font-black flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                    <span>{settingsSuccess}</span>
-                  </div>
-                )}
-
-                {/* 🖼️ ส่วนตั้งค่าแบนเนอร์รูปภาพบนหัว Header */}
-                {isSuperAdmin && (
-                  <div className="p-5 rounded-2xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-[#251b1e] dark:border-[#FFD3B6] space-y-5">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 pb-3">
-                      <div className="flex items-center gap-2">
-                        <ImageIcon className="h-5 w-5 text-[#FF8BA7]" />
-                        <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
-                          ตั้งค่ารูปภาพแบนเนอร์บนหัวเว็บไซต์ (Header Banner Image &amp; Resizing)
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                          headerBannerEnabled
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200'
+                            : 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                        }`}>
+                          {headerBannerEnabled ? '🟢 กำลังเปิดแสดงผลแบนเนอร์' : '🔴 กำลังปิดการแสดงผลแบนเนอร์'}
+                        </span>
                         <button
                           type="button"
+                          role="switch"
+                          aria-checked={headerBannerEnabled}
+                          disabled={!isSuperAdmin}
                           onClick={() => setHeaderBannerEnabled(!headerBannerEnabled)}
-                          className={`btn-cute px-3 py-1.5 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-all ${
-                            headerBannerEnabled
-                              ? 'bg-emerald-400 text-[#33272A]'
-                              : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          className={`relative inline-flex h-7 w-14 shrink-0 rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none ${
+                            !isSuperAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          } ${
+                            headerBannerEnabled ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
+                          title={!isSuperAdmin ? 'สิทธิ์เฉพาะ Super Admin เท่านั้น' : 'สวิตช์ เปิด-ปิด แบนเนอร์บนส่วนหัวเว็บไซต์'}
                         >
-                          {headerBannerEnabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                          {headerBannerEnabled ? 'เปิดใช้งานแบนเนอร์' : 'ปิดการแสดงผล'}
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                              headerBannerEnabled ? 'translate-x-7' : 'translate-x-0.5'
+                            }`}
+                          />
                         </button>
                       </div>
                     </div>
+
+                    {!isSuperAdmin && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>การจัดการป้ายแบนเนอร์ส่วนหัวของเว็บไซต์ ได้รับการสงวนสิทธิ์ไว้สำหรับ <strong>Super Admin เท่านั้น</strong> คุณไม่สามารถเปลี่ยนแปลงการตั้งค่าส่วนนี้ได้</span>
+                      </div>
+                    )}
 
                     <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
                       อัปโหลดรูปภาพป้ายแบนเนอร์ หรือใส่ลิงก์ URL เพื่อแสดงบนส่วนหัวของเว็บไซต์ (Header) พร้อมปรับขนาดความสูง และรูปแบบการจัดวางรูปภาพได้อย่างอิสระ
@@ -4100,10 +3755,11 @@ export default function AdminPanel({
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-
-
+          {adminTab === 'settings' && (
+            <div className="space-y-6 animate-fade-in">
               {/* Grid 2 คอลัมน์: สวิตช์นโยบายระบบ & โครงสร้างพื้นฐาน */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* คอลัมน์ 1: นโยบายและสิทธิ์ระบบ */}
@@ -4130,22 +3786,37 @@ export default function AdminPanel({
                         </p>
                         <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                           {highTrafficAlertEnabled
-                            ? '✓ เปิดใช้งาน: แจ้งเตือนอัตโนมัติทันทีเมื่อสถานะเซิร์ฟเวอร์เป็นสีแดง (🔴 ผู้ใช้หนาแน่น)'
-                            : '❌ ปิดใช้งาน: ไม่แสดง Pop-up แจ้งเตือน'}
+                            ? 'แจ้งเตือนอัตโนมัติทันทีเมื่อสถานะเซิร์ฟเวอร์เป็นสีแดง (🔴 ผู้ใช้หนาแน่น)'
+                            : 'ปิดใช้งานระบบแจ้งเตือน Pop-up'}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSetting('highTrafficAlertEnabled', !highTrafficAlertEnabled)}
-                        disabled={isSavingSettings || !isSuperAdmin}
-                        className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
                           highTrafficAlertEnabled
-                            ? 'bg-rose-400 text-rose-950 shadow-[2px_2px_0px_#33272A]'
-                            : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
-                        }`}
-                      >
-                        {highTrafficAlertEnabled ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
-                      </button>
+                            ? 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                            : 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                        }`}>
+                          {highTrafficAlertEnabled ? '🟢 กำลังเปิดใช้งานสิทธิ์' : '🔴 กำลังปิดใช้งาน'}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={highTrafficAlertEnabled}
+                          onClick={() => handleToggleSetting('highTrafficAlertEnabled', !highTrafficAlertEnabled)}
+                          disabled={isSavingSettings || !isSuperAdmin}
+                          className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                            highTrafficAlertEnabled ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                          title="สวิตช์ เปิด-ปิด ระบบแจ้งเตือน Pop-up ผู้ใช้งานหนาแน่น"
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                              highTrafficAlertEnabled ? 'translate-x-7' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
 
                     {highTrafficAlertEnabled && (
@@ -4180,18 +3851,33 @@ export default function AdminPanel({
                               {simulateRedServerStatus ? '🔴 เปิดโหมดจำลองสถานะสีแดงอยู่ (Pop-up ทำงานแสดงผล)' : 'ปกติ (คำนวณตามภาระเซิร์ฟเวอร์จริง)'}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSetting('simulateRedServerStatus', !simulateRedServerStatus)}
-                            disabled={isSavingSettings || !isSuperAdmin}
-                            className={`px-3 py-1.5 text-xs font-black rounded-lg border-2 border-[#33272A] cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
                               simulateRedServerStatus
-                                ? 'bg-rose-500 text-white shadow-[2px_2px_0px_#33272A]'
-                                : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] shadow-[2px_2px_0px_#33272A]'
-                            }`}
-                          >
-                            {simulateRedServerStatus ? '🔴 ปิดการจำลอง' : '⚡ บังคับสีแดง'}
-                          </button>
+                                ? 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                                : 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                              {simulateRedServerStatus ? '🔴 บังคับสีแดง' : '🟢 ภาระจริง'}
+                            </span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={simulateRedServerStatus}
+                              onClick={() => handleToggleSetting('simulateRedServerStatus', !simulateRedServerStatus)}
+                              disabled={isSavingSettings || !isSuperAdmin}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                                simulateRedServerStatus ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
+                              }`}
+                              title="สวิตช์ เปิด-ปิด บังคับสถานะเซิร์ฟเวอร์สีแดง"
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm border border-[#33272A] transition duration-200 ease-in-out mt-[1px] ${
+                                  simulateRedServerStatus ? 'translate-x-5' : 'translate-x-0.5'
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="space-y-1.5">
@@ -4218,25 +3904,40 @@ export default function AdminPanel({
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {allowDataDownload
-                          ? '✓ เปิดใช้งาน: ผู้ใช้งานทุกคนสามารถดาวน์โหลดไฟล์ Excel/CSV ได้'
-                          : '❌ ปิดใช้งาน: ไม่อนุญาตให้ดาวน์โหลด (ยกเว้น Super Admin)'}
+                          ? 'ผู้ใช้งานทุกคนสามารถดาวน์โหลดไฟล์ Excel/CSV ได้'
+                          : 'ไม่อนุญาตให้ดาวน์โหลด (เฉพาะ Super Admin ดาวน์โหลดได้)'}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSetting('allowDataDownload', !allowDataDownload)}
-                      disabled={isSavingSettings || !isSuperAdmin}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
                         allowDataDownload
-                          ? 'bg-emerald-400 text-emerald-950 shadow-[2px_2px_0px_#33272A]'
-                          : 'bg-rose-200 text-rose-950 shadow-[2px_2px_0px_#33272A]'
-                      }`}
-                    >
-                      {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
-                    </button>
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200'
+                          : 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                      }`}>
+                        {allowDataDownload ? '🟢 กำลังเปิดสิทธิ์ให้ดาวน์โหลด' : '🔴 กำลังปิดสิทธิ์ดาวน์โหลด'}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={allowDataDownload}
+                        onClick={() => handleToggleSetting('allowDataDownload', !allowDataDownload)}
+                        disabled={isSavingSettings || !isSuperAdmin}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                          allowDataDownload ? 'bg-emerald-400' : 'bg-rose-400'
+                        }`}
+                        title="สวิตช์ เปิด-ปิด สิทธิ์การดาวน์โหลดข้อมูลระบบ"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                            allowDataDownload ? 'translate-x-7' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 2. จำกัด 1 แอดมินต่อโรงเรียน */}
+                  {/* 3. จำกัด 1 แอดมินต่อโรงเรียน */}
                   <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -4244,25 +3945,40 @@ export default function AdminPanel({
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {restrictOneAdminPerSchool
-                          ? '✓ โรงเรียนที่มีแอดมินแล้ว จะปิดไม่ให้ผู้อื่นสมัครซ้ำ'
-                          : '🔓 อนุญาตให้มีแอดมินหลายคนต่อหนึ่งโรงเรียนได้'}
+                          ? 'โรงเรียนที่มีแอดมินแล้ว จะปิดไม่ให้ผู้อื่นสมัครซ้ำ'
+                          : 'อนุญาตให้มีแอดมินหลายคนต่อหนึ่งโรงเรียนได้'}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                      disabled={isSavingSettings || !isSuperAdmin}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
                         restrictOneAdminPerSchool
-                          ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]'
-                          : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
-                      }`}
-                    >
-                      {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : 'ปิดใช้งาน'}
-                    </button>
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200'
+                          : 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                      }`}>
+                        {restrictOneAdminPerSchool ? '🟢 กำลังเปิดจำกัด 1 คน/โรงเรียน' : '🔴 กำลังปิดจำกัด (หลายคนได้)'}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={restrictOneAdminPerSchool}
+                        onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
+                        disabled={isSavingSettings || !isSuperAdmin}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                          restrictOneAdminPerSchool ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                        title="สวิตช์ เปิด-ปิด นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                            restrictOneAdminPerSchool ? 'translate-x-7' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 3. เปิด/ปิด การรับสมัครแอดมินโรงเรียน */}
+                  {/* 4. เปิด/ปิด การรับสมัครแอดมินโรงเรียน */}
                   <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -4270,22 +3986,79 @@ export default function AdminPanel({
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {allowSchoolAdminRegistration
-                          ? '✓ เปิดรับสมัคร: สมาชิกใหม่ลงทะเบียนขอสิทธิ์ School Admin ได้'
-                          : '❌ ปิดรับสมัคร: ปิดรับการลงทะเบียนแอดมินโรงเรียนชั่วคราว'}
+                          ? 'เปิดรับสมัคร: สมาชิกใหม่ลงทะเบียนขอสิทธิ์ School Admin ได้'
+                          : 'ปิดรับสมัคร: ปิดรับการลงทะเบียนแอดมินโรงเรียนชั่วคราว'}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                      disabled={isSavingSettings || !isSuperAdmin}
-                      className={`px-4 py-2 text-xs font-black rounded-xl border-2 border-[#33272A] transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
                         allowSchoolAdminRegistration
-                          ? 'bg-emerald-300 text-[#33272A] shadow-[2px_2px_0px_#33272A]'
-                          : 'bg-slate-200 text-slate-700 shadow-[2px_2px_0px_#33272A]'
-                      }`}
-                    >
-                      {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
-                    </button>
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200'
+                          : 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                      }`}>
+                        {allowSchoolAdminRegistration ? '🟢 กำลังเปิดรับสมัครแอดมิน' : '🔴 กำลังปิดรับสมัครแอดมิน'}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={allowSchoolAdminRegistration}
+                        onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
+                        disabled={isSavingSettings || !isSuperAdmin}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                          allowSchoolAdminRegistration ? 'bg-emerald-400' : 'bg-rose-400'
+                        }`}
+                        title="สวิตช์ เปิด-ปิด ระบบรับสมัครแอดมินโรงเรียน"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                            allowSchoolAdminRegistration ? 'translate-x-7' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. เปิด/ปิด การแสดงผลเมนูติดต่อสื่อสาร */}
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
+                    <div>
+                      <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                        <Phone className="h-4 w-4 text-emerald-500" />
+                        การแสดงผลเมนู "ติดต่อ" สำหรับทุกคน
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
+                        {contactEnabled
+                          ? 'เปิดการแสดงผล: ทุกคนสามารถมองเห็นและเข้าใช้งานเมนูติดต่อได้'
+                          : 'ปิดการแสดงผล: ซ่อนเมนูติดต่อไว้ให้เห็นเฉพาะ Super Admin เท่านั้น'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                        contactEnabled
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200'
+                          : 'bg-rose-100 text-rose-900 border-rose-400 dark:bg-rose-950 dark:text-rose-200'
+                      }`}>
+                        {contactEnabled ? '🟢 กำลังเปิดแสดงผลเมนูติดต่อ' : '🔴 กำลังปิดซ่อนเมนูติดต่อ'}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={contactEnabled}
+                        onClick={() => handleToggleSetting('contactEnabled', !contactEnabled)}
+                        disabled={isSavingSettings || !isSuperAdmin}
+                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                          contactEnabled ? 'bg-emerald-400' : 'bg-rose-400'
+                        }`}
+                        title="สวิตช์ เปิด-ปิด แสดงผลเมนูติดต่อ"
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
+                            contactEnabled ? 'translate-x-7' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -4411,8 +4184,7 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
       {/* Slide-over Drawer: สถานะระบบและโควตาฐานข้อมูล */}
       {isQuotaDrawerOpen && isSuperAdmin && (

@@ -598,6 +598,10 @@ export default function App() {
                 allStudentData={studentData}
                 allStudentGData={studentGData}
                 onBack={() => setSelectedSchoolId(null)}
+                onNavigateToContact={() => {
+                  setSelectedSchoolId(null);
+                  setActiveTab('contact');
+                }}
                 userProfile={userProfile}
                 onRefreshData={fetchAllData}
                 isDarkMode={isDarkMode}

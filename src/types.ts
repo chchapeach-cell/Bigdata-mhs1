@@ -51,6 +51,11 @@ export interface School {
   classrooms?: ClassroomItem[]; // รายชื่อห้องเรียน/ชั้นเรียนในโรงเรียน
   directorPhone: string; // เบอร์โทรศัพท์ผู้บริหาร
   schoolPhone: string; // เบอร์โรงเรียน
+  email?: string; // อีเมลติดต่อสถานศึกษา
+  facebook?: string; // Facebook Page / ลิงก์ Facebook
+  line?: string; // LINE ID / ลิงก์ LINE
+  website?: string; // เว็บไซต์สถานศึกษา
+  address?: string; // ที่อยู่สถานศึกษา
   imageUrl: string; // รูปภาพโรงเรียน
   logoUrl?: string; // รูปภาพตราโรงเรียน
   directorImageUrl?: string; // รูปภาพผู้บริหารโรงเรียน (เห็นเฉพาะแอดมิน)
