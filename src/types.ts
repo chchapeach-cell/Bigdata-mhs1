@@ -150,5 +150,6 @@ export interface SystemConfig {
   contactChannels?: ContactChannel[]; // รายการช่องทางติดต่อสื่อสาร
   contactTitle?: string; // หัวข้อหน้าติดต่อ
   contactSubtitle?: string; // คำอธิบายหน้าติดต่อ
+  contactEnabled?: boolean; // เปิด-ปิดการแสดงผลเมนูติดต่อสำหรับทุกคน (Super Admin เป็นผู้กำหนด)
 }
 

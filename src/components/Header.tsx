@@ -237,17 +237,25 @@ export default function Header({
             <span>โครงสร้างพื้นฐาน</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('contact')}
-            className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activeTab === 'contact'
-                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
-                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
-            }`}
-          >
-            <PhoneCall className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900 shrink-0" />
-            <span>ติดต่อ</span>
-          </button>
+          {/* Tab 4: ติดต่อ (แสดงสำหรับทุกคนถ้า super admin อนุญาต หรือแสดงเสมอสำหรับ super admin) */}
+          {(userProfile?.role === 'super_admin' || systemConfig?.contactEnabled !== false) && (
+            <button
+              onClick={() => setActiveTab('contact')}
+              className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                activeTab === 'contact'
+                  ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                  : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+              }`}
+            >
+              <PhoneCall className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900 shrink-0" />
+              <span>ติดต่อ</span>
+              {systemConfig?.contactEnabled === false && userProfile?.role === 'super_admin' && (
+                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-400">
+                  ซ่อนอยู่
+                </span>
+              )}
+            </button>
+          )}
 
           {userProfile && (
             <button
@@ -310,17 +318,19 @@ export default function Header({
         </button>
 
         {/* Tab 4: ติดต่อ */}
-        <button
-          onClick={() => setActiveTab('contact')}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
-            activeTab === 'contact'
-              ? 'text-[#FF8BA7] scale-105 font-black'
-              : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
-          }`}
-        >
-          <PhoneCall className={`h-5 w-5 text-emerald-500 ${activeTab === 'contact' ? 'stroke-[2.5px] fill-emerald-200' : 'stroke-2'}`} />
-          <span className="text-[10px] font-black">ติดต่อ</span>
-        </button>
+        {(userProfile?.role === 'super_admin' || systemConfig?.contactEnabled !== false) && (
+          <button
+            onClick={() => setActiveTab('contact')}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+              activeTab === 'contact'
+                ? 'text-[#FF8BA7] scale-105 font-black'
+                : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
+            }`}
+          >
+            <PhoneCall className={`h-5 w-5 text-emerald-500 ${activeTab === 'contact' ? 'stroke-[2.5px] fill-emerald-200' : 'stroke-2'}`} />
+            <span className="text-[10px] font-black">ติดต่อ</span>
+          </button>
+        )}
 
         {/* Tab 5: ระบบจัดการ (ถ้าเข้าสู่ระบบแล้ว) */}
         {userProfile && (

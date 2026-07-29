@@ -200,6 +200,32 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
     setIsEditMode(false);
   };
 
+  // สลับการเปิด-ปิด เมนูติดต่อสำหรับทุกคน (Super Admin เท่านั้น)
+  const handleToggleContactMenu = async () => {
+    if (!isSuperAdmin) return;
+    const currentEnabled = systemConfig?.contactEnabled !== false;
+    const nextEnabled = !currentEnabled;
+    setIsSaving(true);
+    setSuccessMsg('');
+    setErrorMsg('');
+    try {
+      await setDoc(doc(db, 'settings', 'system_config'), {
+        contactEnabled: nextEnabled,
+        updatedAt: new Date()
+      }, { merge: true });
+
+      setSuccessMsg(nextEnabled ? 'เปิดแสดงผลเมนู "ติดต่อ" ให้ทุกคนเห็นเรียบร้อยแล้ว!' : 'ซ่อนเมนู "ติดต่อ" จากทุกคนแล้ว (เห็นเฉพาะ Super Admin)!');
+      await onRefreshData();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err: any) {
+      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'settings/system_config');
+      setErrorMsg('เกิดข้อผิดพลาดในการบันทึกสถานะเมนูติดต่อ');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // เลือกไอคอนตามประเภท
   const renderIcon = (type: ContactChannel['type']) => {
     switch (type) {
@@ -250,14 +276,40 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
 
           {/* ปุ่มจัดการสำหรับ Super Admin */}
           {isSuperAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsEditMode(!isEditMode)}
-              className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 shrink-0 z-10"
-            >
-              {isEditMode ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
-              <span>{isEditMode ? 'ปิดการจัดการ' : '⚙️ จัดการ/เพิ่มช่องทางติดต่อ & QR Code'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 z-10 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleContactMenu}
+                disabled={isSaving}
+                className={`btn-cute px-3.5 py-2 text-xs font-black flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer ${
+                  systemConfig?.contactEnabled !== false
+                    ? 'bg-emerald-300 text-emerald-950 hover:bg-emerald-400'
+                    : 'bg-amber-200 text-amber-950 hover:bg-amber-300'
+                }`}
+                title="Super Admin สามารถคลิกเพื่อเปิดหรือซ่อนเมนูติดต่อสำหรับผู้ใช้ทั่วไป"
+              >
+                {systemConfig?.contactEnabled !== false ? (
+                  <>
+                    <Eye className="h-4 w-4 text-emerald-800" />
+                    <span>เมนูติดต่อ: แสดงให้ทุกคนเห็น</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4 text-amber-800" />
+                    <span>เมนูติดต่อ: ซ่อนอยู่ (เฉพาะ Super Admin)</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsEditMode(!isEditMode)}
+                className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 shrink-0"
+              >
+                {isEditMode ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                <span>{isEditMode ? 'ปิดการจัดการ' : '⚙️ จัดการ/เพิ่มช่องทางติดต่อ & QR Code'}</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
