@@ -380,6 +380,94 @@ html, #root {
   color: #ECFDF5 !important;
 }
 
+/* -------------------------------------------------------------
+   THEME 7: CYAN FUTURISTIC (🔮 ไซเบอร์ ซิยอง - Neon Cyan & Dark High-Tech)
+   ------------------------------------------------------------- */
+.theme-cyan-futuristic, html.theme-cyan-futuristic {
+  --bg-vibrant: #0B132B;
+  --text-vibrant: #E0FBFC;
+  --color-bg-vibrant: #0B132B;
+  --color-text-vibrant: #E0FBFC;
+}
+
+.theme-cyan-futuristic body {
+  background-color: #0B132B !important;
+  color: #E0FBFC !important;
+}
+
+.theme-cyan-futuristic .card {
+  background-color: #1C2541 !important;
+  border: 1px solid #3A506B !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 245, 212, 0.25) !important;
+  color: #E0FBFC !important;
+  transition: all 0.2s ease;
+}
+
+.theme-cyan-futuristic .btn-cute {
+  border: 1px solid #00F5D4 !important;
+  border-radius: 12px !important;
+  background-color: #1C2541 !important;
+  color: #00F5D4 !important;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.3) !important;
+  transition: all 0.2s;
+}
+
+/* -------------------------------------------------------------
+   THEME 8: ROYAL GOLD (👑 รอยัล โกลด์ - Royal Violet & Luxury Gold)
+   ------------------------------------------------------------- */
+.theme-royal-gold, html.theme-royal-gold {
+  --bg-vibrant: #FAFAF9;
+  --text-vibrant: #291528;
+  --color-bg-vibrant: #FAFAF9;
+  --color-text-vibrant: #291528;
+}
+
+.theme-royal-gold.dark, html.theme-royal-gold.dark, .dark.theme-royal-gold, .theme-royal-gold .dark {
+  --bg-vibrant: #1A0923;
+  --text-vibrant: #FDF0D5;
+  --color-bg-vibrant: #1A0923;
+  --color-text-vibrant: #FDF0D5;
+}
+
+.theme-royal-gold body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-royal-gold .card {
+  background-color: #FFFFFF !important;
+  border: 2px solid #D4AF37 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 16px -2px rgba(212, 175, 55, 0.2) !important;
+  color: #291528 !important;
+}
+
+.theme-royal-gold.dark .card,
+.theme-royal-gold .dark .card,
+.dark.theme-royal-gold .card {
+  background-color: #261131 !important;
+  border: 2px solid #E6C280 !important;
+  box-shadow: 0 4px 20px -2px rgba(230, 194, 128, 0.25) !important;
+  color: #FDF0D5 !important;
+}
+
+.theme-royal-gold .btn-cute {
+  border: 1.5px solid #D4AF37 !important;
+  border-radius: 14px !important;
+  background-color: #FFFDF9 !important;
+  color: #291528 !important;
+  font-weight: 700;
+}
+
+.theme-royal-gold.dark .btn-cute,
+.theme-royal-gold .dark .btn-cute,
+.dark.theme-royal-gold .btn-cute {
+  border: 1.5px solid #E6C280 !important;
+  background-color: #261131 !important;
+  color: #FDF0D5 !important;
+}
+
 /* Fallback default styles if theme class not set */
 .card {
   background: white;

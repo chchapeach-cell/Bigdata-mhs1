@@ -3547,7 +3547,9 @@ export default function AdminPanel({
                       themeStyle === 'modern' ? '🎨 โมเดิร์น' :
                       themeStyle === 'darktech' ? '⚡ ดาร์กเทค' :
                       themeStyle === 'minimal-slate' ? '📱 มินิมอล สเลต' :
-                      themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' : '🍃 เอ็มเมอรัลด์ มินต์'
+                      themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' :
+                      themeStyle === 'emerald-mint' ? '🍃 เอ็มเมอรัลด์ มินต์' :
+                      themeStyle === 'cyan-futuristic' ? '🔮 ไซเบอร์ ไซแอน' : '👑 รอยัล โกลด์'
                     }
                   </span>
                 </div>
@@ -3556,7 +3558,7 @@ export default function AdminPanel({
                   เลือกสไตล์ธีมการแสดงผลของระบบเพื่อปรับประสบการณ์การใช้งานตามความชอบ โดยทุกธีมถูกออกแบบให้รองรับการเปิดใช้งานบนมือถือ สมาร์ตโฟน และแท็บเล็ตได้อย่างราบรื่น
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
                   {/* 1. ธีมพาสเทล */}
                   <button
                     type="button"
@@ -3586,10 +3588,101 @@ export default function AdminPanel({
                     <span className="text-xs font-black">🎨 ธีมโมเดิร์น (Modern Clean)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">เรียบหรู ดูสบายตา สไตล์ทางการ</span>
                   </button>
+
+                  {/* 3. ธีมดาร์กเทค */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('darktech')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'darktech'
+                        ? 'bg-slate-900 text-cyan-400 border-cyan-400 shadow-[4px_4px_0px_#00F5D4] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Zap className="h-6 w-6 text-cyan-400" />
+                    <span className="text-xs font-black">⚡ ธีมดาร์กเทค (Dark Tech)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">โหมดมืดล้ำสมัย ถนอมสายตา</span>
+                  </button>
+
+                  {/* 4. ธีมมินิมอล สเลต */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('minimal-slate')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'minimal-slate'
+                        ? 'bg-slate-700 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Server className="h-6 w-6 text-slate-300" />
+                    <span className="text-xs font-black">📱 มินิมอล สเลต (Slate)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สะอาด คลีน เรียบง่ายสไตล์ มินิมอล</span>
+                  </button>
+
+                  {/* 5. ธีมวอร์ม เนเชอร์ */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('warm-nature')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'warm-nature'
+                        ? 'bg-amber-700 text-amber-100 shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Sun className="h-6 w-6 text-amber-300" />
+                    <span className="text-xs font-black">🌱 วอร์ม เนเชอร์ (Warm Nature)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">อบอุ่น ผ่อนคลาย โทนธรรมชาตินุ่มนวล</span>
+                  </button>
+
+                  {/* 6. ธีมเอ็มเมอรัลด์ มินต์ */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('emerald-mint')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'emerald-mint'
+                        ? 'bg-emerald-600 text-white shadow-[4px_4px_0px_#33272A] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Activity className="h-6 w-6 text-emerald-300" />
+                    <span className="text-xs font-black">🍃 เอ็มเมอรัลด์ มินต์ (Mint iOS)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สดชื่น ทันสมัย สไตล์แอปเปิลมินต์</span>
+                  </button>
+
+                  {/* 7. ธีมไซเบอร์ ไซแอน (ธีมใหม่ 1) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('cyan-futuristic')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'cyan-futuristic'
+                        ? 'bg-[#0B132B] text-[#00F5D4] border-[#00F5D4] shadow-[0_0_15px_rgba(0,245,212,0.4)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Sparkles className="h-6 w-6 text-[#00F5D4]" />
+                    <span className="text-xs font-black">🔮 ไซเบอร์ ไซแอน (Neon Cyan)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">ลุคนีออนโกลว์ อนาคต ดุดัน ไฮเทค</span>
+                  </button>
+
+                  {/* 8. ธีมรอยัล โกลด์ (ธีมใหม่ 2) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('royal-gold')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'royal-gold'
+                        ? 'bg-[#291528] text-[#FDF0D5] border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.4)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Shield className="h-6 w-6 text-[#D4AF37]" />
+                    <span className="text-xs font-black">👑 รอยัล โกลด์ (Royal Violet)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สง่างาม โทนม่วงเข้มตัดทองคำ พรีเมียม</span>
+                  </button>
                 </div>
               </div>
 
-              {/* จัดการป้ายแบนเนอร์ส่วนหัว (Header Banner) */}
+              {/* จัดการป้ายแบนเนอร์ส่วนหัว (Header Banner) - แสดงเฉพาะ Super Admin */}
+              {isSuperAdmin && (
               <div className="bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#33272A]/20 pb-3">
                   <div className="flex flex-wrap items-center gap-2">
@@ -3827,8 +3920,9 @@ export default function AdminPanel({
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+            </div>
+          )}
 
           {adminTab === 'settings' && (
             <div className="space-y-6 animate-fade-in">

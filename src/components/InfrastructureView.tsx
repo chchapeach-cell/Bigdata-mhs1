@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { School, UserProfile } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock } from 'lucide-react';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
@@ -14,6 +14,7 @@ interface InfrastructureViewProps {
     allowSchoolAdminRegistration?: boolean;
     electricityOptions?: { id: string; label: string }[];
     internetOptions?: { id: string; label: string }[];
+    waterSystemOptions?: { id: string; label: string }[];
   };
   userProfile?: UserProfile | null;
 }
@@ -27,7 +28,7 @@ export default function InfrastructureView({
   // เมนูย่อยในหน้าโครงสร้างพื้นฐาน
   const [showCharts, setShowCharts] = useState<boolean>(true);
 
-  // รายการตัวเลือกไฟฟ้าและอินเทอร์เน็ต dynamic จาก systemConfig
+  // รายการตัวเลือกไฟฟ้า อินเทอร์เน็ต และระบบประปา dynamic จาก systemConfig
   const electricityTypeList = useMemo(() => {
     if (systemConfig?.electricityOptions && systemConfig.electricityOptions.length > 0) {
       return systemConfig.electricityOptions;
@@ -52,6 +53,18 @@ export default function InfrastructureView({
     ];
   }, [systemConfig?.internetOptions]);
 
+  const waterTypeList = useMemo(() => {
+    if (systemConfig?.waterSystemOptions && systemConfig.waterSystemOptions.length > 0) {
+      return systemConfig.waterSystemOptions;
+    }
+    return [
+      { id: 'government', label: '🚰 ประปาภาครัฐ' },
+      { id: 'mountain', label: '🏔️ ประปาภูเขา' },
+      { id: 'none', label: '❌ ไม่มีน้ำใช้' },
+      { id: 'other', label: '📌 อื่นๆ' },
+    ];
+  }, [systemConfig?.waterSystemOptions]);
+
   // สิทธิ์ในการดาวน์โหลดข้อมูล
   const canDownload = systemConfig?.allowDataDownload !== false || userProfile?.role === 'super_admin';
 
@@ -62,6 +75,10 @@ export default function InfrastructureView({
   // ตัวกรองอินเทอร์เน็ต: include = เอาเฉพาะ, exclude = ไม่เอา
   const [internetMode, setInternetMode] = useState<'include' | 'exclude'>('include');
   const [internetSelected, setInternetSelected] = useState<string[]>(['fiber', 'satellite', 'sim', 'none']);
+
+  // ตัวกรองประปา/แหล่งน้ำ: include = เอาเฉพาะ, exclude = ไม่เอา
+  const [waterMode, setWaterMode] = useState<'include' | 'exclude'>('include');
+  const [waterSelected, setWaterSelected] = useState<string[]>(['government', 'mountain', 'none', 'other']);
 
   // ตัวกรองครูวิชาเอก: has = มีวิชาเอกนี้, lacks = ไม่มี/ขาดวิชาเอกนี้
   const [majorMode, setMajorMode] = useState<'has' | 'lacks'>('has');
@@ -156,12 +173,39 @@ export default function InfrastructureView({
     setInternetSelected([]);
   };
 
+  const toggleWaterType = (typeKey: string) => {
+    const allKeys = waterTypeList.map(w => w.id);
+    setWaterSelected(prev => {
+      if (prev.length === allKeys.length) {
+        return [typeKey];
+      }
+      if (prev.length === 1 && prev.includes(typeKey)) {
+        return allKeys;
+      }
+      if (prev.includes(typeKey)) {
+        return prev.filter(k => k !== typeKey);
+      } else {
+        return [...prev, typeKey];
+      }
+    });
+  };
+
+  const selectAllWater = () => {
+    setWaterSelected(waterTypeList.map(w => w.id));
+  };
+
+  const clearWater = () => {
+    setWaterSelected([]);
+  };
+
   // ล้างตัวกรองทั้งหมด
   const handleResetFilters = () => {
     setElectricMode('include');
     setElectricSelected(['has_electric', 'solar', 'hybrid', 'none']);
     setInternetMode('include');
     setInternetSelected(['fiber', 'satellite', 'sim', 'none']);
+    setWaterMode('include');
+    setWaterSelected(['government', 'mountain', 'none', 'other']);
     setMajorMode('has');
     setSelectedMajor('all');
     setAmphoeFilter('all');
@@ -230,7 +274,27 @@ export default function InfrastructureView({
         if (internetSelected.includes(schoolNetKey)) return false;
       }
 
-      // 6. ครูวิชาเอก (รองรับ มีวิชาเอกนี้ vs ขาด/ไม่มีวิชาเอกนี้)
+      // 6. ระบบประปา/น้ำ (รองรับ Include / Exclude)
+      let schoolWaterKey = 'government';
+      const waterVal = String(school.waterSystem ?? '').toLowerCase();
+      if (waterVal.includes('mountain') || waterVal.includes('ภูเขา')) {
+        schoolWaterKey = 'mountain';
+      } else if (waterVal.includes('none') || waterVal.includes('ไม่มี')) {
+        schoolWaterKey = 'none';
+      } else if (waterVal.includes('other') || waterVal.includes('อื่นๆ')) {
+        schoolWaterKey = 'other';
+      } else {
+        schoolWaterKey = 'government';
+      }
+
+      if (waterMode === 'include') {
+        if (waterSelected.length === 0) return false;
+        if (!waterSelected.includes(schoolWaterKey)) return false;
+      } else {
+        if (waterSelected.includes(schoolWaterKey)) return false;
+      }
+
+      // 7. ครูวิชาเอก (รองรับ มีวิชาเอกนี้ vs ขาด/ไม่มีวิชาเอกนี้)
       if (selectedMajor !== 'all') {
         const hasStr = school.majorSubjects && school.majorSubjects.some(m => m.includes(selectedMajor));
         const hasObj = school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.some(ms => ms.name.includes(selectedMajor) && ms.teachersCount > 0);
@@ -246,7 +310,7 @@ export default function InfrastructureView({
 
       return true;
     });
-  }, [schools, searchTerm, amphoeFilter, sizeFilter, electricMode, electricSelected, internetMode, internetSelected, selectedMajor, majorMode]);
+  }, [schools, searchTerm, amphoeFilter, sizeFilter, electricMode, electricSelected, internetMode, internetSelected, waterMode, waterSelected, selectedMajor, majorMode]);
 
   // คำนวณสถิติสำหรับสร้างกราฟ visualizer ตามข้อมูลที่กรองแล้ว
   const chartData = useMemo(() => {
@@ -254,8 +318,10 @@ export default function InfrastructureView({
     let elecHas = 0, elecSolar = 0, elecHybrid = 0, elecNone = 0;
     // 2. ระบบเน็ต
     let netFiber = 0, netSat = 0, netSim = 0, netNone = 0;
-    // 3. สถิติอำเภอ
-    const amphoeMap: { [key: string]: { total: number; elecHas: number; elecSolar: number; elecHybrid: number; elecNone: number; netFiber: number; netSat: number; netSim: number; netNone: number } } = {};
+    // 3. ระบบประปา/น้ำ
+    let waterGov = 0, waterMountain = 0, waterNone = 0, waterOther = 0;
+    // 4. สถิติอำเภอ
+    const amphoeMap: { [key: string]: { total: number; elecHas: number; elecSolar: number; elecHybrid: number; elecNone: number; netFiber: number; netSat: number; netSim: number; netNone: number; waterGov: number; waterMountain: number; waterNone: number; waterOther: number } } = {};
 
     filteredSchools.forEach(s => {
       // Elec
@@ -272,10 +338,18 @@ export default function InfrastructureView({
       else if (s.internetType === 'none') { netNone++; nType = 'none'; }
       else { netFiber++; }
 
+      // Water
+      let wType = 'government';
+      const wVal = String(s.waterSystem ?? '').toLowerCase();
+      if (wVal.includes('mountain') || wVal.includes('ภูเขา')) { waterMountain++; wType = 'mountain'; }
+      else if (wVal.includes('none') || wVal.includes('ไม่มี')) { waterNone++; wType = 'none'; }
+      else if (wVal.includes('other') || wVal.includes('อื่นๆ')) { waterOther++; wType = 'other'; }
+      else { waterGov++; wType = 'government'; }
+
       // Amphoe
       const amp = s.amphoe || 'เมืองแม่ฮ่องสอน';
       if (!amphoeMap[amp]) {
-        amphoeMap[amp] = { total: 0, elecHas: 0, elecSolar: 0, elecHybrid: 0, elecNone: 0, netFiber: 0, netSat: 0, netSim: 0, netNone: 0 };
+        amphoeMap[amp] = { total: 0, elecHas: 0, elecSolar: 0, elecHybrid: 0, elecNone: 0, netFiber: 0, netSat: 0, netSim: 0, netNone: 0, waterGov: 0, waterMountain: 0, waterNone: 0, waterOther: 0 };
       }
       amphoeMap[amp].total++;
       if (eType === 'solar') amphoeMap[amp].elecSolar++;
@@ -287,6 +361,11 @@ export default function InfrastructureView({
       else if (nType === 'sim') amphoeMap[amp].netSim++;
       else if (nType === 'none') amphoeMap[amp].netNone++;
       else amphoeMap[amp].netFiber++;
+
+      if (wType === 'mountain') amphoeMap[amp].waterMountain++;
+      else if (wType === 'none') amphoeMap[amp].waterNone++;
+      else if (wType === 'other') amphoeMap[amp].waterOther++;
+      else amphoeMap[amp].waterGov++;
     });
 
     const totalCount = filteredSchools.length || 1;
@@ -305,6 +384,13 @@ export default function InfrastructureView({
       { name: '❌ ไม่มีเน็ต', value: netNone, percent: ((netNone / totalCount) * 100).toFixed(1), color: '#0EA5E9' },
     ].filter(d => d.value > 0);
 
+    const waterPie = [
+      { name: '🚰 ประปาภาครัฐ', value: waterGov, percent: ((waterGov / totalCount) * 100).toFixed(1), color: '#2563EB' },
+      { name: '🏔️ ประปาภูเขา', value: waterMountain, percent: ((waterMountain / totalCount) * 100).toFixed(1), color: '#0284C7' },
+      { name: '❌ ไม่มีน้ำใช้', value: waterNone, percent: ((waterNone / totalCount) * 100).toFixed(1), color: '#EF4444' },
+      { name: '📌 อื่นๆ', value: waterOther, percent: ((waterOther / totalCount) * 100).toFixed(1), color: '#8B5CF6' },
+    ].filter(d => d.value > 0);
+
     const amphoeBar = Object.keys(amphoeMap).map(amp => ({
       name: amp.replace('อำเภอ', 'อ.'),
       'ไฟฟ้าถาวร': amphoeMap[amp].elecHas,
@@ -319,6 +405,7 @@ export default function InfrastructureView({
     return {
       elecPie,
       netPie,
+      waterPie,
       amphoeBar,
       elecHas,
       elecSolar,
@@ -328,6 +415,10 @@ export default function InfrastructureView({
       netSat,
       netSim,
       netNone,
+      waterGov,
+      waterMountain,
+      waterNone,
+      waterOther,
       total: filteredSchools.length
     };
   }, [filteredSchools]);
@@ -354,6 +445,12 @@ export default function InfrastructureView({
       else if (s.internetType === 'sim') netText = 'ซิมการ์ด 4G/5G';
       else if (s.internetType === 'none') netText = 'ไม่มีอินเทอร์เน็ต';
 
+      let waterText = 'น้ำประปาภาครัฐ';
+      const wVal = String(s.waterSystem ?? '').toLowerCase();
+      if (wVal.includes('mountain') || wVal.includes('ภูเขา')) waterText = 'น้ำประปาภูเขา';
+      else if (wVal.includes('none') || wVal.includes('ไม่มี')) waterText = 'ไม่มีน้ำใช้';
+      else if (wVal.includes('other') || wVal.includes('อื่นๆ')) waterText = `อื่นๆ ${s.waterSystemDetail ? `(${s.waterSystemDetail})` : ''}`;
+
       const majorsText = s.majorSubjects?.length 
         ? s.majorSubjects.join(', ')
         : s.majorSubjectsWithStaff?.map(m => `เอก${m.name}(${m.teachersCount}คน)`).join(', ') || 'ไม่ระบุ';
@@ -372,6 +469,7 @@ export default function InfrastructureView({
         'ขยายโอกาส': s.isExpansion ? 'ใช่ (ม.1-ม.3)' : 'ไม่ขยายโอกาส',
         'ระบบไฟฟ้า': elecText,
         'ระบบอินเทอร์เน็ต': netText,
+        'ระบบน้ำประปา': waterText,
         'ครูวิชาเอกที่มี': majorsText,
         'จำนวนครู/บุคลากร': s.staffCount || 0,
         'เบอร์ติดต่อผู้บริหาร': s.directorPhone || '-',
@@ -384,7 +482,7 @@ export default function InfrastructureView({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'โครงสร้างพื้นฐาน');
     
     // Auto fit column widths
-    const maxWidths = [6, 12, 28, 16, 20, 16, 14, 25, 25, 30, 16, 18, 18];
+    const maxWidths = [6, 12, 28, 16, 20, 16, 14, 25, 25, 22, 30, 16, 18, 18];
     worksheet['!cols'] = maxWidths.map(w => ({ wch: w }));
 
     const dateStr = new Date().toISOString().split('T')[0];
@@ -402,17 +500,26 @@ export default function InfrastructureView({
       return;
     }
 
-    const headers = ['ลำดับ', 'รหัสโรงเรียน', 'ชื่อโรงเรียน', 'อำเภอ', 'ระบบไฟฟ้า', 'ระบบอินเทอร์เน็ต', 'ครูวิชาเอก', 'บุคลากร'];
-    const rows = filteredSchools.map((s, idx) => [
-      idx + 1,
-      s.id,
-      `"${s.name}"`,
-      `"${s.amphoe || ''}"`,
-      `"${s.electricity === 'solar' ? 'โซลาร์เซลล์' : s.electricity === 'hybrid' ? 'ผสมผสาน' : s.electricity === 'none' ? 'ไม่มีไฟฟ้า' : 'ไฟฟ้าถาวร'}"`,
-      `"${s.internetType === 'satellite' ? 'ดาวเทียม' : s.internetType === 'sim' ? 'SIM 4G' : s.internetType === 'none' ? 'ไม่มีเน็ต' : 'Fiber'}"`,
-      `"${s.majorSubjects?.join(' ') || ''}"`,
-      s.staffCount || 0
-    ]);
+    const headers = ['ลำดับ', 'รหัสโรงเรียน', 'ชื่อโรงเรียน', 'อำเภอ', 'ระบบไฟฟ้า', 'ระบบอินเทอร์เน็ต', 'ระบบน้ำประปา', 'ครูวิชาเอก', 'บุคลากร'];
+    const rows = filteredSchools.map((s, idx) => {
+      let waterText = 'ประปาภาครัฐ';
+      const wVal = String(s.waterSystem ?? '').toLowerCase();
+      if (wVal.includes('mountain') || wVal.includes('ภูเขา')) waterText = 'ประปาภูเขา';
+      else if (wVal.includes('none') || wVal.includes('ไม่มี')) waterText = 'ไม่มีน้ำใช้';
+      else if (wVal.includes('other') || wVal.includes('อื่นๆ')) waterText = 'อื่นๆ';
+
+      return [
+        idx + 1,
+        s.id,
+        `"${s.name}"`,
+        `"${s.amphoe || ''}"`,
+        `"${s.electricity === 'solar' ? 'โซลาร์เซลล์' : s.electricity === 'hybrid' ? 'ผสมผสาน' : s.electricity === 'none' ? 'ไม่มีไฟฟ้า' : 'ไฟฟ้าถาวร'}"`,
+        `"${s.internetType === 'satellite' ? 'ดาวเทียม' : s.internetType === 'sim' ? 'SIM 4G' : s.internetType === 'none' ? 'ไม่มีเน็ต' : 'Fiber'}"`,
+        `"${waterText}"`,
+        `"${s.majorSubjects?.join(' ') || ''}"`,
+        s.staffCount || 0
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -609,7 +716,7 @@ export default function InfrastructureView({
           </div>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Pie Chart 1: สัดส่วนระบบไฟฟ้า */}
             <div className="card p-4 space-y-3 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A]">
               <div className="flex items-center justify-between border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
@@ -622,15 +729,15 @@ export default function InfrastructureView({
                 </span>
               </div>
 
-              <div className="h-52 w-full relative">
+              <div className="h-48 w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={chartData.elecPie}
                       cx="50%"
                       cy="50%"
-                      innerRadius={42}
-                      outerRadius={72}
+                      innerRadius={38}
+                      outerRadius={68}
                       paddingAngle={4}
                       dataKey="value"
                       label={({ percent }) => `${percent}%`}
@@ -647,13 +754,13 @@ export default function InfrastructureView({
               {/* Legend List with percent badges */}
               <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
                 {chartData.elecPie.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-1.5 rounded-xl bg-[#FFF9F5] dark:bg-[#261c20] text-[11px] font-bold border border-[#33272A]/10">
+                  <div key={idx} className="flex items-center justify-between p-1 rounded-xl bg-[#FFF9F5] dark:bg-[#261c20] text-[10px] font-bold border border-[#33272A]/10">
                     <span className="flex items-center gap-1 truncate text-[#33272A] dark:text-[#FFF9F5]">
-                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                       <span className="truncate">{item.name}</span>
                     </span>
                     <span className="font-black text-slate-700 dark:text-slate-200 shrink-0 ml-1">
-                      {item.value} ({item.percent}%)
+                      {item.value}
                     </span>
                   </div>
                 ))}
@@ -672,15 +779,15 @@ export default function InfrastructureView({
                 </span>
               </div>
 
-              <div className="h-52 w-full relative">
+              <div className="h-48 w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={chartData.netPie}
                       cx="50%"
                       cy="50%"
-                      innerRadius={42}
-                      outerRadius={72}
+                      innerRadius={38}
+                      outerRadius={68}
                       paddingAngle={4}
                       dataKey="value"
                       label={({ percent }) => `${percent}%`}
@@ -697,13 +804,62 @@ export default function InfrastructureView({
               {/* Legend List with percent badges */}
               <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
                 {chartData.netPie.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-1.5 rounded-xl bg-[#FFF9F5] dark:bg-[#261c20] text-[11px] font-bold border border-[#33272A]/10">
+                  <div key={idx} className="flex items-center justify-between p-1 rounded-xl bg-[#FFF9F5] dark:bg-[#261c20] text-[10px] font-bold border border-[#33272A]/10">
                     <span className="flex items-center gap-1 truncate text-[#33272A] dark:text-[#FFF9F5]">
-                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                       <span className="truncate">{item.name}</span>
                     </span>
                     <span className="font-black text-slate-700 dark:text-slate-200 shrink-0 ml-1">
-                      {item.value} ({item.percent}%)
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pie Chart 3: สัดส่วนระบบประปา/น้ำใช้ */}
+            <div className="card p-4 space-y-3 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A]">
+              <div className="flex items-center justify-between border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
+                <h3 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
+                  สัดส่วนประเภทประปา/น้ำใช้
+                </h3>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
+                  {chartData.total} แห่ง
+                </span>
+              </div>
+
+              <div className="h-48 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData.waterPie}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={68}
+                      paddingAngle={4}
+                      dataKey="value"
+                      label={({ percent }) => `${percent}%`}
+                    >
+                      {chartData.waterPie.map((entry, index) => (
+                        <Cell key={`water-cell-${index}`} fill={entry.color} stroke="#33272A" strokeWidth={1.5} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: any, name: any) => [`${value} แห่ง (${((Number(value) / (chartData.total || 1)) * 100).toFixed(1)}%)`, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                {chartData.waterPie.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-1 rounded-xl bg-[#FFF9F5] dark:bg-[#261c20] text-[10px] font-bold border border-[#33272A]/10">
+                    <span className="flex items-center gap-1 truncate text-[#33272A] dark:text-[#FFF9F5]">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="truncate">{item.name}</span>
+                    </span>
+                    <span className="font-black text-slate-700 dark:text-slate-200 shrink-0 ml-1">
+                      {item.value}
                     </span>
                   </div>
                 ))}
@@ -957,6 +1113,98 @@ export default function InfrastructureView({
                 <span>✓ แสดงเฉพาะโรงเรียนประเภทเน็ตที่เลือก ({internetSelected.length} ประเภท)</span>
               ) : (
                 <span>❌ ไม่แสดงโรงเรียนในประเภทเน็ตที่เลือก ({internetSelected.length} ประเภท)</span>
+              )}
+            </p>
+          </div>
+
+          {/* 3. กรองระบบประปา/แหล่งน้ำ */}
+          <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#251b1e] border-2 border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
+                ข้อมูลประปา/น้ำใช้:
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center bg-white dark:bg-[#150e10] p-0.5 rounded-lg border border-[#33272A]/20">
+                  <button
+                    type="button"
+                    onClick={() => setWaterMode('include')}
+                    className={`px-2 py-0.5 text-[10px] font-black rounded cursor-pointer ${
+                      waterMode === 'include'
+                        ? 'bg-blue-400 text-[#33272A]'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                    }`}
+                  >
+                    เอาเฉพาะ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWaterMode('exclude')}
+                    className={`px-2 py-0.5 text-[10px] font-black rounded cursor-pointer ${
+                      waterMode === 'exclude'
+                        ? 'bg-rose-500 text-white'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                    }`}
+                  >
+                    ไม่เอา ❌
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 border-b border-[#33272A]/10 pb-1">
+              <span>(เลือกแหล่งน้ำที่ต้องการกรองข้อมูล)</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={selectAllWater}
+                  className="text-blue-700 dark:text-blue-400 font-black hover:underline cursor-pointer"
+                >
+                  เลือกหมด
+                </button>
+                <span>|</span>
+                <button
+                  type="button"
+                  onClick={clearWater}
+                  className="text-rose-600 dark:text-rose-400 font-black hover:underline cursor-pointer"
+                >
+                  ล้าง
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {waterTypeList.map(item => {
+                const isSelected = waterSelected.includes(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => toggleWaterType(item.id)}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
+                      isSelected
+                        ? waterMode === 'include'
+                          ? 'bg-blue-200 text-blue-950 border-[#33272A] shadow-sm'
+                          : 'bg-rose-100 text-rose-950 border-rose-400 line-through'
+                        : 'bg-white dark:bg-[#1a1214] text-slate-500 border-slate-300 dark:border-slate-700 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    {isSelected ? <CheckSquare className="h-4 w-4 shrink-0 text-[#33272A]" /> : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+              {waterSelected.length === 0 ? (
+                <span className="text-rose-600 dark:text-rose-400 font-black">⚠️ ไม่ได้เลือกประเภทประปา - กรุณาเลือกอย่างน้อย 1 ประเภท</span>
+              ) : waterSelected.length === waterTypeList.length ? (
+                <span>✓ แสดงโรงเรียนทุกแหล่งน้ำ</span>
+              ) : waterMode === 'include' ? (
+                <span>✓ แสดงเฉพาะโรงเรียนประเภทแหล่งน้ำที่เลือก ({waterSelected.length} ประเภท)</span>
+              ) : (
+                <span>❌ ไม่แสดงโรงเรียนในประเภทแหล่งน้ำที่เลือก ({waterSelected.length} ประเภท)</span>
               )}
             </p>
           </div>

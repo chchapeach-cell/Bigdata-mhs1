@@ -130,7 +130,7 @@ export interface InfrastructureOption {
   label: string;
 }
 
-export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint';
+export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint' | 'cyan-futuristic' | 'royal-gold';
 
 export interface ContactChannel {
   id: string;

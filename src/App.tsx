@@ -117,12 +117,14 @@ export default function App() {
       'theme-darktech', 
       'theme-minimal-slate', 
       'theme-warm-nature', 
-      'theme-emerald-mint'
+      'theme-emerald-mint',
+      'theme-cyan-futuristic',
+      'theme-royal-gold'
     );
     document.documentElement.classList.add(`theme-${themeStyle}`);
     localStorage.setItem('app-theme-style', themeStyle);
 
-    if (themeStyle === 'darktech') {
+    if (themeStyle === 'darktech' || themeStyle === 'cyan-futuristic') {
       setIsDarkMode(true);
     }
   }, [themeStyle]);

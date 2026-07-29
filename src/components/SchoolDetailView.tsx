@@ -5,7 +5,7 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
-  ArrowLeft, Phone, MapPin, Building, Globe, Zap, 
+  ArrowLeft, Phone, MapPin, Building, Globe, Zap, Droplets,
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
   Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
   Mail, ExternalLink, MessageCircle
@@ -99,6 +99,8 @@ export default function SchoolDetailView({
   const [editAddress, setEditAddress] = useState(school.address || '');
   const [editInternetType, setEditInternetType] = useState<School['internetType']>(school.internetType || 'none');
   const [editElectricity, setEditElectricity] = useState<'has_electric' | 'solar' | 'hybrid' | 'none'>(getInitialElectricity(school.electricity));
+  const [editWaterSystem, setEditWaterSystem] = useState<string>(school.waterSystem || 'government');
+  const [editWaterSystemDetail, setEditWaterSystemDetail] = useState<string>(school.waterSystemDetail || '');
   const [editSolarKw, setEditSolarKw] = useState<string>(school.solarKw || '');
   const [editHasSolarBattery, setEditHasSolarBattery] = useState<boolean>(!!school.hasSolarBattery);
   const [editSolarBatteryCapacity, setEditSolarBatteryCapacity] = useState<string>(school.solarBatteryCapacity || '');
@@ -132,6 +134,8 @@ export default function SchoolDetailView({
     setEditAddress(school.address || '');
     setEditInternetType(school.internetType || 'none');
     setEditElectricity(getInitialElectricity(school.electricity));
+    setEditWaterSystem(school.waterSystem || 'government');
+    setEditWaterSystemDetail(school.waterSystemDetail || '');
     setEditSolarKw(school.solarKw || '');
     setEditHasSolarBattery(!!school.hasSolarBattery);
     setEditSolarBatteryCapacity(school.solarBatteryCapacity || '');
@@ -506,6 +510,8 @@ export default function SchoolDetailView({
         address: editAddress || '',
         internetType: editInternetType || 'none',
         electricity: editElectricity || 'has_electric',
+        waterSystem: editWaterSystem || 'government',
+        waterSystemDetail: editWaterSystemDetail || '',
         solarKw: editSolarKw || '',
         hasSolarBattery: !!editHasSolarBattery,
         solarBatteryCapacity: editSolarBatteryCapacity || '',
@@ -879,15 +885,19 @@ export default function SchoolDetailView({
                     />
                     <span>โรงเรียนขยายโอกาส</span>
                   </label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="ระบุชื่อโรงเรียน"
-                    disabled={!isSuperAdmin}
-                    title={!isSuperAdmin ? 'เฉพาะ Super Admin เท่านั้นที่สามารถเปลี่ยนชื่อโรงเรียนได้' : ''}
-                    className={`block w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-3 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] ${!isSuperAdmin ? 'opacity-70 bg-gray-100 cursor-not-allowed' : ''}`}
-                  />
+                  {isSuperAdmin ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="ระบุชื่อโรงเรียน"
+                      className="block w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-3 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
+                    />
+                  ) : (
+                    <div className="p-1.5 text-xs font-black text-[#33272A] dark:text-[#FFF9F5] bg-white/80 dark:bg-black/50 rounded-xl border border-[#33272A]/20">
+                      🏫 {school.name}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -1210,6 +1220,46 @@ export default function SchoolDetailView({
                        school.electricity === 'solar' ? '☀️ ระบบโซลาร์เซลล์' :
                        school.electricity === 'hybrid' ? '⚡☀️ ผสมผสาน (ไฟฟ้า + โซลาร์เซลล์)' : '❌ ไม่มีไฟฟ้า'}
                     </span>
+                  )}
+                </div>
+
+                {/* ระบบประปา/แหล่งน้ำ */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-24 shrink-0">ระบบประปา/น้ำ:</span>
+                  {isEditing ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-grow">
+                      <select
+                        value={editWaterSystem}
+                        onChange={(e) => setEditWaterSystem(e.target.value)}
+                        className="rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none cursor-pointer"
+                      >
+                        <option value="government">🚰 น้ำประปาภาครัฐ</option>
+                        <option value="mountain">🏔️ น้ำประปาภูเขา</option>
+                        <option value="none">❌ ไม่มีน้ำใช้</option>
+                        <option value="other">📌 อื่นๆ</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={editWaterSystemDetail}
+                        onChange={(e) => setEditWaterSystemDetail(e.target.value)}
+                        placeholder="รายละเอียดแหล่งน้ำเพิ่มเติม"
+                        className="rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-lg font-black text-xs bg-blue-100 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700 flex items-center gap-1.5">
+                        <Droplets className="h-3.5 w-3.5 text-blue-500 fill-blue-400" />
+                        {school.waterSystem === 'mountain' ? '🏔️ น้ำประปาภูเขา' :
+                         school.waterSystem === 'none' ? '❌ ไม่มีน้ำใช้' :
+                         school.waterSystem === 'other' ? '📌 อื่นๆ' : '🚰 น้ำประปาภาครัฐ'}
+                      </span>
+                      {school.waterSystemDetail && (
+                        <span className="text-[11px] font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80 bg-blue-50 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-blue-200 dark:border-slate-700">
+                          ({school.waterSystemDetail})
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
