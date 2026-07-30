@@ -780,7 +780,7 @@ export default function InfrastructureView({
           </div>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Pie Chart 1: สัดส่วนระบบไฟฟ้า */}
             <div className="card p-4 space-y-3 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A]">
               <div className="flex items-center justify-between border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
@@ -927,37 +927,6 @@ export default function InfrastructureView({
                     </span>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Bar Chart 3: กราฟแท่งจำแนกตามอำเภอ */}
-            <div className="card p-4 space-y-3 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] md:col-span-2 lg:col-span-1">
-              <div className="flex items-center justify-between border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
-                <h3 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                  <BarChart3 className="h-4 w-4 text-purple-500 shrink-0" />
-                  จำแนกโครงสร้างพื้นฐาน รายอำเภอ
-                </h3>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300">
-                  {chartData.amphoeBar.length} อำเภอ
-                </span>
-              </div>
-
-              <div className="h-52 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.amphoeBar} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" />
-                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                    <Tooltip formatter={(value: any, name: any) => [`${value} แห่ง`, name]} />
-                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                    <Bar dataKey="ไฟฟ้าถาวร" fill="#F59E0B" stackId="a" />
-                    <Bar dataKey="โซลาร์/ผสมผสาน" fill="#10B981" stackId="a" />
-                    <Bar dataKey="ไม่มีไฟฟ้า" fill="#EF4444" stackId="a" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="text-[10px] text-center font-bold text-slate-500 dark:text-slate-400 pt-1 border-t border-[#33272A]/10">
-                แสดงสัดส่วนการเข้าถึงไฟฟ้าและเน็ตในแต่ละอำเภอ
               </div>
             </div>
           </div>

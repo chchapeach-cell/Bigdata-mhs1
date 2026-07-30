@@ -3516,7 +3516,9 @@ export default function AdminPanel({
                       themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' :
                       themeStyle === 'emerald-mint' ? '🍃 เอ็มเมอรัลด์ มินต์' :
                       themeStyle === 'cyan-futuristic' ? '🔮 ไซเบอร์ ไซแอน' :
-                      themeStyle === 'royal-gold' ? '👑 รอยัล โกลด์' : '🌱 กรีน (Green Leaf)'
+                      themeStyle === 'royal-gold' ? '👑 รอยัล โกลด์' :
+                      themeStyle === 'clean-mobile' ? '📱 คลีน โมบาย (Clean Mobile)' :
+                      themeStyle === 'nordic-breeze' ? '❄️ นอร์ดิก บรีซ (Nordic Breeze)' : '🌱 กรีน (Green Leaf)'
                     }
                   </span>
                 </div>
@@ -3657,8 +3659,44 @@ export default function AdminPanel({
                     }`}
                   >
                     <Activity className="h-6 w-6 text-green-300" />
-                    <span className="text-xs font-black">🌱 ธีมกรีน (green)</span>
+                    <span className="text-xs font-black">🌱 ธีมกรีน (Green Leaf)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">สดใส โทนเขียวสไตล์ Eco Mobile App</span>
+                  </button>
+
+                  {/* 10. ธีมคลีน โมบาย (ธีมใหม่สำหรับมือถือ) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('clean-mobile')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'clean-mobile'
+                        ? 'bg-sky-600 text-white border-sky-400 shadow-[0_0_15px_rgba(2,132,199,0.4)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-sky-200 text-sky-900 px-1.5 py-0.5 rounded-md font-black">
+                      Mobile Clean
+                    </span>
+                    <Smartphone className="h-6 w-6 text-sky-300" />
+                    <span className="text-xs font-black">📱 คลีน โมบาย (Mobile Clean)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">คลีน สะอาดตา คอนทราสต์สูง ปุ่มใหญ่สำหรับสัมผัสบนมือถือ</span>
+                  </button>
+
+                  {/* 11. ธีมนอร์ดิก บรีซ (ธีมใหม่นอร์ดิก) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('nordic-breeze')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'nordic-breeze'
+                        ? 'bg-teal-700 text-teal-50 border-teal-400 shadow-[0_0_15px_rgba(13,148,136,0.4)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-teal-200 text-teal-900 px-1.5 py-0.5 rounded-md font-black">
+                      Nordic Mint
+                    </span>
+                    <Globe className="h-6 w-6 text-teal-200" />
+                    <span className="text-xs font-black">❄️ นอร์ดิก บรีซ (Nordic Breeze)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์นอร์ดิกมินต์ คลีน เรียบหรู ถนอมสายตาบนสมาร์ตโฟน</span>
                   </button>
                 </div>
               </div>

@@ -125,7 +125,9 @@ export default function App() {
       'theme-emerald-mint',
       'theme-cyan-futuristic',
       'theme-royal-gold',
-      'theme-green'
+      'theme-green',
+      'theme-clean-mobile',
+      'theme-nordic-breeze'
     );
     document.documentElement.classList.add(`theme-${themeStyle}`);
     localStorage.setItem('app-theme-style', themeStyle);
