@@ -249,6 +249,18 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
 
   const activeChannels = isSuperAdmin ? channels : channels.filter(c => c.enabled);
 
+  if (systemConfig?.contactEnabled === false && !isSuperAdmin) {
+    return (
+      <div className="card p-8 text-center bg-white dark:bg-[#1e1518] space-y-4 max-w-xl mx-auto border-2 border-[#33272A] shadow-[4px_4px_0px_#33272A] rounded-2xl my-8">
+        <div className="text-5xl mb-2">🔒</div>
+        <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบปิดการแสดงผลเมนูติดต่อ</h2>
+        <p className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">
+          ขณะนี้ผู้ดูแลระบบ (Super Admin) ได้ซ่อนเมนูติดต่อสำหรับผู้ใช้งานทั่วไป
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-3 sm:px-6 py-4">
       {/* Header Banner Section */}

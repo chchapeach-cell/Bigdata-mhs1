@@ -291,6 +291,13 @@ export default function App() {
     return () => unsubConfig();
   }, []);
 
+  // สลับไปยังหน้าหลักอัตโนมัติหากเมนูติดต่อถูกปิดการใช้งานโดย Super Admin และผู้ใช้ไม่ใช่ Super Admin
+  useEffect(() => {
+    if (systemConfig?.contactEnabled === false && userProfile?.role !== 'super_admin' && activeTab === 'contact') {
+      setActiveTab('dashboard');
+    }
+  }, [systemConfig?.contactEnabled, userProfile?.role, activeTab]);
+
   // 2. ฟังจำนวน Active Sessions แบบ Real-time เพื่อคำนวณภาระงาน
   const [activeSessionCount, setActiveSessionCount] = useState<number>(1);
   useEffect(() => {
@@ -353,12 +360,15 @@ export default function App() {
           const data = configSnap.data();
           setSystemConfig({
             allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
+            contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
             restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
             allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
             highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,
             highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
+            simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
             electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
             internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+            waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
             headerBannerUrl: data.headerBannerUrl || '',
             headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
             headerBannerFit: data.headerBannerFit || 'contain',
@@ -666,11 +676,27 @@ export default function App() {
                 )}
 
                 {activeTab === 'contact' && (
-                  <ContactView
-                    systemConfig={systemConfig}
-                    userProfile={userProfile}
-                    onRefreshData={fetchAllData}
-                  />
+                  (userProfile?.role === 'super_admin' || systemConfig?.contactEnabled !== false) ? (
+                    <ContactView
+                      systemConfig={systemConfig}
+                      userProfile={userProfile}
+                      onRefreshData={fetchAllData}
+                    />
+                  ) : (
+                    <div className="card p-8 text-center bg-white dark:bg-[#1e1518] space-y-4 max-w-xl mx-auto border-2 border-[#33272A] shadow-[4px_4px_0px_#33272A] rounded-2xl">
+                      <div className="text-5xl mb-2">🔒</div>
+                      <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบปิดการแสดงผลเมนูติดต่อ</h2>
+                      <p className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">
+                        ขณะนี้ผู้ดูแลระบบ (Super Admin) ได้ซ่อนเมนูติดต่อสำหรับผู้ใช้งานทั่วไป
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className="px-5 py-2.5 bg-[#FF8BA7] text-[#33272A] font-black rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ff7597] transition-all text-xs"
+                      >
+                        กลับสู่หน้าหลัก
+                      </button>
+                    </div>
+                  )
                 )}
 
                 {activeTab === 'admin' && userProfile && (
