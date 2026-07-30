@@ -680,3 +680,39 @@ html, #root {
   cursor: not-allowed;
 }
 
+/* =============================================================
+   DESIGN PRESETS OVERRIDES (Visual Layout Styles)
+   ============================================================= */
+/* 1. Design Glass & Soft Float (มินิมอลกลาส & ซอฟต์ฟโลต) */
+.design-glass-float .card {
+  border-width: 1px !important;
+  border-radius: 1.25rem !important;
+  box-shadow: 0 10px 25px -5px rgba(51, 39, 42, 0.08), 0 4px 10px -2px rgba(51, 39, 42, 0.03) !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.25s ease !important;
+}
+.design-glass-float.dark .card,
+html.dark .design-glass-float .card,
+.design-glass-float .dark .card {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 4px 10px -2px rgba(0, 0, 0, 0.25) !important;
+  border-color: rgba(255, 249, 245, 0.15) !important;
+}
+
+/* 2. Design Compact High-Density Grid (กริดกะทัดรัด ข้อมูลหนาแน่น) */
+.design-compact-grid .card {
+  padding: 1rem !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 2px 2px 0px #33272A !important;
+}
+.design-compact-grid.dark .card,
+html.dark .design-compact-grid .card,
+.design-compact-grid .dark .card {
+  box-shadow: 2px 2px 0px #FFD3B6 !important;
+}
+.design-compact-grid table th,
+.design-compact-grid table td {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  font-size: 0.75rem !important;
+}
+

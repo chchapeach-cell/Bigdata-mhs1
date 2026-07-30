@@ -131,6 +131,7 @@ export interface InfrastructureOption {
 }
 
 export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint' | 'cyan-futuristic' | 'royal-gold' | 'green';
+export type DesignStyle = 'classic' | 'glass-float' | 'compact-grid';
 
 export interface ContactChannel {
   id: string;

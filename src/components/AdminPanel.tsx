@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock } from 'lucide-react';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -20,6 +20,8 @@ interface AdminPanelProps {
   serverStatus?: 'green' | 'yellow' | 'red';
   themeStyle?: ThemeStyle;
   setThemeStyle?: (theme: ThemeStyle) => void;
+  designStyle?: DesignStyle;
+  setDesignStyle?: (design: DesignStyle) => void;
   isDarkMode?: boolean;
   setIsDarkMode?: (dark: boolean) => void;
 }
@@ -34,6 +36,8 @@ export default function AdminPanel({
   serverStatus = 'green',
   themeStyle = 'pastel',
   setThemeStyle,
+  designStyle = 'classic',
+  setDesignStyle,
   isDarkMode = false,
   setIsDarkMode
 }: AdminPanelProps) {
@@ -2076,7 +2080,7 @@ export default function AdminPanel({
             }`}
           >
             <Palette className="h-4 w-4" />
-            <span>ธีม</span>
+            <span>ธีม/ดีไซน์</span>
           </button>
 
           {isSuperAdmin && (
@@ -3494,12 +3498,13 @@ export default function AdminPanel({
 
           {adminTab === 'theme' && (
             <div className="space-y-6 animate-fade-in">
+              {/* ส่วนที่ 1: ธีมสีระบบ (System Color Themes) */}
               <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
                   <div className="flex items-center gap-2">
                     <Palette className="h-6 w-6 text-[#FF8BA7]" />
                     <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
-                      เลือกธีมและโหมดการแสดงผลของระบบ (System Theme & Visual Styles)
+                      1. เลือกธีมสีของระบบ (System Color Themes)
                     </h3>
                   </div>
                   <span className="text-xs bg-[#FF8BA7]/20 text-[#FF8BA7] px-2.5 py-0.5 rounded-full font-black border border-[#FF8BA7]/30">
@@ -3517,7 +3522,7 @@ export default function AdminPanel({
                 </div>
 
                 <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
-                  เลือกสไตล์ธีมการแสดงผลของระบบเพื่อปรับประสบการณ์การใช้งานตามความชอบ โดยทุกธีมถูกออกแบบให้รองรับการเปิดใช้งานบนมือถือ สมาร์ตโฟน และแท็บเล็ตได้อย่างราบรื่น
+                  เลือกสไตล์ธีมสีการแสดงผลเพื่อปรับประสบการณ์การใช้งานตามความชอบ รองรับการใช้งานทั้งโหมดสว่างและโหมดมืด
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
@@ -3611,7 +3616,7 @@ export default function AdminPanel({
                     <span className="text-[10px] opacity-80 leading-relaxed">สดชื่น ทันสมัย สไตล์แอปเปิลมินต์</span>
                   </button>
 
-                  {/* 7. ธีมไซเบอร์ ไซแอน (ธีมใหม่ 1) */}
+                  {/* 7. ธีมไซเบอร์ ไซแอน */}
                   <button
                     type="button"
                     onClick={() => setThemeStyle && setThemeStyle('cyan-futuristic')}
@@ -3626,7 +3631,7 @@ export default function AdminPanel({
                     <span className="text-[10px] opacity-80 leading-relaxed">ลุคนีออนโกลว์ อนาคต ดุดัน ไฮเทค</span>
                   </button>
 
-                  {/* 8. ธีมรอยัล โกลด์ (ธีมใหม่ 2) */}
+                  {/* 8. ธีมรอยัล โกลด์ */}
                   <button
                     type="button"
                     onClick={() => setThemeStyle && setThemeStyle('royal-gold')}
@@ -3641,7 +3646,7 @@ export default function AdminPanel({
                     <span className="text-[10px] opacity-80 leading-relaxed">สง่างาม โทนม่วงเข้มตัดทองคำ พรีเมียม</span>
                   </button>
 
-                  {/* 9. ธีมกรีน (Green Theme จาก UI ต้นแบบ) */}
+                  {/* 9. ธีมกรีน */}
                   <button
                     type="button"
                     onClick={() => setThemeStyle && setThemeStyle('green')}
@@ -3655,6 +3660,154 @@ export default function AdminPanel({
                     <span className="text-xs font-black">🌱 ธีมกรีน (green)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">สดใส โทนเขียวสไตล์ Eco Mobile App</span>
                   </button>
+                </div>
+              </div>
+
+              {/* ส่วนที่ 2: เลือกดีไซน์การแสดงผลของระบบ (Visual Layout Design Presets) */}
+              <div className="card p-6 space-y-6 bg-white dark:bg-[#1e1518]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
+                  <div className="flex items-center gap-2">
+                    <Layout className="h-6 w-6 text-[#FF8BA7]" />
+                    <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      2. เลือกดีไซน์การแสดงผลของระบบ (Visual Layout Design Presets)
+                    </h3>
+                  </div>
+                  <span className="text-xs bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 px-2.5 py-0.5 rounded-full font-black border border-indigo-500/30">
+                    ดีไซน์ปัจจุบัน: {
+                      designStyle === 'glass-float' ? '✨ มินิมอล กลาส & ซอฟต์ ฟโลต' :
+                      designStyle === 'compact-grid' ? '⚡ กริดกะทัดรัด & ข้อมูลหนาแน่น' :
+                      '🎨 คลาสสิกการ์ด (Classic Neo-Brutalist)'
+                    }
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold">
+                  เลือกดีไซน์เลย์เอาต์เพื่อปรับเปลี่ยนรูปแบบการแสดงผลของการ์ด ขอบ เงา และความหนาแน่นของข้อมูลให้ตรงกับสไตล์การใช้งานของคุณ
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Design Preset 1: Classic Neo-Brutalist */}
+                  <button
+                    type="button"
+                    onClick={() => setDesignStyle && setDesignStyle('classic')}
+                    className={`p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-start text-left gap-3 transition-all cursor-pointer relative overflow-hidden ${
+                      designStyle === 'classic'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-600 dark:border-indigo-400 shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:border-indigo-400'
+                    }`}
+                  >
+                    {designStyle === 'classic' && (
+                      <span className="absolute top-3 right-3 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> ใช้งานอยู่
+                      </span>
+                    )}
+                    <div className="p-2.5 rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">
+                      <Layers className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        🎨 ดีไซน์คลาสสิก (Classic Neo-Brutalist)
+                      </h4>
+                      <p className="text-xs opacity-75 mt-1 leading-relaxed">
+                        ขอบเส้นหนาคมชัด ชัดเจน โดดเด่น สไตล์เนโอ-บรูทาลิสต์ (ดั้งเดิม)
+                      </p>
+                    </div>
+                    <div className="w-full mt-2 pt-2 border-t border-[#33272A]/10 dark:border-[#FFF9F5]/10 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                      เหมาะสำหรับ: ทุกอุปกรณ์ อ่านง่าย สะดุดตา
+                    </div>
+                  </button>
+
+                  {/* Design Preset 2: Glassmorphism & Soft Float (ดีไซน์ใหม่ 1) */}
+                  <button
+                    type="button"
+                    onClick={() => setDesignStyle && setDesignStyle('glass-float')}
+                    className={`p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-start text-left gap-3 transition-all cursor-pointer relative overflow-hidden ${
+                      designStyle === 'glass-float'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 dark:border-rose-400 shadow-[4px_4px_0px_#FF8BA7]'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:border-rose-400'
+                    }`}
+                  >
+                    {designStyle === 'glass-float' && (
+                      <span className="absolute top-3 right-3 text-xs bg-rose-500 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> ใช้งานอยู่
+                      </span>
+                    )}
+                    <div className="p-2.5 rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        ✨ มินิมอล กลาส & ซอฟต์ ฟโลต (Modern Glass)
+                      </h4>
+                      <p className="text-xs opacity-75 mt-1 leading-relaxed">
+                        ขอบบางเรียบหรู เงานุ่มนวล เอฟเฟกต์กระจกเบลอ ละมุนตา สไตล์โมเดิร์น
+                      </p>
+                    </div>
+                    <div className="w-full mt-2 pt-2 border-t border-[#33272A]/10 dark:border-[#FFF9F5]/10 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                      เหมาะสำหรับ: ผู้ต้องการความสบายตา ดีไซน์ล้ำสมัย
+                    </div>
+                  </button>
+
+                  {/* Design Preset 3: Compact High-Density Grid (ดีไซน์ใหม่ 2) */}
+                  <button
+                    type="button"
+                    onClick={() => setDesignStyle && setDesignStyle('compact-grid')}
+                    className={`p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-start text-left gap-3 transition-all cursor-pointer relative overflow-hidden ${
+                      designStyle === 'compact-grid'
+                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-600 dark:border-amber-400 shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:border-amber-400'
+                    }`}
+                  >
+                    {designStyle === 'compact-grid' && (
+                      <span className="absolute top-3 right-3 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> ใช้งานอยู่
+                      </span>
+                    )}
+                    <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+                      <Monitor className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                        ⚡ กริดกะทัดรัด & ข้อมูลหนาแน่น (High Density)
+                      </h4>
+                      <p className="text-xs opacity-75 mt-1 leading-relaxed">
+                        ระยะห่างกระชับ แสดงตารางและข้อมูลได้ปริมาณมากในหน้าเดียว รวดเร็ว
+                      </p>
+                    </div>
+                    <div className="w-full mt-2 pt-2 border-t border-[#33272A]/10 dark:border-[#FFF9F5]/10 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                      เหมาะสำหรับ: หน้าจอคอมพิวเตอร์/แท็บเล็ต ตรวจสอบสถิติ
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* รายงานผลกระทบต่อระบบ & คำแนะนำ (System Impact Analysis & Recommendations) */}
+              <div className="space-y-4">
+                {/* ใบเตือน 1: ข้อมูลความปลอดภัยระบบ (0% Impact) */}
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-2xl p-4 flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black text-emerald-900 dark:text-emerald-200">
+                      🟢 การันตีผลกระทบต่อระบบฐานข้อมูล (Database Safety Assurance)
+                    </h4>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed font-bold">
+                      การเปลี่ยนสลับธีมสีและดีไซน์เลย์เอาต์ทำงานที่ฝั่งเบราว์เซอร์ (Client-side Visual State) <strong>ไม่มีผลกระทบต่อข้อมูลนักเรียน ฐานข้อมูล Firestore สิทธิ์การเข้าถึง หรือความเร็วของเซิร์ฟเวอร์ใดๆ ทั้งสิ้น 100%</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* ใบเตือน 2: คำแนะนำการใช้งานตามอุปกรณ์ */}
+                <div className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black text-amber-900 dark:text-amber-200">
+                      ⚠️ คำแนะนำการใช้งาน (Advisory Recommendation)
+                    </h4>
+                    <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-bold">
+                      • <strong>ดีไซน์ Glass & Soft Float</strong> เหมาะสมกับทุกอุปกรณ์ ช่วยให้ใช้งานสบายตา ลุคทันสมัย<br />
+                      • <strong>ดีไซน์ Compact High-Density Grid</strong> จะกระชับขนาดตารางลง เหมาะกับจอคอมพิวเตอร์ใหญ่ หากใช้งานบนมือถือสมาร์ตโฟน แนะนำให้ใช้ดีไซน์ คลาสสิก หรือ Glass Float เพื่อความสะดวกในการสัมผัสและอ่านข้อมูล
+                    </p>
+                  </div>
                 </div>
               </div>
 

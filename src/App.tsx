@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { db, auth, OperationType, handleFirestoreError } from './firebase';
 import { collection, getDocs, setDoc, doc, getDoc, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle } from './types';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle } from './types';
 import { generateInitialStudentGData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 
@@ -109,8 +109,12 @@ export default function App() {
     const saved = localStorage.getItem('app-theme-style');
     return (saved as ThemeStyle) || 'pastel';
   });
+  const [designStyle, setDesignStyle] = useState<DesignStyle>(() => {
+    const saved = localStorage.getItem('app-design-style');
+    return (saved as DesignStyle) || 'classic';
+  });
 
-  // จัดการระบบธีม Dark Mode / Light Mode และ 6 Themes
+  // จัดการระบบธีม Dark Mode / Light Mode และ Themes
   useEffect(() => {
     document.documentElement.classList.remove(
       'theme-pastel', 
@@ -130,6 +134,17 @@ export default function App() {
       setIsDarkMode(true);
     }
   }, [themeStyle]);
+
+  // จัดการดีไซน์การแสดงผลระบบ (Design Presets)
+  useEffect(() => {
+    document.documentElement.classList.remove(
+      'design-classic',
+      'design-glass-float',
+      'design-compact-grid'
+    );
+    document.documentElement.classList.add(`design-${designStyle}`);
+    localStorage.setItem('app-design-style', designStyle);
+  }, [designStyle]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -710,6 +725,8 @@ export default function App() {
                     serverStatus={serverStatus}
                     themeStyle={themeStyle}
                     setThemeStyle={setThemeStyle}
+                    designStyle={designStyle}
+                    setDesignStyle={setDesignStyle}
                     isDarkMode={isDarkMode}
                     setIsDarkMode={setIsDarkMode}
                   />
