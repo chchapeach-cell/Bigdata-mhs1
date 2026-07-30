@@ -66,7 +66,7 @@ export default function InfrastructureView({
   }, [systemConfig?.waterSystemOptions]);
 
   // สิทธิ์ในการดาวน์โหลดข้อมูล
-  const canDownload = systemConfig?.allowDataDownload !== false || userProfile?.role === 'super_admin';
+  const canDownload = systemConfig?.allowDataDownload !== false;
 
   // ตัวกรองระบบไฟฟ้า: include = เอาเฉพาะประเภทที่เลือก, exclude = ไม่เอา / ยกเว้นประเภทที่เลือก
   const [electricMode, setElectricMode] = useState<'include' | 'exclude'>('include');

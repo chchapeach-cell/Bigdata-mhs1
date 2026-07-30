@@ -900,17 +900,7 @@ export default function SchoolDetailView({
                   )}
                 </div>
               ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[9px] font-black uppercase bg-[#A0E7E5] text-[#33272A] border border-[#33272A] px-2 py-0.5 rounded-full tracking-wider">
-                      {school.isExpansion ? "โรงเรียนขยายโอกาส" : "โรงเรียนพื้นฐาน"}
-                    </span>
-                    <span className="text-[9px] font-black bg-purple-200 text-purple-900 border border-[#33272A] px-2 py-0.5 rounded-full tracking-wider">
-                      🏫 {school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup}
-                    </span>
-                  </div>
-                  <h1 className="text-xl md:text-2xl font-black mt-1 text-white">{school.name}</h1>
-                </>
+                <h1 className="text-xl md:text-2xl font-black text-white">{school.name}</h1>
               )}
               <p className="text-xs font-bold text-slate-100 flex items-center gap-1 mt-1">
                 <MapPin className="h-3.5 w-3.5 text-[#FF8BA7]" />

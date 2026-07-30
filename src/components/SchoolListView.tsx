@@ -271,7 +271,7 @@ export default function SchoolListView({
     }
   };
 
-  const canDownload = systemConfig?.allowDataDownload !== false || userProfile?.role === 'super_admin';
+  const canDownload = systemConfig?.allowDataDownload !== false;
 
   // ฟังก์ชันสําหรับสร้าง Excel และบันทึกลง Firestore สำหรับประวัติ
   const handleOpenDownload = (id: string, name: string) => {

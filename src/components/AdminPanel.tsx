@@ -4071,7 +4071,7 @@ export default function AdminPanel({
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1 leading-relaxed">
                         {allowDataDownload
                           ? 'ผู้ใช้งานทุกคนสามารถดาวน์โหลดไฟล์ Excel/CSV ได้'
-                          : 'ไม่อนุญาตให้ดาวน์โหลด (เฉพาะ Super Admin ดาวน์โหลดได้)'}
+                          : 'ปิดการดาวน์โหลดข้อมูลระบบทั้งหมด (ไม่อนุญาตให้ดาวน์โหลด)'}
                       </p>
                     </div>
 

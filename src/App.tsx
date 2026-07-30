@@ -8,6 +8,7 @@ import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCU
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowDataDownload: true,
+  contactEnabled: true,
   restrictOneAdminPerSchool: true,
   allowSchoolAdminRegistration: true,
   highTrafficAlertEnabled: true,
@@ -267,6 +268,7 @@ export default function App() {
         const data = configSnap.data();
         setSystemConfig({
           allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
+          contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
           restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
           allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
           highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,

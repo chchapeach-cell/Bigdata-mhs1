@@ -260,14 +260,14 @@ export default function Header({
           {userProfile && (
             <button
               onClick={() => setActiveTab('admin')}
-              className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              className={`rounded-xl px-3.5 sm:px-4 py-1 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
                 activeTab === 'admin'
                   ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
                   : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
               }`}
             >
               <Shield className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900 shrink-0" />
-              <span>{userProfile.role === 'super_admin' ? 'ระบบจัดการ' : 'จัดการสถานศึกษา'}</span>
+              <span className="text-center leading-tight text-xs font-black">ระบบ<br />หลังบ้าน</span>
               {userProfile.status === 'pending' && (
                 <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
               )}
@@ -343,7 +343,7 @@ export default function Header({
             }`}
           >
             <Shield className={`h-5 w-5 text-emerald-500 ${activeTab === 'admin' ? 'stroke-[2.5px] fill-emerald-200' : 'stroke-2'}`} />
-            <span className="text-[10px] font-black">{userProfile.role === 'super_admin' ? 'จัดการ' : 'จัดการโรงเรียน'}</span>
+            <span className="text-[10px] font-black text-center leading-tight">ระบบ<br />หลังบ้าน</span>
             {userProfile.status === 'pending' && (
               <span className="absolute top-1 right-[25%] h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
             )}
