@@ -1374,10 +1374,10 @@ export default function AdminPanel({
       if (key === 'allowDataDownload') setAllowDataDownload(value);
       if (key === 'highTrafficAlertEnabled') setHighTrafficAlertEnabled(value);
       if (key === 'simulateRedServerStatus') setSimulateRedServerStatus(value);
+      if (key === 'headerBannerEnabled') setHeaderBannerEnabled(value);
 
       await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
       setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
-      await onRefreshData();
       setTimeout(() => setSettingsSuccess(''), 3000);
     } catch (e: any) {
       console.error('Failed to update setting:', e);
@@ -2001,19 +2001,19 @@ export default function AdminPanel({
           </div>
         </div>
 
-        {/* แถบนำทางเมนูหลัก */}
-        <div className="flex flex-wrap gap-2">
+        {/* แถบนำทางเมนูหลัก - ปรับปรุงการแสดงผลบนมือถือให้เลื่อนซ้าย-ขวาได้ สะดวก ไม่ล้นจอ */}
+        <div className="flex overflow-x-auto pb-1.5 gap-2 no-scrollbar min-w-0 max-w-full touch-pan-x">
           {isSuperAdmin && (
             <button
               onClick={() => setAdminTab('students_center')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                 adminTab === 'students_center' 
                   ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                   : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
               }`}
             >
               <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
-              <span>ศูนย์ข้อมูลนักเรียน (Student Data Center)</span>
+              <span>ศูนย์ข้อมูลนักเรียน</span>
             </button>
           )}
 
@@ -2024,28 +2024,28 @@ export default function AdminPanel({
                 setSelectedSchoolId(userProfile.schoolId);
               }
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
               adminTab === 'schools' 
                 ? 'bg-[#FFAAA5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                 : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
             }`}
           >
             <Building className="h-4 w-4" />
-            <span>{isSuperAdmin ? `จัดการรายชื่อโรงเรียน (${schools.length})` : '🏫 โรงเรียนของฉัน'}</span>
+            <span>{isSuperAdmin ? `รายชื่อโรงเรียน (${schools.length})` : '🏫 โรงเรียนของฉัน'}</span>
           </button>
 
           {isSuperAdmin && (
             <>
               <button
                 onClick={() => setAdminTab('users')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   adminTab === 'users' 
                     ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                     : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
                 }`}
               >
                 <Users className="h-4 w-4" />
-                <span>ทะเบียนผู้ใช้งาน</span>
+                <span>ทะเบียนผู้ใช้</span>
                 {pendingUsers.length > 0 && (
                   <span className="ml-1 bg-rose-500 text-white rounded-full px-2 py-0.5 text-[10px] animate-pulse font-black">
                     {pendingUsers.length}
@@ -2055,21 +2055,21 @@ export default function AdminPanel({
 
               <button
                 onClick={() => setAdminTab('logs')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   adminTab === 'logs' 
                     ? 'bg-[#FFD3B6] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                     : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
                 }`}
               >
                 <History className="h-4 w-4" />
-                <span>ประวัติการดาวน์โหลด</span>
+                <span>ประวัติดาวน์โหลด</span>
               </button>
             </>
           )}
 
           <button
             onClick={() => setAdminTab('theme')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
               adminTab === 'theme' 
                 ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                 : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
@@ -2082,7 +2082,7 @@ export default function AdminPanel({
           {isSuperAdmin && (
             <button
               onClick={() => setAdminTab('settings')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                 adminTab === 'settings' 
                   ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
                   : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
@@ -2097,84 +2097,45 @@ export default function AdminPanel({
 
           {adminTab === 'students_center' && (
             isSuperAdmin ? (
-              <div className="space-y-6 animate-fade-in">
+              <div className="space-y-6 animate-fade-in min-w-0 max-w-full">
               {/* แถบเมนูกลุ่มย่อยภายในศูนย์ข้อมูลนักเรียน */}
-              <div className="card p-3 bg-white dark:bg-[#1e1518] flex flex-wrap gap-2 items-center justify-between border-2 border-[#33272A] dark:border-[#FFD3B6]">
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="card p-3 bg-white dark:bg-[#1e1518] flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 min-w-0">
                   <button
                     type="button"
                     onClick={() => setStudentSubTab('bigdata')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-2 ${
+                    className={`px-3 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                       studentSubTab === 'bigdata'
                         ? 'bg-[#FF8BA7] text-[#33272A] border-[#33272A] shadow-[2px_2px_0px_#33272A]'
                         : 'bg-[#FFF9F5] text-[#33272A]/70 border-[#33272A]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70 dark:border-[#FFD3B6]/30'
                     }`}
                   >
                     <Upload className="h-4 w-4" />
-                    <span>1. สถิตินักเรียน BIGDATA (นำเข้า/ตารางรวม)</span>
+                    <span>1. สถิตินักเรียน BIGDATA</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setStudentSubTab('g_students')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-2 ${
+                    className={`px-3 py-2 rounded-xl text-xs font-black border-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                       studentSubTab === 'g_students'
                         ? 'bg-[#A0E7E5] text-[#33272A] border-[#33272A] shadow-[2px_2px_0px_#33272A]'
                         : 'bg-[#FFF9F5] text-[#33272A]/70 border-[#33272A]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70 dark:border-[#FFD3B6]/30'
                     }`}
                   >
                     <FileSpreadsheet className="h-4 w-4 text-blue-600" />
-                    <span>2. นักเรียนไม่มีหลักฐานทางทะเบียนราษฎร (กลุ่มนักเรียนตัว G)</span>
+                    <span>2. นักเรียนกลุ่มตัว G</span>
                   </button>
                 </div>
 
-                <div className="text-[11px] font-black text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 px-3 py-1 rounded-xl border border-rose-200">
+                <div className="text-[11px] font-black text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 px-3 py-1 rounded-xl border border-rose-200 text-center sm:text-right shrink-0">
                   📍 ศูนย์ข้อมูลนักเรียน สพป.แม่ฮ่องสอน เขต 1
                 </div>
               </div>
 
               {studentSubTab === 'bigdata' && (
-                <div className="grid gap-6 md:grid-cols-3 animate-fade-in">
+                <div className="grid gap-6 md:grid-cols-3 animate-fade-in min-w-0">
                   <div className="md:col-span-1 flex flex-col gap-6">
-                    {/* สรุปสถานะการตั้งค่าระบบ (รวมศูนย์ไว้ที่แท็บตั้งค่าระบบ) */}
-                    <div className="card p-6 bg-white dark:bg-[#1e1518]">
-                      <div className="flex items-center justify-between mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                        <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                          <Shield className="h-5 w-5 text-[#FF8BA7]" /> สถานะนโยบายระบบ
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={() => setAdminTab('settings')}
-                          className="text-xs font-black text-[#FF8BA7] hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <Settings className="h-3.5 w-3.5" /> ตั้งค่าระบบ
-                        </button>
-                      </div>
-                      <p className="text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-bold leading-relaxed mb-4">
-                        นโยบายการทำงานและสิทธิ์ถูกปรับแต่งรวมกันในแท็บตั้งค่าระบบ:
-                      </p>
-                      <div className="space-y-2.5">
-                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">การดาวน์โหลดข้อมูลระบบ</span>
-                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowDataDownload ? 'bg-emerald-300 text-emerald-950' : 'bg-rose-200 text-rose-950'}`}>
-                            {allowDataDownload ? '✓ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
-                          </span>
-                        </div>
-                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รับสมัครแอดมินโรงเรียน</span>
-                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${allowSchoolAdminRegistration ? 'bg-emerald-300 text-emerald-950' : 'bg-slate-200 text-slate-700'}`}>
-                            {allowSchoolAdminRegistration ? '✓ เปิดรับสมัคร' : '❌ ปิดรับสมัคร'}
-                          </span>
-                        </div>
-                        <div className="p-3 bg-[#FFF9F5] dark:bg-slate-900 rounded-xl border border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-2">
-                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">จำกัด 1 แอดมินต่อโรงเรียน</span>
-                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg border border-[#33272A] ${restrictOneAdminPerSchool ? 'bg-[#FF8BA7] text-[#33272A]' : 'bg-slate-200 text-slate-700'}`}>
-                            {restrictOneAdminPerSchool ? '✓ เปิดใช้งาน' : '🔓 หลายคนได้'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
                     <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10">
                       <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
@@ -3720,25 +3681,18 @@ export default function AdminPanel({
                         }`}>
                           {headerBannerEnabled ? '🟢 กำลังเปิดแสดงผลแบนเนอร์' : '🔴 กำลังปิดการแสดงผลแบนเนอร์'}
                         </span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={headerBannerEnabled}
-                          disabled={!isSuperAdmin}
-                          onClick={() => setHeaderBannerEnabled(!headerBannerEnabled)}
-                          className={`relative inline-flex h-7 w-14 shrink-0 rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none ${
-                            !isSuperAdmin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                          } ${
-                            headerBannerEnabled ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                          title={!isSuperAdmin ? 'สิทธิ์เฉพาะ Super Admin เท่านั้น' : 'สวิตช์ เปิด-ปิด แบนเนอร์บนส่วนหัวเว็บไซต์'}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                              headerBannerEnabled ? 'translate-x-7' : 'translate-x-0.5'
-                            }`}
+                        <label className="switch" title={!isSuperAdmin ? 'สิทธิ์เฉพาะ Super Admin เท่านั้น' : 'สวิตช์ เปิด-ปิด แบนเนอร์บนส่วนหัวเว็บไซต์'}>
+                          <input
+                            type="checkbox"
+                            checked={headerBannerEnabled}
+                            disabled={!isSuperAdmin}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              handleToggleSetting('headerBannerEnabled', val);
+                            }}
                           />
-                        </button>
+                          <span className="slider"></span>
+                        </label>
                       </div>
                     </div>
 
@@ -3981,23 +3935,15 @@ export default function AdminPanel({
                         }`}>
                           {highTrafficAlertEnabled ? '🟢 กำลังเปิดใช้งานสิทธิ์' : '🔴 กำลังปิดใช้งาน'}
                         </span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={highTrafficAlertEnabled}
-                          onClick={() => handleToggleSetting('highTrafficAlertEnabled', !highTrafficAlertEnabled)}
-                          disabled={isSavingSettings || !isSuperAdmin}
-                          className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                            highTrafficAlertEnabled ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                          title="สวิตช์ เปิด-ปิด ระบบแจ้งเตือน Pop-up ผู้ใช้งานหนาแน่น"
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                              highTrafficAlertEnabled ? 'translate-x-7' : 'translate-x-0.5'
-                            }`}
+                        <label className="switch" title="สวิตช์ เปิด-ปิด ระบบแจ้งเตือน Pop-up ผู้ใช้งานหนาแน่น">
+                          <input
+                            type="checkbox"
+                            checked={highTrafficAlertEnabled}
+                            disabled={isSavingSettings || !isSuperAdmin}
+                            onChange={(e) => handleToggleSetting('highTrafficAlertEnabled', e.target.checked)}
                           />
-                        </button>
+                          <span className="slider"></span>
+                        </label>
                       </div>
                     </div>
 
@@ -4042,23 +3988,15 @@ export default function AdminPanel({
                             }`}>
                               {simulateRedServerStatus ? '🔴 บังคับสีแดง' : '🟢 ภาระจริง'}
                             </span>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={simulateRedServerStatus}
-                              onClick={() => handleToggleSetting('simulateRedServerStatus', !simulateRedServerStatus)}
-                              disabled={isSavingSettings || !isSuperAdmin}
-                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                                simulateRedServerStatus ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
-                              }`}
-                              title="สวิตช์ เปิด-ปิด บังคับสถานะเซิร์ฟเวอร์สีแดง"
-                            >
-                              <span
-                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm border border-[#33272A] transition duration-200 ease-in-out mt-[1px] ${
-                                  simulateRedServerStatus ? 'translate-x-5' : 'translate-x-0.5'
-                                }`}
+                            <label className="switch" title="สวิตช์ เปิด-ปิด บังคับสถานะเซิร์ฟเวอร์สีแดง">
+                              <input
+                                type="checkbox"
+                                checked={simulateRedServerStatus}
+                                disabled={isSavingSettings || !isSuperAdmin}
+                                onChange={(e) => handleToggleSetting('simulateRedServerStatus', e.target.checked)}
                               />
-                            </button>
+                              <span className="slider"></span>
+                            </label>
                           </div>
                         </div>
 
@@ -4099,23 +4037,15 @@ export default function AdminPanel({
                       }`}>
                         {allowDataDownload ? '🟢 กำลังเปิดสิทธิ์ให้ดาวน์โหลด' : '🔴 กำลังปิดสิทธิ์ดาวน์โหลด'}
                       </span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={allowDataDownload}
-                        onClick={() => handleToggleSetting('allowDataDownload', !allowDataDownload)}
-                        disabled={isSavingSettings || !isSuperAdmin}
-                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                          allowDataDownload ? 'bg-emerald-400' : 'bg-rose-400'
-                        }`}
-                        title="สวิตช์ เปิด-ปิด สิทธิ์การดาวน์โหลดข้อมูลระบบ"
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                            allowDataDownload ? 'translate-x-7' : 'translate-x-0.5'
-                          }`}
+                      <label className="switch" title="สวิตช์ เปิด-ปิด สิทธิ์การดาวน์โหลดข้อมูลระบบ">
+                        <input
+                          type="checkbox"
+                          checked={allowDataDownload}
+                          disabled={isSavingSettings || !isSuperAdmin}
+                          onChange={(e) => handleToggleSetting('allowDataDownload', e.target.checked)}
                         />
-                      </button>
+                        <span className="slider"></span>
+                      </label>
                     </div>
                   </div>
 
@@ -4140,23 +4070,15 @@ export default function AdminPanel({
                       }`}>
                         {restrictOneAdminPerSchool ? '🟢 กำลังเปิดจำกัด 1 คน/โรงเรียน' : '🔴 กำลังปิดจำกัด (หลายคนได้)'}
                       </span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={restrictOneAdminPerSchool}
-                        onClick={() => handleToggleSetting('restrictOneAdminPerSchool', !restrictOneAdminPerSchool)}
-                        disabled={isSavingSettings || !isSuperAdmin}
-                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                          restrictOneAdminPerSchool ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                        title="สวิตช์ เปิด-ปิด นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน"
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                            restrictOneAdminPerSchool ? 'translate-x-7' : 'translate-x-0.5'
-                          }`}
+                      <label className="switch" title="สวิตช์ เปิด-ปิด นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน">
+                        <input
+                          type="checkbox"
+                          checked={restrictOneAdminPerSchool}
+                          disabled={isSavingSettings || !isSuperAdmin}
+                          onChange={(e) => handleToggleSetting('restrictOneAdminPerSchool', e.target.checked)}
                         />
-                      </button>
+                        <span className="slider"></span>
+                      </label>
                     </div>
                   </div>
 
@@ -4181,23 +4103,15 @@ export default function AdminPanel({
                       }`}>
                         {allowSchoolAdminRegistration ? '🟢 กำลังเปิดรับสมัครแอดมิน' : '🔴 กำลังปิดรับสมัครแอดมิน'}
                       </span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={allowSchoolAdminRegistration}
-                        onClick={() => handleToggleSetting('allowSchoolAdminRegistration', !allowSchoolAdminRegistration)}
-                        disabled={isSavingSettings || !isSuperAdmin}
-                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                          allowSchoolAdminRegistration ? 'bg-emerald-400' : 'bg-rose-400'
-                        }`}
-                        title="สวิตช์ เปิด-ปิด ระบบรับสมัครแอดมินโรงเรียน"
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                            allowSchoolAdminRegistration ? 'translate-x-7' : 'translate-x-0.5'
-                          }`}
+                      <label className="switch" title="สวิตช์ เปิด-ปิด ระบบรับสมัครแอดมินโรงเรียน">
+                        <input
+                          type="checkbox"
+                          checked={allowSchoolAdminRegistration}
+                          disabled={isSavingSettings || !isSuperAdmin}
+                          onChange={(e) => handleToggleSetting('allowSchoolAdminRegistration', e.target.checked)}
                         />
-                      </button>
+                        <span className="slider"></span>
+                      </label>
                     </div>
                   </div>
 
@@ -4223,23 +4137,15 @@ export default function AdminPanel({
                       }`}>
                         {contactEnabled ? '🟢 กำลังเปิดแสดงผลเมนูติดต่อ' : '🔴 กำลังปิดซ่อนเมนูติดต่อ'}
                       </span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={contactEnabled}
-                        onClick={() => handleToggleSetting('contactEnabled', !contactEnabled)}
-                        disabled={isSavingSettings || !isSuperAdmin}
-                        className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                          contactEnabled ? 'bg-emerald-400' : 'bg-rose-400'
-                        }`}
-                        title="สวิตช์ เปิด-ปิด แสดงผลเมนูติดต่อ"
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md border border-[#33272A] transition duration-200 ease-in-out mt-[2px] ${
-                            contactEnabled ? 'translate-x-7' : 'translate-x-0.5'
-                          }`}
+                      <label className="switch" title="สวิตช์ เปิด-ปิด แสดงผลเมนูติดต่อ">
+                        <input
+                          type="checkbox"
+                          checked={contactEnabled}
+                          disabled={isSavingSettings || !isSuperAdmin}
+                          onChange={(e) => handleToggleSetting('contactEnabled', e.target.checked)}
                         />
-                      </button>
+                        <span className="slider"></span>
+                      </label>
                     </div>
                   </div>
                 </div>

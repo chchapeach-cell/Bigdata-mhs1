@@ -215,7 +215,6 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
       }, { merge: true });
 
       setSuccessMsg(nextEnabled ? 'เปิดแสดงผลเมนู "ติดต่อ" ให้ทุกคนเห็นเรียบร้อยแล้ว!' : 'ซ่อนเมนู "ติดต่อ" จากทุกคนแล้ว (เห็นเฉพาะ Super Admin)!');
-      await onRefreshData();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       console.error(err);
@@ -476,22 +475,14 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
                         <span className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">
                           {item.enabled ? '🟢 กำลังเปิดแสดงผล' : '🔴 กำลังปิดซ่อนอยู่'}
                         </span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={item.enabled}
-                          onClick={() => handleToggleEnabled(item.id)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-[#33272A] transition-colors duration-200 ease-in-out focus:outline-none ${
-                            item.enabled ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
-                          title={item.enabled ? 'คลิกสวิตช์เพื่อปิดซ่อนช่องทางนี้' : 'คลิกสวิตช์เพื่อเปิดแสดงผลช่องทางนี้'}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm border border-[#33272A] transition duration-200 ease-in-out mt-[1px] ${
-                              item.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                            }`}
+                        <label className="switch" title={item.enabled ? 'คลิกสวิตช์เพื่อปิดซ่อนช่องทางนี้' : 'คลิกสวิตช์เพื่อเปิดแสดงผลช่องทางนี้'}>
+                          <input
+                            type="checkbox"
+                            checked={item.enabled}
+                            onChange={() => handleToggleEnabled(item.id)}
                           />
-                        </button>
+                          <span className="slider"></span>
+                        </label>
                       </div>
 
                       <button

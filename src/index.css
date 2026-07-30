@@ -605,3 +605,78 @@ html, #root {
 .dark .grid-pattern {
   background-image: radial-gradient(#ffffff0a 1px, transparent 1px);
 }
+
+/* =============================================================
+   Uiverse.io Custom Toggle Switch (by MetaBlue2000)
+   ============================================================= */
+.switch {
+  font-size: 16px;
+  position: relative;
+  display: inline-block;
+  width: 3.5em;
+  height: 1.2em;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ff6a59;
+  transition: 0.4s;
+  border-radius: 30px;
+  border: 1px solid #e05243;
+}
+
+.slider:before {
+  position: absolute;
+  content: "✕";
+  display: grid;
+  text-align: center;
+  vertical-align: middle;
+  place-items: center;
+  font-size: 0.9em;
+  font-weight: 900;
+  width: 1.8em;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  left: 0;
+  top: 50%;
+  transform: translate(0, -50%);
+  color: white;
+  background-color: #ff3c00;
+  border: 1px solid #ba0300;
+  transition: 0.4s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.switch input:checked + .slider {
+  background-color: #008080;
+  border-color: #006666;
+}
+
+.switch input:checked + .slider:before {
+  content: "\2713";
+  color: #008080;
+  background: #a2f2dd;
+  border: 1px solid rgba(0, 128, 128, 0.514);
+  transform: translate(1.75em, -50%) rotateZ(360deg);
+}
+
+.switch input:disabled + .slider,
+.switch input:disabled ~ .slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
