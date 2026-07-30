@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -40,15 +40,15 @@ export default function DashboardView({
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
   
-  // ตัวกรองแผนที่สำหรับโครงสร้างพื้นฐาน (ไฟฟ้า & อินเทอร์เน็ต)
-  const [mapInfraFilter, setMapInfraFilter] = useState<'all' | 'electricity' | 'fiber' | 'satellite' | 'sim' | 'none'>('all');
+  // ตัวกรองแผนที่สำหรับโครงสร้างพื้นฐาน (ไฟฟ้า, อินเทอร์เน็ต & ระบบน้ำประปา)
+  const [mapInfraFilter, setMapInfraFilter] = useState<'all' | 'electricity' | 'fiber' | 'satellite' | 'sim' | 'none' | 'water_gov' | 'water_mountain' | 'water_none' | 'water_other'>('all');
   
   // สถานะค้นหาวิชาเอกภาพรวม
   const [majorSearchQuery, setMajorSearchQuery] = useState<string>('');
 
   // หมวดหมู่โครงสร้างพื้นฐานที่เลือกเปิดดูรายชื่อโรงเรียนใน Modal
   const [selectedInfraCategory, setSelectedInfraCategory] = useState<
-    'electricity_yes' | 'electricity_solar' | 'electricity_hybrid' | 'electricity_no' | 'fiber' | 'satellite' | 'sim' | 'none' | null
+    'electricity_yes' | 'electricity_solar' | 'electricity_hybrid' | 'electricity_no' | 'fiber' | 'satellite' | 'sim' | 'none' | 'water_gov' | 'water_mountain' | 'water_none' | 'water_other' | null
   >(null);
   const [infraSearchQuery, setInfraSearchQuery] = useState<string>('');
 
@@ -64,6 +64,7 @@ export default function DashboardView({
     return schools.filter(school => {
       let matchesCategory = false;
       const elecVal = String(school.electricity ?? '').toLowerCase();
+      const waterVal = String(school.waterSystem ?? '').toLowerCase();
 
       if (selectedInfraCategory === 'electricity_yes') {
         matchesCategory = elecVal === 'has_electric' || elecVal === 'grid' || elecVal === 'true' || school.electricity === true;
@@ -81,6 +82,14 @@ export default function DashboardView({
         matchesCategory = school.internetType === 'sim';
       } else if (selectedInfraCategory === 'none') {
         matchesCategory = school.internetType === 'none' || !school.internetType;
+      } else if (selectedInfraCategory === 'water_gov') {
+        matchesCategory = waterVal.includes('government') || waterVal.includes('รัฐ') || (!waterVal.includes('mountain') && !waterVal.includes('ภูเขา') && !waterVal.includes('none') && !waterVal.includes('ไม่มี') && !waterVal.includes('other') && !waterVal.includes('อื่นๆ'));
+      } else if (selectedInfraCategory === 'water_mountain') {
+        matchesCategory = waterVal.includes('mountain') || waterVal.includes('ภูเขา');
+      } else if (selectedInfraCategory === 'water_none') {
+        matchesCategory = waterVal.includes('none') || waterVal.includes('ไม่มี');
+      } else if (selectedInfraCategory === 'water_other') {
+        matchesCategory = waterVal.includes('other') || waterVal.includes('อื่นๆ');
       }
 
       const matchesSearch = !infraSearchQuery || 
@@ -164,6 +173,42 @@ export default function DashboardView({
           icon: <WifiOff className="h-5 w-5 text-rose-600" />,
           badgeColor: 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-700',
           netFilter: 'none',
+          electricityFilter: undefined
+        };
+      case 'water_gov':
+        return {
+          title: 'สถานศึกษาที่ใช้น้ำประปาภาครัฐ / ประปาส่วนภูมิภาค',
+          subtitle: 'โรงเรียนที่มีน้ำประปาจากการประปาหรือระบบท้องถิ่นใช้งานหลัก',
+          icon: <Droplets className="h-5 w-5 text-blue-600" />,
+          badgeColor: 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-700',
+          netFilter: undefined,
+          electricityFilter: undefined
+        };
+      case 'water_mountain':
+        return {
+          title: 'สถานศึกษาที่ใช้น้ำประปาภูเขา / แหล่งน้ำธรรมชาติ',
+          subtitle: 'โรงเรียนในพื้นที่ดอยที่ต่อน้ำประปาภูเขามาใช้อุปโภคบริโภค',
+          icon: <Droplets className="h-5 w-5 text-sky-600" />,
+          badgeColor: 'bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950 dark:text-sky-200 dark:border-sky-700',
+          netFilter: undefined,
+          electricityFilter: undefined
+        };
+      case 'water_none':
+        return {
+          title: 'สถานศึกษาที่ไม่มีน้ำประปา / ประสบปัญหาขาดแคลนน้ำ',
+          subtitle: 'โรงเรียนที่ไม่มีระบบน้ำประปาใช้การได้หรือขาดแคลนแหล่งน้ำ',
+          icon: <Droplets className="h-5 w-5 text-rose-600" />,
+          badgeColor: 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-700',
+          netFilter: undefined,
+          electricityFilter: undefined
+        };
+      case 'water_other':
+        return {
+          title: 'สถานศึกษาที่ใช้ระบบน้ำประปาอื่นๆ / บ่อบาดาล',
+          subtitle: 'โรงเรียนที่ใช้น้ำจากบ่อบาดาล บ่อขุด หรือระบบประปาชุมชนอื่นๆ',
+          icon: <Droplets className="h-5 w-5 text-purple-600" />,
+          badgeColor: 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-700',
+          netFilter: undefined,
           electricityFilter: undefined
         };
       default:
@@ -468,7 +513,7 @@ export default function DashboardView({
       .sort((a, b) => b.teachersCount - a.teachersCount);
   }, [schools]);
 
-  // สถิติระบบไฟฟ้าและอินเทอร์เน็ตของสถานศึกษา
+  // สถิติระบบไฟฟ้า อินเทอร์เน็ต และระบบน้ำประปาของสถานศึกษา
   const infraStats = useMemo(() => {
     let elecGrid = 0;
     let elecSolar = 0;
@@ -479,6 +524,11 @@ export default function DashboardView({
     let satellite = 0;
     let sim = 0;
     let none = 0;
+
+    let waterGov = 0;
+    let waterMountain = 0;
+    let waterNone = 0;
+    let waterOther = 0;
 
     const amphoeData: Record<string, {
       total: number;
@@ -515,6 +565,18 @@ export default function DashboardView({
       else if (type === 'sim') sim++;
       else none++;
 
+      // Water system
+      const waterVal = String(s.waterSystem ?? '').toLowerCase();
+      if (waterVal.includes('mountain') || waterVal.includes('ภูเขา')) {
+        waterMountain++;
+      } else if (waterVal.includes('none') || waterVal.includes('ไม่มี')) {
+        waterNone++;
+      } else if (waterVal.includes('other') || waterVal.includes('อื่นๆ')) {
+        waterOther++;
+      } else {
+        waterGov++;
+      }
+
       // Amphoe breakdown
       const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe || "อื่นๆ/ไม่ระบุ";
       const target = amphoeData[amp] || amphoeData["อื่นๆ/ไม่ระบุ"];
@@ -548,6 +610,20 @@ export default function DashboardView({
       satellite,
       sim,
       none,
+      waterGov,
+      waterMountain,
+      waterNone,
+      waterOther,
+      waterGovPercent: ((waterGov / totalSchools) * 100).toFixed(1),
+      waterMountainPercent: ((waterMountain / totalSchools) * 100).toFixed(1),
+      waterNonePercent: ((waterNone / totalSchools) * 100).toFixed(1),
+      waterOtherPercent: ((waterOther / totalSchools) * 100).toFixed(1),
+      waterPie: [
+        { name: 'ประปาภาครัฐ', value: waterGov, color: '#2563EB' },
+        { name: 'ประปาภูเขา', value: waterMountain, color: '#38BDF8' },
+        { name: 'ประปาอื่นๆ/บาดาล', value: waterOther, color: '#8B5CF6' },
+        { name: 'ไม่มีน้ำใช้', value: waterNone, color: '#EF4444' }
+      ],
       internetTypePie: [
         { name: 'เคเบิลไฟเบอร์ออพติก (Fiber)', value: fiber, color: '#60A5FA' },
         { name: 'จานดาวเทียม (Satellite / IPSTAR)', value: satellite, color: '#A0E7E5' },
@@ -563,6 +639,40 @@ export default function DashboardView({
       amphoeData
     };
   }, [schools]);
+
+  // โรงเรียนที่กรองตามตัวกรองแผนที่ (ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา)
+  const filteredMapSchools = useMemo(() => {
+    if (mapInfraFilter === 'all') return schools;
+    if (mapInfraFilter === 'electricity') return schools.filter(s => s.electricity);
+    if (mapInfraFilter === 'fiber' || mapInfraFilter === 'satellite' || mapInfraFilter === 'sim' || mapInfraFilter === 'none') {
+      return schools.filter(s => s.internetType === mapInfraFilter);
+    }
+    if (mapInfraFilter === 'water_mountain') {
+      return schools.filter(s => {
+        const w = String(s.waterSystem || '').toLowerCase();
+        return w.includes('mountain') || w.includes('ภูเขา');
+      });
+    }
+    if (mapInfraFilter === 'water_none') {
+      return schools.filter(s => {
+        const w = String(s.waterSystem || '').toLowerCase();
+        return w.includes('none') || w.includes('ไม่มี');
+      });
+    }
+    if (mapInfraFilter === 'water_other') {
+      return schools.filter(s => {
+        const w = String(s.waterSystem || '').toLowerCase();
+        return w.includes('other') || w.includes('อื่นๆ');
+      });
+    }
+    if (mapInfraFilter === 'water_gov') {
+      return schools.filter(s => {
+        const w = String(s.waterSystem || '').toLowerCase();
+        return w.includes('government') || w.includes('รัฐ') || (!w.includes('mountain') && !w.includes('ภูเขา') && !w.includes('none') && !w.includes('ไม่มี') && !w.includes('other') && !w.includes('อื่นๆ'));
+      });
+    }
+    return schools;
+  }, [schools, mapInfraFilter]);
 
   // สถิตินักเรียนตัว G แยกรายปีการศึกษา
   const yearlyGStudentsData = useMemo(() => {
@@ -1412,6 +1522,52 @@ export default function DashboardView({
               <WifiOff className="h-3.5 w-3.5 text-rose-600" />
               ไม่มีเน็ต ({infraStats.none})
             </button>
+
+            {/* เพิ่มปุ่มตัวกรองน้ำประปาบนแผนที่ */}
+            <button
+              onClick={() => setMapInfraFilter('water_gov')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'water_gov'
+                  ? 'bg-blue-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-blue-50 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-700'
+              }`}
+            >
+              <Droplets className="h-3.5 w-3.5 text-blue-600" />
+              ประปารัฐ ({infraStats.waterGov})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('water_mountain')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'water_mountain'
+                  ? 'bg-cyan-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-cyan-50 text-cyan-900 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-200 dark:border-cyan-700'
+              }`}
+            >
+              <Droplets className="h-3.5 w-3.5 text-cyan-600" />
+              ประปาภูเขา ({infraStats.waterMountain})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('water_other')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'water_other'
+                  ? 'bg-purple-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-purple-50 text-purple-900 border-purple-300 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-700'
+              }`}
+            >
+              <Droplets className="h-3.5 w-3.5 text-purple-600" />
+              น้ำอื่นๆ ({infraStats.waterOther})
+            </button>
+            <button
+              onClick={() => setMapInfraFilter('water_none')}
+              className={`px-2.5 py-1 rounded-xl border-2 transition-all flex items-center gap-1 cursor-pointer ${
+                mapInfraFilter === 'water_none'
+                  ? 'bg-rose-400 text-[#33272A] border-[#33272A]'
+                  : 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-700'
+              }`}
+            >
+              <Droplets className="h-3.5 w-3.5 text-rose-600" />
+              ไม่มีน้ำ ({infraStats.waterNone})
+            </button>
           </div>
         </div>
 
@@ -1424,7 +1580,16 @@ export default function DashboardView({
                   <span>ค้นหา/เลือกสถานศึกษาบนแผนที่</span>
                   {mapInfraFilter !== 'all' && (
                     <span className="text-rose-500 text-[9px] font-bold">
-                      (กรองตาม: {mapInfraFilter})
+                      (กรองตาม: {
+                        mapInfraFilter === 'electricity' ? 'มีไฟฟ้า' :
+                        mapInfraFilter === 'fiber' ? 'อินเทอร์เน็ต Fiber' :
+                        mapInfraFilter === 'satellite' ? 'อินเทอร์เน็ต ดาวเทียม' :
+                        mapInfraFilter === 'sim' ? 'อินเทอร์เน็ต SIM' :
+                        mapInfraFilter === 'none' ? 'ไม่มีอินเทอร์เน็ต' :
+                        mapInfraFilter === 'water_gov' ? 'ประปาภาครัฐ' :
+                        mapInfraFilter === 'water_mountain' ? 'ประปาภูเขา' :
+                        mapInfraFilter === 'water_other' ? 'น้ำประปาอื่นๆ' : 'ไม่มีน้ำประปา'
+                      })
                     </span>
                   )}
                 </label>
@@ -1433,13 +1598,8 @@ export default function DashboardView({
                   onChange={(e) => handleSelectMapSchool(e.target.value)}
                   className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-md"
                 >
-                  <option value="">-- แสดงทั้งหมด (สำนักงานเขต สพป.มส.1) --</option>
-                  {(mapInfraFilter === 'all' 
-                    ? schools 
-                    : mapInfraFilter === 'electricity' 
-                    ? schools.filter(s => s.electricity) 
-                    : schools.filter(s => s.internetType === mapInfraFilter)
-                  ).map(s => (
+                  <option value="">-- แสดงทั้งหมด ({filteredMapSchools.length} แห่ง) --</option>
+                  {filteredMapSchools.map(s => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe})
                     </option>
@@ -1470,7 +1630,7 @@ export default function DashboardView({
                         </div>
                       </div>
 
-                      {/* ข้อมูลไฟฟ้าและเน็ตด่วน */}
+                      {/* ข้อมูลไฟฟ้า เน็ต และน้ำประปาด่วน */}
                       <div className="space-y-1.5 p-2.5 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[11px]">
                         <div className="flex items-center gap-1.5">
                           <Zap className="h-4 w-4 text-amber-500 fill-amber-500 shrink-0" />
@@ -1490,6 +1650,19 @@ export default function DashboardView({
                           <span>อินเทอร์เน็ต:</span>
                           <span className="font-bold text-sky-700 dark:text-sky-300">
                             {mapSchool.internetType === 'fiber' ? '🌐 ไฟเบอร์ออพติก (Fiber)' : mapSchool.internetType === 'satellite' ? '🛰️ จานดาวเทียม (Satellite)' : mapSchool.internetType === 'sim' ? '📱 ซิมมือถือ (4G/5G)' : '❌ ไม่มีอินเทอร์เน็ต'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
+                          <span>ระบบน้ำประปา:</span>
+                          <span className="font-bold text-blue-700 dark:text-blue-300">
+                            {(() => {
+                              const wVal = String(mapSchool.waterSystem ?? '').toLowerCase();
+                              if (wVal.includes('mountain') || wVal.includes('ภูเขา')) return '🏔️ น้ำประปาภูเขา';
+                              if (wVal.includes('none') || wVal.includes('ไม่มี')) return '❌ ไม่มีน้ำใช้';
+                              if (wVal.includes('other') || wVal.includes('อื่นๆ')) return `📌 อื่นๆ ${mapSchool.waterSystemDetail ? `(${mapSchool.waterSystemDetail})` : ''}`;
+                              return '🚰 ประปาภาครัฐ/ท้องถิ่น';
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -1560,12 +1733,7 @@ export default function DashboardView({
                 }}
               >
                 {/* วาดหมุดของโรงเรียน (ตามตัวกรองโครงสร้างพื้นฐาน) */}
-                {(mapInfraFilter === 'all' 
-                  ? schools 
-                  : mapInfraFilter === 'electricity' 
-                  ? schools.filter(s => s.electricity) 
-                  : schools.filter(s => s.internetType === mapInfraFilter)
-                ).map(school => {
+                {filteredMapSchools.map(school => {
                   const lat = Number(school.latitude) || 19.3021;
                   const lng = Number(school.longitude) || 97.9654;
                   const isSelected = selectedMapSchoolId === school.id;
@@ -1593,7 +1761,7 @@ export default function DashboardView({
                   );
                 })}
 
-                {/* สัญลักษณ์โอเวอร์เลย์แสดงชื่อโรงเรียนและสถานะไฟฟ้า/เน็ต ลอยขึ้นมาบนหัวหมุด */}
+                {/* สัญลักษณ์โอเวอร์เลย์แสดงชื่อโรงเรียนและสถานะไฟฟ้า/เน็ต/น้ำประปา ลอยขึ้นมาบนหัวหมุด */}
                 {mapSchool && (
                   <PigeonOverlay
                     anchor={[Number(mapSchool.latitude) || 19.3021, Number(mapSchool.longitude) || 97.9654]}
@@ -1603,10 +1771,12 @@ export default function DashboardView({
                       <div className="flex items-center gap-1 text-slate-800 dark:text-slate-100">
                         <span>📍 {mapSchool.name}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
                         <span>{mapSchool.electricity ? '⚡ มีไฟฟ้า' : '🔌 โซลาร์เซลล์'}</span>
                         <span>•</span>
                         <span>{mapSchool.internetType === 'fiber' ? '🌐 ไฟเบอร์' : mapSchool.internetType === 'satellite' ? '🛰️ ดาวเทียม' : mapSchool.internetType === 'sim' ? '📱 ซิม' : '❌ ไม่มีเน็ต'}</span>
+                        <span>•</span>
+                        <span>{mapSchool.waterSystem === 'mountain' ? '🏔️ ประปาภูเขา' : mapSchool.waterSystem === 'none' ? '❌ ไม่มีน้ำ' : mapSchool.waterSystem === 'other' ? '📌 น้ำอื่นๆ' : '🚰 ประปารัฐ'}</span>
                       </div>
                     </div>
                   </PigeonOverlay>
@@ -1639,7 +1809,8 @@ export default function DashboardView({
             <h3 className="text-lg font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
               <Zap className="h-5 w-5 text-amber-500 fill-amber-500" />
               <Wifi className="h-5 w-5 text-sky-500" />
-              สรุปข้อมูลโครงสร้างพื้นฐานสถานศึกษา (ระบบไฟฟ้า & ระบบสัญญาณอินเทอร์เน็ต)
+              <Droplets className="h-5 w-5 text-blue-500" />
+              สรุปข้อมูลโครงสร้างพื้นฐานสถานศึกษา (ระบบไฟฟ้า, อินเทอร์เน็ต & ระบบน้ำประปา)
             </h3>
             <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-1">
               สถิติสาธารณูปโภคและระบบสื่อสารในสังกัด สพป.แม่ฮ่องสอน เขต 1 ทั้งหมด {schools.length} แห่ง (คลิกการ์ดเพื่อดูรายชื่อโรงเรียนในแต่ละหมวดหมู่)
@@ -1647,7 +1818,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* 8 การ์ดสรุป KPI โครงสร้างพื้นฐานแยกประเภทชัดเจน */}
+        {/* 12 การ์ดสรุป KPI โครงสร้างพื้นฐานแยกประเภทชัดเจน (ไฟฟ้า, เน็ต & น้ำประปา) */}
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
           {/* 1. ไฟฟ้าถาวร/ไฟฟ้าภาครัฐ */}
           <div 
@@ -1812,6 +1983,90 @@ export default function DashboardView({
               <div className="text-[11px] font-semibold text-slate-800/80 dark:text-slate-300/80 mt-0.5">{((infraStats.none/schools.length)*100).toFixed(1)}% พื้นที่อับสัญญาณ</div>
             </div>
             <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/50 flex items-center justify-between text-[11px] font-bold text-slate-800 dark:text-slate-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 9. ประปาภาครัฐ */}
+          <div 
+            onClick={() => setSelectedInfraCategory('water_gov')}
+            className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-300 dark:border-blue-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-blue-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-blue-900 dark:text-blue-200">ประปาภาครัฐ</span>
+              <div className="h-8 w-8 rounded-xl bg-blue-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Droplets className="h-4 w-4 text-[#33272A]" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-blue-900 dark:text-blue-100">{infraStats.waterGov} <span className="text-xs font-bold text-blue-700 dark:text-blue-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-blue-800/80 dark:text-blue-300/80 mt-0.5">{infraStats.waterGovPercent}% ประปาส่วนภูมิภาค/ท้องถิ่น</div>
+            </div>
+            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/50 flex items-center justify-between text-[11px] font-bold text-blue-800 dark:text-blue-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 10. ประปาภูเขา */}
+          <div 
+            onClick={() => setSelectedInfraCategory('water_mountain')}
+            className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/20 border-2 border-cyan-300 dark:border-cyan-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-cyan-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-cyan-900 dark:text-cyan-200">น้ำประปาภูเขา</span>
+              <div className="h-8 w-8 rounded-xl bg-cyan-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Droplets className="h-4 w-4 text-[#33272A]" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-cyan-900 dark:text-cyan-100">{infraStats.waterMountain} <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-cyan-800/80 dark:text-cyan-300/80 mt-0.5">{infraStats.waterMountainPercent}% ประปาภูเขา/ดอย</div>
+            </div>
+            <div className="pt-2 border-t border-cyan-200/60 dark:border-cyan-800/50 flex items-center justify-between text-[11px] font-bold text-cyan-800 dark:text-cyan-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 11. ประปาอื่นๆ/บาดาล */}
+          <div 
+            onClick={() => setSelectedInfraCategory('water_other')}
+            className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/20 border-2 border-purple-300 dark:border-purple-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-purple-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-purple-900 dark:text-purple-200">ประปาอื่นๆ / บ่อบาดาล</span>
+              <div className="h-8 w-8 rounded-xl bg-purple-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Droplets className="h-4 w-4 text-[#33272A]" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-purple-900 dark:text-purple-100">{infraStats.waterOther} <span className="text-xs font-bold text-purple-700 dark:text-purple-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-purple-800/80 dark:text-purple-300/80 mt-0.5">{infraStats.waterOtherPercent}% บาดาล/บ่อขุด/อื่นๆ</div>
+            </div>
+            <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/50 flex items-center justify-between text-[11px] font-bold text-purple-800 dark:text-purple-300 group-hover:underline">
+              <span>ดูรายชื่อโรงเรียน</span>
+              <span>➔</span>
+            </div>
+          </div>
+
+          {/* 12. ไม่มีน้ำใช้ */}
+          <div 
+            onClick={() => setSelectedInfraCategory('water_none')}
+            className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border-2 border-rose-300 dark:border-rose-700/50 flex flex-col justify-between gap-3 cursor-pointer hover:border-rose-500 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-rose-900 dark:text-rose-200">ไม่มีน้ำประปา/ขาดแคลน</span>
+              <div className="h-8 w-8 rounded-xl bg-rose-400 border border-[#33272A] flex items-center justify-center shrink-0">
+                <Droplets className="h-4 w-4 text-white" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-rose-900 dark:text-rose-100">{infraStats.waterNone} <span className="text-xs font-bold text-rose-700 dark:text-rose-300">แห่ง</span></div>
+              <div className="text-[11px] font-semibold text-rose-800/80 dark:text-rose-300/80 mt-0.5">{infraStats.waterNonePercent}% ขาดแคลนน้ำใช้</div>
+            </div>
+            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-800/50 flex items-center justify-between text-[11px] font-bold text-rose-800 dark:text-rose-300 group-hover:underline">
               <span>ดูรายชื่อโรงเรียน</span>
               <span>➔</span>
             </div>
@@ -2020,8 +2275,8 @@ export default function DashboardView({
                           </p>
                         </div>
 
-                        {/* Electricity & Internet Badges */}
-                        <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold p-2 bg-[#FFF9F5] dark:bg-slate-950 rounded-xl">
+                        {/* Electricity, Internet & Water Badges */}
+                        <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold p-2 bg-[#FFF9F5] dark:bg-slate-950 rounded-xl">
                           <div className="flex items-center gap-1">
                             <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                             <span className={school.electricity ? 'text-amber-800 dark:text-amber-300' : 'text-slate-400'}>
@@ -2031,7 +2286,13 @@ export default function DashboardView({
                           <div className="flex items-center gap-1">
                             <Wifi className="h-3.5 w-3.5 text-sky-500 shrink-0" />
                             <span className="text-sky-800 dark:text-sky-300">
-                              {school.internetType === 'fiber' ? 'ไฟเบอร์' : school.internetType === 'satellite' ? 'ดาวเทียม' : school.internetType === 'sim' ? 'ซิม 4G/5G' : 'ไม่มีเน็ต'}
+                              {school.internetType === 'fiber' ? 'ไฟเบอร์' : school.internetType === 'satellite' ? 'ดาวเทียม' : school.internetType === 'sim' ? 'ซิม 4G' : 'ไม่มีเน็ต'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Droplets className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                            <span className="text-blue-800 dark:text-blue-300 truncate">
+                              {school.waterSystem === 'mountain' ? 'ประปาภูเขา' : school.waterSystem === 'none' ? 'ไม่มีน้ำ' : school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
                             </span>
                           </div>
                         </div>

@@ -649,9 +649,9 @@ export default function InfrastructureView({
       {showCharts && (
         <div className="space-y-4 animate-fade-in">
           {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
             {/* Elec Permanent */}
-            <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🔌 ไฟฟ้าถาวร</span>
                 <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -661,13 +661,13 @@ export default function InfrastructureView({
                   {((chartData.elecHas / (chartData.total || 1)) * 100).toFixed(1)}% ของทั้งหมด
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-amber-100 text-amber-600 border border-amber-300 shrink-0">
-                <Zap className="h-5 w-5 fill-amber-400" />
+              <div className="p-2 rounded-xl bg-amber-100 text-amber-600 border border-amber-300 shrink-0">
+                <Zap className="h-4 w-4 fill-amber-400" />
               </div>
             </div>
 
             {/* Elec Solar & Hybrid */}
-            <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">☀️ โซลาร์/ผสมผสาน</span>
                 <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -677,13 +677,13 @@ export default function InfrastructureView({
                   {(((chartData.elecSolar + chartData.elecHybrid) / (chartData.total || 1)) * 100).toFixed(1)}% Off-Grid
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-600 border border-emerald-300 shrink-0">
-                <Sparkles className="h-5 w-5" />
+              <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600 border border-emerald-300 shrink-0">
+                <Sparkles className="h-4 w-4" />
               </div>
             </div>
 
             {/* Net Fiber */}
-            <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🌐 Fiber Optic</span>
                 <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -693,13 +693,13 @@ export default function InfrastructureView({
                   {((chartData.netFiber / (chartData.total || 1)) * 100).toFixed(1)}% ความเร็วสูง
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-sky-100 text-sky-600 border border-sky-300 shrink-0">
-                <Globe className="h-5 w-5" />
+              <div className="p-2 rounded-xl bg-sky-100 text-sky-600 border border-sky-300 shrink-0">
+                <Globe className="h-4 w-4" />
               </div>
             </div>
 
             {/* Net Satellite & SIM */}
-            <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🛰️ ดาวเทียม / SIM</span>
                 <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
@@ -709,8 +709,72 @@ export default function InfrastructureView({
                   {(((chartData.netSat + chartData.netSim) / (chartData.total || 1)) * 100).toFixed(1)}% พื้นที่ห่างไกล
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-purple-100 text-purple-600 border border-purple-300 shrink-0">
-                <Users className="h-5 w-5" />
+              <div className="p-2 rounded-xl bg-purple-100 text-purple-600 border border-purple-300 shrink-0">
+                <Users className="h-4 w-4" />
+              </div>
+            </div>
+
+            {/* Water Gov */}
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🚰 ประปาภาครัฐ</span>
+                <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {chartData.waterGov} <span className="text-xs font-bold">แห่ง</span>
+                </span>
+                <span className="text-[10px] font-bold text-blue-600 block">
+                  {((chartData.waterGov / (chartData.total || 1)) * 100).toFixed(1)}% ภูมิภาค/ท้องถิ่น
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-blue-100 text-blue-600 border border-blue-300 shrink-0">
+                <Droplets className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+
+            {/* Water Mountain */}
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🏔️ ประปาภูเขา</span>
+                <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {chartData.waterMountain} <span className="text-xs font-bold">แห่ง</span>
+                </span>
+                <span className="text-[10px] font-bold text-cyan-600 block">
+                  {((chartData.waterMountain / (chartData.total || 1)) * 100).toFixed(1)}% ประปาภูเขา
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-cyan-100 text-cyan-600 border border-cyan-300 shrink-0">
+                <Droplets className="h-4 w-4 text-cyan-600" />
+              </div>
+            </div>
+
+            {/* Water Other */}
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">📌 บ่อบาดาล/อื่นๆ</span>
+                <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {chartData.waterOther} <span className="text-xs font-bold">แห่ง</span>
+                </span>
+                <span className="text-[10px] font-bold text-indigo-600 block">
+                  {((chartData.waterOther / (chartData.total || 1)) * 100).toFixed(1)}% บ่อบาดาล/อื่นๆ
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-indigo-100 text-indigo-600 border border-indigo-300 shrink-0">
+                <Droplets className="h-4 w-4 text-indigo-600" />
+              </div>
+            </div>
+
+            {/* Water None */}
+            <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">❌ ไม่มีน้ำประปา</span>
+                <span className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {chartData.waterNone} <span className="text-xs font-bold">แห่ง</span>
+                </span>
+                <span className="text-[10px] font-bold text-rose-600 block">
+                  {((chartData.waterNone / (chartData.total || 1)) * 100).toFixed(1)}% ขาดแคลนน้ำใช้
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-600 border border-rose-300 shrink-0">
+                <Droplets className="h-4 w-4 text-rose-600" />
               </div>
             </div>
           </div>

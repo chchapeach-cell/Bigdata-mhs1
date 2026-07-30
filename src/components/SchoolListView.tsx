@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -18,6 +18,7 @@ interface SchoolListViewProps {
     amphoe?: string;
     netFilter?: string;
     electricityFilter?: string;
+    waterFilter?: string;
     majorSubjectFilter?: string;
   } | null;
   clearInitialFilters?: () => void;
@@ -50,6 +51,7 @@ export default function SchoolListView({
   const [typeFilter, setTypeFilter] = useState<string>('all'); // all, expansion, basic
   const [netFilter, setNetFilter] = useState<string>('all');
   const [electricityFilter, setElectricityFilter] = useState<string>('all'); // all, has_electric, solar, hybrid, none
+  const [waterFilter, setWaterFilter] = useState<string>('all'); // all, government, mountain, none, other
   const [majorSubjectFilter, setMajorSubjectFilter] = useState<string>('all'); // ตัวกรองครูวิชาเอก
   const [amphoeFilter, setAmphoeFilter] = useState<string>('all'); // เพิ่มตัวกรองอำเภอ
   const [networkGroupFilter, setNetworkGroupFilter] = useState<string>('all'); // ตัวกรองกลุ่มโรงเรียน
@@ -62,6 +64,7 @@ export default function SchoolListView({
       if (initialFilters.amphoe) setAmphoeFilter(initialFilters.amphoe);
       if (initialFilters.netFilter) setNetFilter(initialFilters.netFilter);
       if (initialFilters.electricityFilter) setElectricityFilter(initialFilters.electricityFilter);
+      if (initialFilters.waterFilter) setWaterFilter(initialFilters.waterFilter);
       if (initialFilters.majorSubjectFilter) setMajorSubjectFilter(initialFilters.majorSubjectFilter);
       
       // ล้างข้อมูลการพิมพ์ค้นหา
@@ -167,6 +170,21 @@ export default function SchoolListView({
         }
       }
 
+      // กรองตามระบบน้ำประปา
+      let matchesWater = true;
+      if (waterFilter !== 'all') {
+        const wSystem = String(school.waterSystem ?? '').toLowerCase();
+        if (waterFilter === 'mountain') {
+          matchesWater = wSystem.includes('mountain') || wSystem.includes('ภูเขา');
+        } else if (waterFilter === 'none') {
+          matchesWater = wSystem.includes('none') || wSystem.includes('ไม่มี');
+        } else if (waterFilter === 'other') {
+          matchesWater = wSystem.includes('other') || wSystem.includes('อื่นๆ');
+        } else if (waterFilter === 'government' || waterFilter === 'gov') {
+          matchesWater = wSystem.includes('government') || wSystem.includes('รัฐ') || !school.waterSystem;
+        }
+      }
+
       // กรองตามครูวิชาเอก
       let matchesMajorSubject = true;
       if (majorSubjectFilter !== 'all') {
@@ -185,9 +203,9 @@ export default function SchoolListView({
       }
       const matchesNetworkGroup = networkGroupFilter === 'all' || schoolNetwork === networkGroupFilter;
 
-      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesNetworkGroup && matchesMajorSubject;
+      return matchesSearch && matchesSize && matchesType && matchesNet && matchesAmphoe && matchesElectricity && matchesWater && matchesNetworkGroup && matchesMajorSubject;
     });
-  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter, networkGroupFilter, majorSubjectFilter]);
+  }, [schoolsWithCounts, searchTerm, sizeFilter, typeFilter, netFilter, amphoeFilter, electricityFilter, waterFilter, networkGroupFilter, majorSubjectFilter]);
 
   // จัดเรียงข้อมูลที่คัดกรองแล้ว
   const sortedSchools = useMemo(() => {
@@ -317,6 +335,7 @@ export default function SchoolListView({
           "นักเรียนรวมทั้งหมด (คน)": s.studentCount,
           "ระบบอินเทอร์เน็ต": s.internetType === 'fiber' ? 'Fiber' : s.internetType === 'satellite' ? 'ดาวเทียม' : s.internetType === 'sim' ? 'SIM 4G/5G' : 'ไม่ได้ใช้',
           "มีไฟฟ้าใช้งาน": s.electricity ? 'ใช่' : 'ไม่ใช่',
+          "ระบบน้ำประปา": s.waterSystem === 'mountain' ? 'ประปาภูเขา' : s.waterSystem === 'none' ? 'ไม่มีน้ำประปา' : s.waterSystem === 'other' ? `อื่นๆ (${s.waterSystemDetail || ''})` : 'ประปาภาครัฐ/ท้องถิ่น',
           "เบอร์โทรผู้บริหาร": s.directorPhone
         }));
       } else if (downloadTarget && downloadTarget.id !== '') {
@@ -357,6 +376,7 @@ export default function SchoolListView({
           "นักเรียนรวมทั้งหมด (คน)": s.studentCount,
           "ระบบอินเทอร์เน็ต": s.internetType === 'fiber' ? 'Fiber' : s.internetType === 'satellite' ? 'ดาวเทียม' : s.internetType === 'sim' ? 'SIM 4G/5G' : 'ไม่ได้ใช้',
           "มีไฟฟ้าใช้งาน": s.electricity ? 'ใช่' : 'ไม่ใช่',
+          "ระบบน้ำประปา": s.waterSystem === 'mountain' ? 'ประปาภูเขา' : s.waterSystem === 'none' ? 'ไม่มีน้ำประปา' : s.waterSystem === 'other' ? `อื่นๆ (${s.waterSystemDetail || ''})` : 'ประปาภาครัฐ/ท้องถิ่น',
           "เบอร์โทรผู้บริหาร": s.directorPhone
         }));
       }
@@ -597,6 +617,24 @@ export default function SchoolListView({
             </select>
           </div>
 
+          {/* น้ำประปา */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+              <Droplets className="h-3.5 w-3.5 text-blue-500 shrink-0" /> ระบบน้ำประปา
+            </label>
+            <select
+              value={waterFilter}
+              onChange={(e) => setWaterFilter(e.target.value)}
+              className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
+            >
+              <option value="all">ทั้งหมด ทุกประเภทน้ำประปา</option>
+              <option value="government">🚰 ประปาภาครัฐ / ท้องถิ่น</option>
+              <option value="mountain">🏔️ ประปาภูเขา</option>
+              <option value="other">📌 ประปาอื่นๆ / บ่อบาดาล</option>
+              <option value="none">❌ ไม่มีน้ำประปา / ขาดแคลน</option>
+            </select>
+          </div>
+
           {/* ครูวิชาเอก */}
           <div className="space-y-1.5">
             <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
@@ -756,6 +794,22 @@ export default function SchoolListView({
                                school.electricity === 'hybrid' ? 'ผสมผสาน' : 'ไม่มีไฟฟ้า'}
                             </span>
 
+                            {/* ป้ายประปา */}
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
+                              school.waterSystem === 'mountain'
+                                ? 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-200 dark:border-cyan-700'
+                                : school.waterSystem === 'none'
+                                ? 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-700'
+                                : school.waterSystem === 'other'
+                                ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 dark:border-purple-700'
+                                : 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-700'
+                            }`}>
+                              <Droplets className="h-2.5 w-2.5 text-blue-500" />
+                              {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                               school.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
+                               school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
+                            </span>
+
                             {/* ห้องเรียนย่อย */}
                             {school.classrooms && school.classrooms.length > 0 && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
@@ -913,6 +967,13 @@ export default function SchoolListView({
                             {school.internetType === 'fiber' ? 'เน็ต Fiber' :
                              school.internetType === 'satellite' ? 'เน็ต ดาวเทียม' :
                              school.internetType === 'sim' ? 'เน็ต SIM 4G' : 'ไม่มีเน็ต'}
+                          </span>
+
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 flex items-center gap-1">
+                            <Droplets className="h-2.5 w-2.5 text-blue-600" />
+                            {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                             school.waterSystem === 'none' ? 'ไม่มีน้ำ' :
+                             school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
                           </span>
 
                           {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
