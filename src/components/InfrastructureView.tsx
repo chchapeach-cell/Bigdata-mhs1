@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { School, UserProfile } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets } from 'lucide-react';
+import { School, UserProfile, DownloadLog } from '../types';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 
 interface InfrastructureViewProps {
   schools: School[];
@@ -423,8 +425,16 @@ export default function InfrastructureView({
     };
   }, [filteredSchools]);
 
-  // ฟังก์ชันส่งออกเป็นไฟล์ Excel
-  const handleExportExcel = () => {
+  // สถานะเปิด/ปิด Modal บันทึกวัตถุประสงค์ก่อนดาวน์โหลด
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
+  const [downloadFormat, setDownloadFormat] = useState<'excel' | 'pdf' | 'csv'>('excel');
+  const [downloadName, setDownloadName] = useState<string>('');
+  const [downloadEmail, setDownloadEmail] = useState<string>('');
+  const [downloadPurpose, setDownloadPurpose] = useState<string>('');
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadError, setDownloadError] = useState<string>('');
+
+  const handleOpenDownloadModal = (format: 'excel' | 'pdf' | 'csv') => {
     if (!canDownload) {
       alert('การดาวน์โหลดข้อมูลถูกปิดใช้งานชั่วคราวโดย Super Admin');
       return;
@@ -433,7 +443,18 @@ export default function InfrastructureView({
       alert('ไม่มีข้อมูลโรงเรียนสำหรับดาวน์โหลด');
       return;
     }
+    setDownloadFormat(format);
+    if (userProfile) {
+      const fullName = userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : '';
+      setDownloadName(fullName || userProfile.email || '');
+      setDownloadEmail(userProfile.email || '');
+    }
+    setDownloadError('');
+    setIsDownloadModalOpen(true);
+  };
 
+  // ฟังก์ชันส่งออกเป็นไฟล์ Excel
+  const executeExportExcel = () => {
     const excelData = filteredSchools.map((s, idx) => {
       let elecText = 'มีไฟฟ้าถาวร';
       if (s.electricity === 'solar') elecText = 'ใช้โซลาร์เซลล์';
@@ -490,16 +511,7 @@ export default function InfrastructureView({
   };
 
   // ฟังก์ชันดาวน์โหลด CSV
-  const handleExportCSV = () => {
-    if (!canDownload) {
-      alert('การดาวน์โหลดข้อมูลถูกปิดใช้งานชั่วคราวโดย Super Admin');
-      return;
-    }
-    if (filteredSchools.length === 0) {
-      alert('ไม่มีข้อมูลโรงเรียนสำหรับดาวน์โหลด');
-      return;
-    }
-
+  const executeExportCSV = () => {
     const headers = ['ลำดับ', 'รหัสโรงเรียน', 'ชื่อโรงเรียน', 'อำเภอ', 'ระบบไฟฟ้า', 'ระบบอินเทอร์เน็ต', 'ระบบน้ำประปา', 'ครูวิชาเอก', 'บุคลากร'];
     const rows = filteredSchools.map((s, idx) => {
       let waterText = 'ประปาภาครัฐ';
@@ -533,16 +545,7 @@ export default function InfrastructureView({
   };
 
   // ฟังก์ชันดาวน์โหลด PDF
-  const handleExportPdf = async () => {
-    if (!canDownload) {
-      alert('การดาวน์โหลดข้อมูลถูกปิดใช้งานชั่วคราวโดย Super Admin');
-      return;
-    }
-    if (filteredSchools.length === 0) {
-      alert('ไม่มีข้อมูลโรงเรียนสำหรับดาวน์โหลด');
-      return;
-    }
-
+  const executeExportPdf = async () => {
     const headers = ['ลำดับ', 'รหัสโรงเรียน', 'ชื่อโรงเรียน', 'อำเภอ', 'ระบบไฟฟ้า', 'เน็ต', 'ครูวิชาเอก', 'บุคลากร'];
     const rows = filteredSchools.map((s, idx) => {
       let elecText = 'มีไฟฟ้าถาวร';
@@ -577,8 +580,68 @@ export default function InfrastructureView({
       subtitle: `จำนวนโรงเรียน ${filteredSchools.length} แห่ง (สพป.แม่ฮ่องสอน เขต 1)`,
       headers,
       rows,
-      filename: `Infrastructure_MHS1_${dateStr}.pdf`
+      filename: `Infrastructure_MHS1_${dateStr}.pdf`,
+      requesterInfo: {
+        name: downloadName,
+        email: downloadEmail,
+        purpose: downloadPurpose
+      }
     });
+  };
+
+  // กดยืนยันบันทึกวัตถุประสงค์และดำเนินการดาวน์โหลด
+  const handleConfirmDownload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!downloadName.trim()) {
+      setDownloadError('กรุณากรอกชื่อ-นามสกุลผู้ขอเข้าถึงข้อมูล');
+      return;
+    }
+    if (!downloadEmail.trim()) {
+      setDownloadError('กรุณากรอกอีเมลติดต่อ');
+      return;
+    }
+    if (downloadPurpose.trim().length < 8) {
+      setDownloadError('กรุณาระบุวัตถุประสงค์การนำข้อมูลไปใช้โดยละเอียดอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadError('');
+
+    try {
+      // 1. บันทึกข้อมูลประวัติลงใน Firestore (audit trail download_logs)
+      const logData: DownloadLog = {
+        name: downloadName,
+        email: downloadEmail,
+        schoolId: 'infrastructure_report',
+        schoolName: `รายงานโครงสร้างพื้นฐาน (${filteredSchools.length} โรงเรียน)`,
+        purpose: downloadPurpose,
+        timestamp: serverTimestamp()
+      };
+
+      try {
+        await addDoc(collection(db, 'download_logs'), logData);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'download_logs');
+      }
+
+      // 2. ส่งออกไฟล์ตามชนิดที่เลือก
+      if (downloadFormat === 'excel') {
+        executeExportExcel();
+      } else if (downloadFormat === 'csv') {
+        executeExportCSV();
+      } else if (downloadFormat === 'pdf') {
+        await executeExportPdf();
+      }
+
+      setIsDownloadModalOpen(false);
+      setDownloadPurpose('');
+    } catch (err) {
+      console.error('Download error:', err);
+      setDownloadError('เกิดข้อผิดพลาดในการดาวน์โหลดข้อมูล');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -603,7 +666,7 @@ export default function InfrastructureView({
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={handleExportExcel}
+              onClick={() => handleOpenDownloadModal('excel')}
               className="btn-cute bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black text-xs px-3.5 py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
             >
               <FileSpreadsheet className="h-4 w-4 shrink-0" />
@@ -612,7 +675,7 @@ export default function InfrastructureView({
 
             <button
               type="button"
-              onClick={handleExportPdf}
+              onClick={() => handleOpenDownloadModal('pdf')}
               className="btn-cute bg-[#FF8BA7] hover:bg-rose-300 text-[#33272A] font-black text-xs px-3.5 py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
             >
               <FileText className="h-4 w-4 shrink-0" />
@@ -621,7 +684,7 @@ export default function InfrastructureView({
 
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={() => handleOpenDownloadModal('csv')}
               className="btn-cute bg-sky-300 hover:bg-sky-200 text-sky-950 font-black text-xs px-3 py-2 flex items-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
             >
               <Download className="h-4 w-4 shrink-0" />
@@ -1553,6 +1616,160 @@ export default function InfrastructureView({
           </>
         )}
       </div>
+
+      {/* 🔒 Modal บันทึกวัตถุประสงค์การเข้าถึงและดาวน์โหลดข้อมูล (Data Access Audit Trail Modal) */}
+      {isDownloadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6] animate-zoom-in">
+            <div className="flex items-center gap-3 text-[#33272A] dark:text-[#FFF9F5] mb-4">
+              <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 text-[#33272A]">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black">บันทึกวัตถุประสงค์การเข้าถึงข้อมูล</h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">ตามมาตรการรักษาความปลอดภัยข้อมูล พรบ.คุ้มครองข้อมูลส่วนบุคคล</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#33272A] dark:text-[#FFF9F5] mb-4 font-bold leading-relaxed bg-[#FFD3B6]/40 p-3 rounded-2xl border border-[#33272A] dark:border-[#FFD3B6]">
+              คุณกำลังจะดาวน์โหลดรายงานโครงสร้างพื้นฐานของ <span className="font-black text-[#33272A] dark:text-[#FFF9F5] underline decoration-[#FF8BA7] decoration-2">
+                โรงเรียนที่คัดกรอง {filteredSchools.length} แห่ง
+              </span> เพื่อนำไปประมวลผลหรือใช้งานภายนอก
+            </p>
+
+            <form onSubmit={handleConfirmDownload} className="space-y-4">
+              {/* เลือกรูปแบบไฟล์ */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">รูปแบบไฟล์สำหรับดาวน์โหลด</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${
+                    downloadFormat === 'excel'
+                      ? 'bg-emerald-300 border-[#33272A] text-emerald-950 shadow-sm'
+                      : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-[#33272A] dark:text-[#FFF9F5]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="excel"
+                      checked={downloadFormat === 'excel'}
+                      onChange={() => setDownloadFormat('excel')}
+                      className="hidden"
+                    />
+                    <span>📊 Excel</span>
+                  </label>
+
+                  <label className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${
+                    downloadFormat === 'pdf'
+                      ? 'bg-[#FF8BA7] border-[#33272A] text-[#33272A] shadow-sm'
+                      : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-[#33272A] dark:text-[#FFF9F5]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="pdf"
+                      checked={downloadFormat === 'pdf'}
+                      onChange={() => setDownloadFormat('pdf')}
+                      className="hidden"
+                    />
+                    <span>📄 PDF</span>
+                  </label>
+
+                  <label className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${
+                    downloadFormat === 'csv'
+                      ? 'bg-sky-300 border-[#33272A] text-sky-950 shadow-sm'
+                      : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-[#33272A] dark:text-[#FFF9F5]'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="downloadFormat"
+                      value="csv"
+                      checked={downloadFormat === 'csv'}
+                      onChange={() => setDownloadFormat('csv')}
+                      className="hidden"
+                    />
+                    <span>📁 CSV</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* ชื่อ */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อ-นามสกุลผู้ขอเข้าถึงข้อมูล</label>
+                <input
+                  type="text"
+                  required
+                  value={downloadName}
+                  onChange={(e) => setDownloadName(e.target.value)}
+                  placeholder="เช่น นายเอกชัย รักเรียน"
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* อีเมล */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมลติดต่อ</label>
+                <input
+                  type="email"
+                  required
+                  value={downloadEmail}
+                  onChange={(e) => setDownloadEmail(e.target.value)}
+                  placeholder="เช่น example@gmail.com"
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* หมายเหตุระบุวัตถุประสงค์ */}
+              <div className="space-y-1">
+                <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ระบุวัตถุประสงค์ในการนำข้อมูลไปใช้</label>
+                <textarea
+                  required
+                  value={downloadPurpose}
+                  onChange={(e) => setDownloadPurpose(e.target.value)}
+                  rows={3}
+                  placeholder="เช่น นำไปใช้ทำแผนจัดสรรงบประมาณพัฒนาไฟฟ้าและอินเทอร์เน็ตโรงเรียนในพื้นที่ห่างไกล..."
+                  className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                />
+              </div>
+
+              {/* Error box */}
+              {downloadError && (
+                <div className="flex gap-1.5 text-xs text-rose-600 font-black bg-rose-50 p-2.5 rounded-xl border-2 border-[#33272A]">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{downloadError}</span>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDownloadModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-[#33272A] font-black text-xs bg-slate-100 hover:bg-slate-200 text-[#33272A] transition-all cursor-pointer dark:bg-slate-800 dark:text-slate-200 dark:border-[#FFD3B6]"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDownloading}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-[#33272A] font-black text-xs bg-[#FF8BA7] hover:bg-rose-300 text-[#33272A] shadow-[2px_2px_0px_#33272A] transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isDownloading ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#33272A] border-t-transparent" />
+                      <span>กำลังดาวน์โหลด...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      <span>ยืนยันดาวน์โหลด</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
