@@ -1425,6 +1425,29 @@ export default function InfrastructureView({
                          school.internetType === 'sim' ? 'SIM 4G' : 'ไม่มีเน็ต'}
                       </span>
 
+                      {/* น้ำประปา */}
+                      {(() => {
+                        const wVal = String(school.waterSystem ?? '').toLowerCase();
+                        const isGov = !wVal.includes('mountain') && !wVal.includes('ภูเขา') && !wVal.includes('none') && !wVal.includes('ไม่มี') && !wVal.includes('other') && !wVal.includes('อื่นๆ');
+                        const isMountain = wVal.includes('mountain') || wVal.includes('ภูเขา');
+                        const isNone = wVal.includes('none') || wVal.includes('ไม่มี');
+                        const isOther = wVal.includes('other') || wVal.includes('อื่นๆ');
+                        return (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border inline-flex items-center gap-1 ${
+                            isGov
+                              ? 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200'
+                              : isMountain
+                              ? 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-200'
+                              : isOther
+                              ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200'
+                              : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200'
+                          }`}>
+                            <Droplets className="h-2.5 w-2.5 text-blue-500 fill-blue-400" />
+                            {isGov ? 'ประปาภาครัฐ' : isMountain ? 'ประปาภูเขา' : isOther ? 'น้ำอื่นๆ' : 'ไม่มีน้ำใช้'}
+                          </span>
+                        );
+                      })()}
+
                       {/* วิชาเอก */}
                       {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 inline-flex items-center gap-1">
@@ -1452,6 +1475,7 @@ export default function InfrastructureView({
                     <th className="p-3">อำเภอ</th>
                     <th className="p-3">ระบบไฟฟ้า</th>
                     <th className="p-3">อินเทอร์เน็ต</th>
+                    <th className="p-3">น้ำประปา</th>
                     <th className="p-3">ครูวิชาเอก / บุคลากร</th>
                     <th className="p-3 text-center">การจัดการ</th>
                   </tr>
@@ -1502,6 +1526,29 @@ export default function InfrastructureView({
                            school.internetType === 'satellite' ? 'ดาวเทียม' :
                            school.internetType === 'sim' ? 'SIM 4G' : 'ไม่มีเน็ต'}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        {(() => {
+                          const wVal = String(school.waterSystem ?? '').toLowerCase();
+                          const isGov = !wVal.includes('mountain') && !wVal.includes('ภูเขา') && !wVal.includes('none') && !wVal.includes('ไม่มี') && !wVal.includes('other') && !wVal.includes('อื่นๆ');
+                          const isMountain = wVal.includes('mountain') || wVal.includes('ภูเขา');
+                          const isNone = wVal.includes('none') || wVal.includes('ไม่มี');
+                          const isOther = wVal.includes('other') || wVal.includes('อื่นๆ');
+                          return (
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border inline-flex items-center gap-1 ${
+                              isGov
+                                ? 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200'
+                                : isMountain
+                                ? 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-200'
+                                : isOther
+                                ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200'
+                                : 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200'
+                            }`}>
+                              <Droplets className="h-2.5 w-2.5 text-blue-500 fill-blue-400" />
+                              {isGov ? 'ประปาภาครัฐ' : isMountain ? 'ประปาภูเขา' : isOther ? 'น้ำอื่นๆ' : 'ไม่มีน้ำใช้'}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col gap-1">

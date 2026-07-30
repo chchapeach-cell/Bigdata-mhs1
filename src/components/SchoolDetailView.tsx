@@ -184,6 +184,8 @@ export default function SchoolDetailView({
   const [cHasSolarBattery, setCHasSolarBattery] = useState(false);
   const [cSolarBatteryCapacity, setCSolarBatteryCapacity] = useState('');
   const [cInternetType, setCInternetType] = useState<'fiber' | 'satellite' | 'sim' | 'none'>('fiber');
+  const [cWaterSystem, setCWaterSystem] = useState<string>('government');
+  const [cWaterSystemDetail, setCWaterSystemDetail] = useState<string>('');
   const [cDistanceFromMainSchool, setCDistanceFromMainSchool] = useState('');
   const [cLatitude, setCLatitude] = useState('');
   const [cLongitude, setCLongitude] = useState('');
@@ -261,6 +263,8 @@ export default function SchoolDetailView({
       setCHasSolarBattery(item.hasSolarBattery || false);
       setCSolarBatteryCapacity(item.solarBatteryCapacity || '');
       setCInternetType(item.internetType || 'fiber');
+      setCWaterSystem(item.waterSystem || 'government');
+      setCWaterSystemDetail(item.waterSystemDetail || '');
       setCDistanceFromMainSchool(item.distanceFromMainSchool || '');
       setCLatitude(item.latitude !== undefined ? String(item.latitude) : '');
       setCLongitude(item.longitude !== undefined ? String(item.longitude) : '');
@@ -282,6 +286,8 @@ export default function SchoolDetailView({
       setCHasSolarBattery(false);
       setCSolarBatteryCapacity('');
       setCInternetType('fiber');
+      setCWaterSystem('government');
+      setCWaterSystemDetail('');
       setCDistanceFromMainSchool('');
       setCLatitude('');
       setCLongitude('');
@@ -323,6 +329,8 @@ export default function SchoolDetailView({
         hasSolarBattery: cHasSolarBattery,
         solarBatteryCapacity: cSolarBatteryCapacity.trim(),
         internetType: cInternetType,
+        waterSystem: cWaterSystem,
+        waterSystemDetail: cWaterSystemDetail.trim(),
         distanceFromMainSchool: cDistanceFromMainSchool.trim(),
         latitude: cLatitude ? Number(cLatitude) : 0,
         longitude: cLongitude ? Number(cLongitude) : 0,
@@ -2098,6 +2106,9 @@ export default function SchoolDetailView({
                         <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
                           🌐 เน็ต: {branch.internetType === 'satellite' ? '📡 ดาวเทียม' : branch.internetType === 'sim' ? '📱 SIM 4G' : branch.internetType === 'fiber' ? '🌐 Fiber' : '❌ ไม่ได้ใช้'}
                         </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                          🚰 น้ำ: {branch.waterSystem === 'mountain' ? '🏔️ ประปาภูเขา' : branch.waterSystem === 'none' ? '❌ ไม่มีน้ำใช้' : branch.waterSystem === 'other' ? `📌 อื่นๆ ${branch.waterSystemDetail ? `(${branch.waterSystemDetail})` : ''}` : '🚰 ประปาภาครัฐ'}
+                        </span>
                       </div>
 
                       {branch.notes && (
@@ -2294,7 +2305,7 @@ export default function SchoolDetailView({
 
                     {cIsRemoteBranch && (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           <div>
                             <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
                               จำนวนครู/บุคลากรประจำห้องเรียนย่อย (คน)
@@ -2340,7 +2351,35 @@ export default function SchoolDetailView({
                               <option value="none">❌ ไม่ได้ใช้บริการ</option>
                             </select>
                           </div>
+
+                          <div>
+                            <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1">
+                              ระบบน้ำประปา
+                            </label>
+                            <select
+                              value={cWaterSystem}
+                              onChange={(e) => setCWaterSystem(e.target.value)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none cursor-pointer"
+                            >
+                              <option value="government">🚰 น้ำประปาภาครัฐ</option>
+                              <option value="mountain">🏔️ น้ำประปาภูเขา</option>
+                              <option value="other">📌 อื่นๆ (ระบุ)</option>
+                              <option value="none">❌ ไม่มีน้ำใช้</option>
+                            </select>
+                          </div>
                         </div>
+
+                        {cWaterSystem === 'other' && (
+                          <div className="mt-2">
+                            <input
+                              type="text"
+                              placeholder="ระบุรายละเอียดแหล่งน้ำประปา/น้ำใช้เพิ่มเติม"
+                              value={cWaterSystemDetail}
+                              onChange={(e) => setCWaterSystemDetail(e.target.value)}
+                              className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#150e10] p-2 px-3 text-xs font-bold text-[#33272A] dark:text-white outline-none"
+                            />
+                          </div>
+                        )}
 
                         {/* รายละเอียดเพิ่มเติมกรณีเลือกโซลาร์เซลล์ หรือ Hybrid */}
                         {(cElectricity === 'solar' || cElectricity === 'hybrid') && (
@@ -2674,6 +2713,12 @@ export default function SchoolDetailView({
                   <span>🌐 ระบบอินเทอร์เน็ต:</span>
                   <span className="font-black">
                     {viewingBranchDetail.internetType === 'satellite' ? '📡 ดาวเทียม' : viewingBranchDetail.internetType === 'sim' ? '📱 SIM 4G' : viewingBranchDetail.internetType === 'fiber' ? '🌐 Fiber' : '❌ ไม่ได้ใช้'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>🚰 ระบบน้ำประปา:</span>
+                  <span className="font-black">
+                    {viewingBranchDetail.waterSystem === 'mountain' ? '🏔️ น้ำประปาภูเขา' : viewingBranchDetail.waterSystem === 'none' ? '❌ ไม่มีน้ำใช้' : viewingBranchDetail.waterSystem === 'other' ? `📌 อื่นๆ ${viewingBranchDetail.waterSystemDetail ? `(${viewingBranchDetail.waterSystemDetail})` : ''}` : '🚰 ประปาภาครัฐ'}
                   </span>
                 </div>
                 {viewingBranchDetail.latitude && viewingBranchDetail.longitude && (
