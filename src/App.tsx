@@ -120,7 +120,8 @@ export default function App() {
       'theme-warm-nature', 
       'theme-emerald-mint',
       'theme-cyan-futuristic',
-      'theme-royal-gold'
+      'theme-royal-gold',
+      'theme-green'
     );
     document.documentElement.classList.add(`theme-${themeStyle}`);
     localStorage.setItem('app-theme-style', themeStyle);

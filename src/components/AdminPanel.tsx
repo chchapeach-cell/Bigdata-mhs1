@@ -3549,7 +3549,8 @@ export default function AdminPanel({
                       themeStyle === 'minimal-slate' ? '📱 มินิมอล สเลต' :
                       themeStyle === 'warm-nature' ? '🌱 วอร์ม เนเชอร์' :
                       themeStyle === 'emerald-mint' ? '🍃 เอ็มเมอรัลด์ มินต์' :
-                      themeStyle === 'cyan-futuristic' ? '🔮 ไซเบอร์ ไซแอน' : '👑 รอยัล โกลด์'
+                      themeStyle === 'cyan-futuristic' ? '🔮 ไซเบอร์ ไซแอน' :
+                      themeStyle === 'royal-gold' ? '👑 รอยัล โกลด์' : '🌱 กรีน (Green Leaf)'
                     }
                   </span>
                 </div>
@@ -3677,6 +3678,21 @@ export default function AdminPanel({
                     <Shield className="h-6 w-6 text-[#D4AF37]" />
                     <span className="text-xs font-black">👑 รอยัล โกลด์ (Royal Violet)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">สง่างาม โทนม่วงเข้มตัดทองคำ พรีเมียม</span>
+                  </button>
+
+                  {/* 9. ธีมกรีน (Green Theme จาก UI ต้นแบบ) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('green')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer ${
+                      themeStyle === 'green'
+                        ? 'bg-[#22C55E] text-white border-[#16A34A] shadow-[0_0_15px_rgba(34,197,94,0.4)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <Activity className="h-6 w-6 text-green-300" />
+                    <span className="text-xs font-black">🌱 ธีมกรีน (green)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สดใส โทนเขียวสไตล์ Eco Mobile App</span>
                   </button>
                 </div>
               </div>
@@ -4405,409 +4421,401 @@ export default function AdminPanel({
             </div>
           )}
 
-      {/* Slide-over Drawer: สถานะระบบและโควตาฐานข้อมูล */}
+      {/* Modal Dialog: สถานะระบบและโควตาฐานข้อมูล */}
       {isQuotaDrawerOpen && isSuperAdmin && (
-        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0"
             onClick={() => setIsQuotaDrawerOpen(false)}
           />
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-2xl bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl">
-              <div>
-                <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-4 mb-4 dark:border-[#FFD3B6]">
-                  <h3 className="font-black text-base text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-emerald-500 animate-pulse" />
-                    สถานะการทำงานระบบ &amp; โควตาฐานข้อมูล MHS1-DMC
-                  </h3>
-                  <button
-                    onClick={() => setIsQuotaDrawerOpen(false)}
-                    className="btn-cute bg-rose-100 hover:bg-rose-200 text-rose-800 px-3 py-1 rounded-xl text-xs font-black cursor-pointer"
-                  >
-                    ปิด ✕
-                  </button>
-                </div>
-
-                <DatabaseQuotaMonitor
-                  schools={schools}
-                  studentData={studentData}
-                  studentGData={studentGData}
-                  userProfiles={[...pendingUsers, ...approvedUsers]}
-                  onRefreshData={onRefreshData}
-                />
-              </div>
-
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 text-right">
+          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] bg-white dark:bg-[#1e1518] border-2 sm:border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 sm:p-6 overflow-y-auto flex flex-col justify-between shadow-2xl my-auto space-y-4">
+            <div>
+              <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-4 mb-4 dark:border-[#FFD3B6]">
+                <h3 className="font-black text-base text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-emerald-500 animate-pulse" />
+                  สถานะการทำงานระบบ &amp; โควตาฐานข้อมูล MHS1-DMC
+                </h3>
                 <button
                   onClick={() => setIsQuotaDrawerOpen(false)}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer"
+                  className="btn-cute bg-rose-100 hover:bg-rose-200 text-rose-800 px-3 py-1 rounded-xl text-xs font-black cursor-pointer"
                 >
-                  เรียบร้อย
+                  ปิด ✕
                 </button>
               </div>
+
+              <DatabaseQuotaMonitor
+                schools={schools}
+                studentData={studentData}
+                studentGData={studentGData}
+                userProfiles={[...pendingUsers, ...approvedUsers]}
+                onRefreshData={onRefreshData}
+              />
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 text-right">
+              <button
+                onClick={() => setIsQuotaDrawerOpen(false)}
+                className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer"
+              >
+                เรียบร้อย
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Slide-over Drawer: แก้ไขข้อมูลผู้ใช้งานโดย Super Admin */}
+      {/* Modal Dialog: แก้ไขข้อมูลผู้ใช้งานโดย Super Admin */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0"
             onClick={() => setEditingUser(null)}
           />
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-md bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <h3 className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                    <Edit3 className="h-5 w-5 text-[#FF8BA7]" /> แก้ไขข้อมูลและรีเซ็ตรหัสผ่านแอดมิน
-                  </h3>
-                  <button 
-                    onClick={() => setEditingUser(null)} 
-                    className="text-gray-500 hover:text-gray-700 font-bold text-lg cursor-pointer p-1"
-                  >
-                    &times;
-                  </button>
-                </div>
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] bg-white dark:bg-[#1e1518] border-2 sm:border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 sm:p-6 overflow-y-auto shadow-2xl space-y-4 my-auto">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                <h3 className="font-black text-sm sm:text-base text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Edit3 className="h-5 w-5 text-[#FF8BA7]" /> แก้ไขข้อมูลและรีเซ็ตรหัสผ่านแอดมิน
+                </h3>
+                <button 
+                  onClick={() => setEditingUser(null)} 
+                  className="text-gray-500 hover:text-gray-700 font-bold text-xl cursor-pointer p-1"
+                >
+                  &times;
+                </button>
+              </div>
 
-                <form onSubmit={handleSaveUserEdit} className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
-                        <input
-                          type="text"
-                          required
-                          value={editUserFirstName}
-                          onChange={(e) => setEditUserFirstName(e.target.value)}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
-                        <input
-                          type="text"
-                          required
-                          value={editUserLastName}
-                          onChange={(e) => setEditUserLastName(e.target.value)}
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
-                      </div>
-                    </div>
-
+              <form onSubmit={handleSaveUserEdit} className="space-y-4">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ชื่อจริง</label>
                       <input
-                        type="email"
+                        type="text"
                         required
-                        value={editUserEmail}
-                        onChange={(e) => setEditUserEmail(e.target.value)}
+                        value={editUserFirstName}
+                        onChange={(e) => setEditUserFirstName(e.target.value)}
                         className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                       />
                     </div>
-
                     <div className="space-y-1">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">บทบาทผู้ใช้งาน</label>
-                      <select
-                        value={editUserRole}
-                        onChange={(e) => setEditUserRole(e.target.value as 'super_admin' | 'school_admin')}
-                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                      >
-                        <option value="school_admin">School Admin (แอดมินโรงเรียน)</option>
-                        <option value="super_admin">Super Admin (แอดมินเขตพื้นที่)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">โรงเรียนสังกัด</label>
-                      <select
-                        value={editUserSchoolId}
-                        onChange={(e) => setEditUserSchoolId(e.target.value)}
-                        className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                      >
-                        <option value="all">สพป.แม่ฮ่องสอน เขต 1 (ส่วนกลาง/เขตพื้นที่)</option>
-                        {schools.map(s => (
-                          <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
-                        ))}
-                      </select>
+                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">นามสกุล</label>
+                      <input
+                        type="text"
+                        required
+                        value={editUserLastName}
+                        onChange={(e) => setEditUserLastName(e.target.value)}
+                        className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                      />
                     </div>
                   </div>
 
-                  {/* ส่วนรีเซ็ตรหัสผ่านด่วน */}
-                  <div className="bg-[#FFD3B6]/20 p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-2">
-                    <p className="text-[11px] text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-black flex items-center gap-1">
-                      <Key className="h-4 w-4 text-[#FF8BA7]" /> รีเซ็ตรหัสผ่านสำหรับแอดมินท่านนี้
-                    </p>
-                    <p className="text-[10px] text-gray-500 font-semibold leading-relaxed">
-                      ระบบจะส่งอีเมลลิงก์สำหรับกำหนดรหัสผ่านใหม่ไปยังที่อยู่อีเมลของผู้ใช้ท่านนี้โดยตรง เพื่อความปลอดภัยและเป็นความลับ
-                    </p>
-                    <button
-                      type="button"
-                      disabled={isResettingPassword}
-                      onClick={handleSendPasswordReset}
-                      className="w-full py-1.5 bg-[#FF8BA7]/20 border-2 border-[#33272A] text-[#33272A] hover:bg-[#FF8BA7]/30 rounded-xl text-xs font-black transition-colors cursor-pointer"
-                    >
-                      {isResettingPassword ? 'กำลังดำเนินการส่งอีเมล...' : 'ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน'}
-                    </button>
-                    <div className="bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 p-2.5 rounded-xl border border-amber-200/50 text-[10px] font-semibold space-y-1">
-                      <p className="font-bold">💡 ทำไมผู้ใช้ไม่ได้รับอีเมลรีเซ็ตรหัสผ่าน?</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        <li><span className="font-bold text-rose-500">ตรวจสอบโฟลเดอร์ "อีเมลขยะ" (Spam / Junk Mail):</span> อีเมลเริ่มต้นของระบบ Firebase มักจะถูกกรองเป็นสแปม</li>
-                        <li><span className="font-bold text-[#FF8BA7]">เข้าสู่ระบบด้วย Google:</span> หากผู้ใช้รายนี้สมัครเข้าใช้งานด้วยการกดปุ่ม "Gmail (Google)" เขาจะไม่มีรหัสผ่านในระบบ</li>
-                      </ul>
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">อีเมล</label>
+                    <input
+                      type="email"
+                      required
+                      value={editUserEmail}
+                      onChange={(e) => setEditUserEmail(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-[#FF8BA7] outline-none dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                    />
                   </div>
 
-                  {userEditSuccess && (
-                    <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
-                      {userEditSuccess}
-                    </div>
-                  )}
-
-                  {userEditError && (
-                    <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
-                      {userEditError}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 justify-end pt-2 border-t-2 border-[#33272A] dark:border-[#FFD3B6]">
-                    <button
-                      type="button"
-                      onClick={() => setEditingUser(null)}
-                      className="rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-4 py-2 text-xs font-black cursor-pointer hover:bg-gray-200 transition-colors"
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">บทบาทผู้ใช้งาน</label>
+                    <select
+                      value={editUserRole}
+                      onChange={(e) => setEditUserRole(e.target.value as 'super_admin' | 'school_admin')}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                     >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSavingUserEdit}
-                      className="rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#A0E7E5]/80 transition-colors disabled:opacity-50"
-                    >
-                      {isSavingUserEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
-                    </button>
+                      <option value="school_admin">School Admin (แอดมินโรงเรียน)</option>
+                      <option value="super_admin">Super Admin (แอดมินเขตพื้นที่)</option>
+                    </select>
                   </div>
-                </form>
-              </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">โรงเรียนสังกัด</label>
+                    <select
+                      value={editUserSchoolId}
+                      onChange={(e) => setEditUserSchoolId(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2.5 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                    >
+                      <option value="all">สพป.แม่ฮ่องสอน เขต 1 (ส่วนกลาง/เขตพื้นที่)</option>
+                      {schools.map(s => (
+                        <option key={s.id} value={s.id}>{s.id} - {s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* ส่วนรีเซ็ตรหัสผ่านด่วน */}
+                <div className="bg-[#FFD3B6]/20 p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6]/20 space-y-2">
+                  <p className="text-[11px] sm:text-xs text-[#33272A]/80 dark:text-[#FFF9F5]/80 font-black flex items-center gap-1">
+                    <Key className="h-4 w-4 text-[#FF8BA7]" /> รีเซ็ตรหัสผ่านสำหรับแอดมินท่านนี้
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-gray-500 font-semibold leading-relaxed">
+                    ระบบจะส่งอีเมลลิงก์สำหรับกำหนดรหัสผ่านใหม่ไปยังที่อยู่อีเมลของผู้ใช้ท่านนี้โดยตรง เพื่อความปลอดภัยและเป็นความลับ
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isResettingPassword}
+                    onClick={handleSendPasswordReset}
+                    className="w-full py-2 bg-[#FF8BA7]/20 border-2 border-[#33272A] text-[#33272A] hover:bg-[#FF8BA7]/30 rounded-xl text-xs font-black transition-colors cursor-pointer leading-normal break-words"
+                  >
+                    {isResettingPassword ? 'กำลังดำเนินการส่งอีเมล...' : 'ส่งอีเมลลิงก์รีเซ็ตรหัสผ่าน'}
+                  </button>
+                  <div className="bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 p-2.5 rounded-xl border border-amber-200/50 text-[10px] sm:text-[11px] font-semibold space-y-1">
+                    <p className="font-bold">💡 ทำไมผู้ใช้ไม่ได้รับอีเมลรีเซ็ตรหัสผ่าน?</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><span className="font-bold text-rose-500">ตรวจสอบโฟลเดอร์ "อีเมลขยะ" (Spam / Junk Mail):</span> อีเมลเริ่มต้นของระบบ Firebase มักจะถูกกรองเป็นสแปม</li>
+                      <li><span className="font-bold text-[#FF8BA7]">เข้าสู่ระบบด้วย Google:</span> หากผู้ใช้รายนี้สมัครเข้าใช้งานด้วยการกดปุ่ม "Gmail (Google)" เขาจะไม่มีรหัสผ่านในระบบ</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {userEditSuccess && (
+                  <div className="rounded-xl bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 p-3 text-xs font-bold border border-teal-200">
+                    {userEditSuccess}
+                  </div>
+                )}
+
+                {userEditError && (
+                  <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 p-3 text-xs font-bold border border-rose-200">
+                    {userEditError}
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-2 border-t-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-4 py-2 text-xs font-black cursor-pointer hover:bg-gray-200 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingUserEdit}
+                    className="rounded-xl bg-[#A0E7E5] text-[#33272A] border-2 border-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#A0E7E5]/80 transition-colors disabled:opacity-50"
+                  >
+                    {isSavingUserEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       )}
 
-      {/* Slide-over Drawer: แก้ไขข้อมูลนักเรียน BIGDATA */}
+      {/* Modal Dialog: แก้ไขข้อมูลนักเรียน BIGDATA */}
       {editingStudentDataRecord && (
-        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0"
             onClick={() => setEditingStudentDataRecord(null)}
           />
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-lg bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                    <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
-                    แก้ไขจำนวนนักเรียน BIGDATA: {editingStudentDataRecord.schoolName}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setEditingStudentDataRecord(null)}
-                    className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 cursor-pointer"
-                  >
-                    &times;
-                  </button>
-                </div>
-
-                <div className="space-y-3 text-xs font-bold">
-                  <div className="p-2.5 bg-[#FFD3B6]/30 rounded-xl border border-[#33272A]/20">
-                    <span>ปีการศึกษา: </span>
-                    <span className="font-mono text-rose-600">{editingStudentDataRecord.academicYear}</span>
-                    <span className="ml-4">รหัสโรงเรียน: </span>
-                    <span className="font-mono text-blue-600">{editingStudentDataRecord.schoolId}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชาย (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editStudentMale}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditStudentMale(val);
-                          setEditStudentTotal(val + editStudentFemale);
-                        }}
-                        className="w-full input-cute p-2 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิง (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editStudentFemale}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditStudentFemale(val);
-                          setEditStudentTotal(editStudentMale + val);
-                        }}
-                        className="w-full input-cute p-2 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">รวมทั้งหมด (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editStudentTotal}
-                        onChange={(e) => setEditStudentTotal(Number(e.target.value))}
-                        className="w-full input-cute p-2 font-mono bg-rose-50 dark:bg-rose-950/20 text-rose-600 font-black"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">จำนวนห้องเรียน</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editStudentClasses}
-                        onChange={(e) => setEditStudentClasses(Number(e.target.value))}
-                        className="w-full input-cute p-2 font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] bg-white dark:bg-[#1e1518] border-2 sm:border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 sm:p-6 overflow-y-auto shadow-2xl space-y-4 my-auto">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
+                  แก้ไขจำนวนนักเรียน BIGDATA: {editingStudentDataRecord.schoolName}
+                </h3>
                 <button
                   type="button"
                   onClick={() => setEditingStudentDataRecord(null)}
-                  className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 font-black text-xl p-1 cursor-pointer"
                 >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveStudentDataEdit}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
-                >
-                  บันทึกข้อมูล
+                  &times;
                 </button>
               </div>
+
+              <div className="space-y-3 text-xs font-bold">
+                <div className="p-2.5 bg-[#FFD3B6]/30 rounded-xl border border-[#33272A]/20">
+                  <span>ปีการศึกษา: </span>
+                  <span className="font-mono text-rose-600">{editingStudentDataRecord.academicYear}</span>
+                  <span className="ml-4">รหัสโรงเรียน: </span>
+                  <span className="font-mono text-blue-600">{editingStudentDataRecord.schoolId}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชาย (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editStudentMale}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setEditStudentMale(val);
+                        setEditStudentTotal(val + editStudentFemale);
+                      }}
+                      className="w-full input-cute p-2 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิง (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editStudentFemale}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setEditStudentFemale(val);
+                        setEditStudentTotal(editStudentMale + val);
+                      }}
+                      className="w-full input-cute p-2 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">รวมทั้งหมด (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editStudentTotal}
+                      onChange={(e) => setEditStudentTotal(Number(e.target.value))}
+                      className="w-full input-cute p-2 font-mono bg-rose-50 dark:bg-rose-950/20 text-rose-600 font-black"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">จำนวนห้องเรียน</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editStudentClasses}
+                      onChange={(e) => setEditStudentClasses(Number(e.target.value))}
+                      className="w-full input-cute p-2 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setEditingStudentDataRecord(null)}
+                className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveStudentDataEdit}
+                className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
+              >
+                บันทึกข้อมูล
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Slide-over Drawer: แก้ไขจำนวนนักเรียนตัว G */}
+      {/* Modal Dialog: แก้ไขจำนวนนักเรียนตัว G */}
       {editingGRecord && (
-        <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0"
             onClick={() => setEditingGRecord(null)}
           />
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-lg bg-white dark:bg-[#1e1518] border-l-4 border-[#33272A] dark:border-[#FFD3B6] p-6 overflow-y-auto flex flex-col justify-between shadow-2xl space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                    <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
-                    แก้ไขจำนวนนักเรียนตัว G: {editingGRecord.schoolName}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setEditingGRecord(null)}
-                    className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 cursor-pointer"
-                  >
-                    &times;
-                  </button>
-                </div>
-
-                <div className="space-y-3 text-xs font-bold">
-                  <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200">
-                    <span>ปีการศึกษา: </span>
-                    <span className="font-mono text-blue-600">{editingGRecord.academicYear}</span>
-                    <span className="ml-4">รหัสโรงเรียน: </span>
-                    <span className="font-mono text-slate-700 dark:text-slate-200">{editingGRecord.schoolId}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชายตัว G (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editGMale}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditGMale(val);
-                          setEditGTotal(val + editGFemale);
-                        }}
-                        className="w-full input-cute p-2 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิงตัว G (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editGFemale}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditGFemale(val);
-                          setEditGTotal(editGMale + val);
-                        }}
-                        className="w-full input-cute p-2 font-mono"
-                      />
-                    </div>
-
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">รวมจำนวนนักเรียนตัว G ทั้งหมด (คน)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={editGTotal}
-                        onChange={(e) => setEditGTotal(Number(e.target.value))}
-                        className="w-full input-cute p-2 font-mono bg-blue-50 dark:bg-blue-950/20 text-blue-600 font-black text-sm"
-                      />
-                    </div>
-
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-slate-600 dark:text-slate-300">หมายเหตุ</label>
-                      <input
-                        type="text"
-                        value={editGNotes}
-                        onChange={(e) => setEditGNotes(e.target.value)}
-                        placeholder="เช่น ข้อมูลปรับปรุงล่าสุด..."
-                        className="w-full input-cute p-2"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] bg-white dark:bg-[#1e1518] border-2 sm:border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 sm:p-6 overflow-y-auto shadow-2xl space-y-4 my-auto">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <Edit3 className="h-4.5 w-4.5 text-[#FF8BA7]" />
+                  แก้ไขจำนวนนักเรียนตัว G: {editingGRecord.schoolName}
+                </h3>
                 <button
                   type="button"
                   onClick={() => setEditingGRecord(null)}
-                  className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 font-black text-xl p-1 cursor-pointer"
                 >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveGRecordEdit}
-                  className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
-                >
-                  บันทึกการแก้ไข
+                  &times;
                 </button>
               </div>
+
+              <div className="space-y-3 text-xs font-bold">
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200">
+                  <span>ปีการศึกษา: </span>
+                  <span className="font-mono text-blue-600">{editingGRecord.academicYear}</span>
+                  <span className="ml-4">รหัสโรงเรียน: </span>
+                  <span className="font-mono text-slate-700 dark:text-slate-200">{editingGRecord.schoolId}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนชายตัว G (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editGMale}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setEditGMale(val);
+                        setEditGTotal(val + editGFemale);
+                      }}
+                      className="w-full input-cute p-2 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">จำนวนนักเรียนหญิงตัว G (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editGFemale}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setEditGFemale(val);
+                        setEditGTotal(editGMale + val);
+                      }}
+                      className="w-full input-cute p-2 font-mono"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">รวมจำนวนนักเรียนตัว G ทั้งหมด (คน)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editGTotal}
+                      onChange={(e) => setEditGTotal(Number(e.target.value))}
+                      className="w-full input-cute p-2 font-mono bg-blue-50 dark:bg-blue-950/20 text-blue-600 font-black text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-slate-600 dark:text-slate-300">หมายเหตุ</label>
+                    <input
+                      type="text"
+                      value={editGNotes}
+                      onChange={(e) => setEditGNotes(e.target.value)}
+                      placeholder="เช่น ข้อมูลปรับปรุงล่าสุด..."
+                      className="w-full input-cute p-2"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setEditingGRecord(null)}
+                className="btn-cute bg-gray-200 text-gray-800 px-4 py-2 text-xs font-bold hover:bg-gray-300 cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveGRecordEdit}
+                className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer hover:bg-[#FF8BA7]/80"
+              >
+                บันทึกการแก้ไข
+              </button>
             </div>
           </div>
         </div>
