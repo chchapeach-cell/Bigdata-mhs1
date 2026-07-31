@@ -132,12 +132,14 @@ export default function AuthModal({
 
       if (profile) {
         if (profile.status === 'pending') {
-          setErrorMsg('บัญชีผู้ใช้นี้อยู่ระหว่างรออนุมัติสิทธิ์การเข้าถึงจาก Super Admin (tamrri@gmail.com)');
+          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin (tamrri@gmail.com) จะกดอนุมัติสิทธิ์');
+          await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
         if (profile.status === 'rejected') {
           setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อ Super Admin เพื่อตรวจสอบ');
+          await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
@@ -158,6 +160,7 @@ export default function AuthModal({
       } else {
         // ไม่มีข้อมูลผู้ใช้ในระบบ (เมลยังไม่ได้สมัคร/ไม่ตรงกับฐานข้อมูลสิทธิ์)
         setErrorMsg('ไม่พบบัญชีอีเมลนี้ในฐานข้อมูลสิทธิ์การเป็นแอดมิน กรุณาสมัครคำขอสิทธิ์ลงทะเบียนด้านล่างก่อน');
+        await signOut(auth).catch(() => {});
         setIsLoading(false);
       }
     } catch (error: any) {
@@ -222,12 +225,14 @@ export default function AuthModal({
       if (userDocSnap && userDocSnap.exists()) {
         const profile = userDocSnap.data() as UserProfile;
         if (profile.status === 'pending') {
-          setErrorMsg('บัญชีผู้ใช้นี้อยู่ระหว่างรออนุมัติสิทธิ์การเข้าถึงจาก Super Admin');
+          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin จะกดอนุมัติสิทธิ์');
+          await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
         if (profile.status === 'rejected') {
           setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อ Super Admin เพื่อตรวจสอบ');
+          await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
@@ -360,7 +365,9 @@ export default function AuthModal({
         onAuthSuccess(newUserProfile);
         setTimeout(() => onClose(), 1500);
       } else {
-        setSuccessMsg(`ส่งคำสมัครสิทธิ์แอดมินโรงเรียนเรียบร้อยแล้ว! กรุณารอ Super Admin (${'tamrri@gmail.com'}) อนุมัติสิทธิ์ก่อนเข้าสู่ระบบ`);
+        // ลงชื่อออกทันที เพื่อไม่ให้ค้างสถานะล็อกอินใน Firebase Auth
+        await signOut(auth).catch(() => {});
+        setSuccessMsg(`ส่งคำสมัครสิทธิ์แอดมินโรงเรียนเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin (${'tamrri@gmail.com'}) จะพิจารณาและกดอนุมัติสิทธิ์`);
         setIsSignUpMode(false);
       }
     } catch (error: any) {
