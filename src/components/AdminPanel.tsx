@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -3185,6 +3185,152 @@ export default function AdminPanel({
                             placeholder="รายละเอียดระบบน้ำเพิ่มเติม (เช่น มีแท็งก์น้ำ/บ่อบาดาล)"
                             className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                           />
+                        </div>
+                      </div>
+
+                      {/* จำนวนครูและบุคลากรทั้งหมด */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                          จำนวนครูและบุคลากรทั้งหมดในโรงเรียน (คน)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          value={editStaffCount}
+                          onChange={(e) => setEditStaffCount(Math.max(0, parseInt(e.target.value) || 0))}
+                          placeholder="ระบุจำนวนครูและบุคลากรทั้งหมด เช่น 12"
+                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                        />
+                      </div>
+
+                      {/* ข้อมูลวิชาเอกและจำนวนครูประจำแต่ละสาขาวิชาเอก */}
+                      <div className="space-y-3 sm:col-span-2 bg-[#FFF9F5] dark:bg-[#150e10] p-4 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 pb-2">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                            <GraduationCap className="h-4 w-4 text-[#FF8BA7]" />
+                            🎓 วิชาเอกของครูในโรงเรียน (จำแนกตามสาขาวิชาเอกและจำนวนครู)
+                          </label>
+                          <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-[#FF8BA7]/20 text-[#33272A] dark:text-[#FFF9F5] border border-[#FF8BA7]">
+                            รวมครูผู้เชี่ยวชาญวิชาเอก: {editMajorsWithStaff.reduce((sum, item) => sum + (Number(item.teachersCount) || 0), 0)} คน
+                          </span>
+                        </div>
+
+                        {/* รายการวิชาเอกที่มีอยู่ */}
+                        {editMajorsWithStaff.length === 0 ? (
+                          <div className="text-center py-4 text-xs font-bold text-gray-400 bg-white dark:bg-[#1e1518] rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
+                            ยังไม่ได้ระบุข้อมูลวิชาเอก คุณสามารถเลือกหรือพิมพ์เพิ่มวิชาเอกและจำนวนครูด้านล่างได้ทันที
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                            {editMajorsWithStaff.map((major, idx) => (
+                              <div
+                                key={`${major.name}-${idx}`}
+                                className="flex items-center justify-between bg-white dark:bg-[#1e1518] p-2.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm gap-2"
+                              >
+                                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] truncate min-w-0 flex-1">
+                                  เอก{major.name}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={major.teachersCount}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditMajorsWithStaff(prev => prev.map((m, i) => i === idx ? { ...m, teachersCount: val } : m));
+                                    }}
+                                    className="w-14 text-center rounded-lg border border-[#33272A] dark:border-[#FFD3B6] bg-slate-50 dark:bg-slate-900 p-1 text-xs font-black text-[#33272A] dark:text-[#FFF9F5]"
+                                    title="จำนวนครูในวิชาเอกนี้ (คน)"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-500">คน</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx))}
+                                    className="p-1 rounded-lg hover:bg-rose-100 text-rose-500 transition-colors cursor-pointer"
+                                    title="ลบวิชาเอกนี้"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* ฟอร์มเพิ่มวิชาเอกใหม่ */}
+                        <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            ➕ เพิ่มวิชาเอกและจำนวนครู
+                          </span>
+                          
+                          {/* ปุ่มคลิกเลือกวิชาเอกยอดนิยม */}
+                          <div className="flex flex-wrap gap-1.5 pb-1">
+                            <span className="text-[10px] font-bold text-slate-400 self-center">เลือกด่วน:</span>
+                            {['ภาษาไทย', 'คณิตศาสตร์', 'ภาษาอังกฤษ', 'วิทยาศาสตร์', 'คอมพิวเตอร์', 'ปฐมวัย', 'สังคมศึกษา', 'พลศึกษา', 'ศิลปะ', 'การงานอาชีพ', 'ดนตรี/นาฏศิลป์', 'แนะแนว', 'ปฐมศึกษา'].map((preset) => {
+                              const exists = editMajorsWithStaff.some(m => m.name.trim() === preset);
+                              return (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  disabled={exists}
+                                  onClick={() => {
+                                    setEditMajorsWithStaff(prev => [...prev, { name: preset, teachersCount: 1 }]);
+                                  }}
+                                  className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                                    exists
+                                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600 dark:border-slate-800'
+                                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800'
+                                  }`}
+                                >
+                                  + {preset}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-2 items-center">
+                            <input
+                              type="text"
+                              value={newMajorName}
+                              onChange={(e) => setNewMajorName(e.target.value)}
+                              placeholder="พิมพ์ชื่อวิชาเอกเพิ่มเติม (เช่น เกษตรกรรม, ภาษาจีน...)"
+                              className="flex-1 w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
+                              <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">จำนวน:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={newMajorCount}
+                                onChange={(e) => setNewMajorCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="w-16 rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-black text-center text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                              />
+                              <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">คน</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const trimmed = newMajorName.trim();
+                                  if (!trimmed) {
+                                    alert('กรุณากรอกชื่อวิชาเอก');
+                                    return;
+                                  }
+                                  const existingIdx = editMajorsWithStaff.findIndex(m => m.name.trim().toLowerCase() === trimmed.toLowerCase());
+                                  if (existingIdx >= 0) {
+                                    setEditMajorsWithStaff(prev => prev.map((m, idx) => idx === existingIdx ? { ...m, teachersCount: m.teachersCount + newMajorCount } : m));
+                                  } else {
+                                    setEditMajorsWithStaff(prev => [...prev, { name: trimmed, teachersCount: newMajorCount }]);
+                                  }
+                                  setNewMajorName('');
+                                  setNewMajorCount(1);
+                                }}
+                                className="btn-cute bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] px-3.5 py-2 text-xs font-black border-2 border-[#33272A] cursor-pointer flex items-center gap-1 shrink-0"
+                              >
+                                <Plus className="h-4 w-4" /> เพิ่มวิชาเอก
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
