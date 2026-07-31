@@ -132,13 +132,13 @@ export default function AuthModal({
 
       if (profile) {
         if (profile.status === 'pending') {
-          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin (tamrri@gmail.com) จะกดอนุมัติสิทธิ์');
+          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่าเจ้าหน้าที่เขตพื้นที่การศึกษาจะกดอนุมัติสิทธิ์');
           await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
         if (profile.status === 'rejected') {
-          setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อ Super Admin เพื่อตรวจสอบ');
+          setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อสำนักงานเขตพื้นที่การศึกษาเพื่อตรวจสอบ');
           await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
@@ -225,13 +225,13 @@ export default function AuthModal({
       if (userDocSnap && userDocSnap.exists()) {
         const profile = userDocSnap.data() as UserProfile;
         if (profile.status === 'pending') {
-          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin จะกดอนุมัติสิทธิ์');
+          setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่าเจ้าหน้าที่เขตพื้นที่การศึกษาจะกดอนุมัติสิทธิ์');
           await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
         }
         if (profile.status === 'rejected') {
-          setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อ Super Admin เพื่อตรวจสอบ');
+          setErrorMsg('คำร้องขอเข้าถึงของคุณถูกปฏิเสธสิทธิ์ กรุณาติดต่อสำนักงานเขตพื้นที่การศึกษาเพื่อตรวจสอบ');
           await signOut(auth).catch(() => {});
           setIsLoading(false);
           return;
@@ -326,7 +326,7 @@ export default function AuthModal({
               .find(u => u.role === 'school_admin' && (u.status === 'approved' || u.status === 'pending') && u.email?.toLowerCase() !== cleanEmail);
 
             if (duplicateAdmin) {
-              setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบอยู่ในระบบแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ 1 โรงเรียนต่อ 1 ท่าน หากต้องการเปลี่ยนแอดมินกรุณาแจ้ง Super Admin (tamrri@gmail.com)`);
+              setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบอยู่ในระบบแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ 1 โรงเรียนต่อ 1 ท่าน หากต้องการเปลี่ยนแอดมินกรุณาแจ้งสำนักงานเขตพื้นที่การศึกษา หรือกลุ่มไลน์ประสานงาน`);
               setIsLoading(false);
               return;
             }
@@ -348,7 +348,7 @@ export default function AuthModal({
             const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, password);
             userId = signInRes.user.uid;
           } catch (signInErr: any) {
-            setErrorMsg('อีเมลนี้เคยลงทะเบียนในระบบแล้ว แต่รหัสผ่านไม่ถูกต้อง หากลืมรหัสผ่านกรุณาติดต่อ Super Admin (tamrri@gmail.com)');
+            setErrorMsg('อีเมลนี้เคยลงทะเบียนในระบบแล้ว แต่รหัสผ่านไม่ถูกต้อง หากลืมรหัสผ่านกรุณาติดต่อเจ้าหน้าที่เขตพื้นที่การศึกษา หรือกลุ่มไลน์ประสานงาน');
             setIsLoading(false);
             return;
           }
@@ -395,7 +395,7 @@ export default function AuthModal({
       } else {
         // ลงชื่อออกจาก Firebase Auth ทันที ป้องกันการเข้าใช้งานระบบในขณะที่สถานะยังเป็น 'pending'
         await signOut(auth).catch(() => {});
-        setSuccessMsg(`ส่งคำขอสมัครสิทธิ์แอดมินเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) คำขอถูกส่งไปยัง Super Admin (tamrri@gmail.com) เรียบร้อยแล้ว ห้ามเข้าระบบจนกว่าจะได้รับการอนุมัติ`);
+        setSuccessMsg('ส่งคำขอสมัครสิทธิ์แอดมินเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) คำขอถูกส่งไปยังสำนักงานเขตพื้นที่การศึกษาเรียบร้อยแล้ว ห้ามเข้าระบบจนกว่าจะได้รับการอนุมัติสิทธิ์');
         setIsSignUpMode(false);
       }
     } catch (error: any) {
@@ -466,7 +466,7 @@ export default function AuthModal({
           {/* ข้อมูลช่วยเหลือ */}
           <div className="bg-[#FFD3B6]/35 p-3 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-relaxed font-bold">
             {isSignUpMode 
-              ? '📝 ฟอร์มลงทะเบียน: กรอกข้อมูลจริงเพื่อขอสิทธิ์เป็นแอดมินประจำโรงเรียน โดยคำร้องจะส่งไปยัง Super Admin เพื่ออนุมัติสิทธิ์'
+              ? '📝 ฟอร์มลงทะเบียน: กรอกข้อมูลจริงเพื่อขอสิทธิ์เป็นแอดมินประจำโรงเรียน โดยคำร้องจะส่งไปยังสำนักงานเขตพื้นที่การศึกษาเพื่อพิจารณาอนุมัติสิทธิ์'
               : '🔑 เข้าสู่ระบบ: สำหรับแอดมินโรงเรียนที่ได้รับอนุมัติสิทธิ์แล้ว หรือใช้บัญชี Gmail ที่ได้รับสิทธิ์'}
           </div>
 
