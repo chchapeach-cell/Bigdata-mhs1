@@ -269,40 +269,41 @@ export default function AuthModal({
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-    setIsLoading(true);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanFirstName = firstName.trim();
+    const cleanLastName = lastName.trim();
+
+    if (!cleanFirstName || !cleanLastName) {
+      setErrorMsg('กรุณากรอกชื่อและนามสกุลให้ครบถ้วน');
+      return;
+    }
+
+    if (!cleanEmail) {
+      setErrorMsg('กรุณากรอกอีเมล');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setErrorMsg('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
 
     if (!selectedSchoolId) {
       setErrorMsg('กรุณาเลือกโรงเรียนสังกัดที่ต้องการสมัครสิทธิ์');
-      setIsLoading(false);
       return;
     }
 
-    if (!isRegistrationOpen && email !== 'tamrri@gmail.com') {
+    if (!isRegistrationOpen && cleanEmail !== 'tamrri@gmail.com') {
       setErrorMsg('ระบบปิดรับสมัครแอดมินโรงเรียนชั่วคราว');
-      setIsLoading(false);
       return;
     }
+
+    setIsLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      const userId = user.uid; // ใช้ ID จาก Firebase Auth
-      const tempUserRef = doc(db, 'users', userId);
-      let qSnap;
-      try {
-        qSnap = await getDoc(tempUserRef); // ตรวจสอบเอกสารผู้สมัครเดิม
-      } catch (e) {
-        handleFirestoreError(e, OperationType.GET, `users/${userId}`);
-      }
-      
-      if (qSnap.exists()) {
-        setErrorMsg('บัญชีอีเมลนี้เคยส่งคำร้องขอสมัครสิทธิ์หรือลงทะเบียนในระบบเรียบร้อยแล้ว');
-        setIsLoading(false);
-        return;
-      }
-
-      // ดึงนโยบายระบบเรื่องการจำกัด 1 โรงเรียนต่อ 1 แอดมิน
-      let restrictOneAdminPerSchool = true; // ค่าตั้งต้นเป็นจำกัด
+      // 1. ตรวจสอบนโยบายระบบเรื่องการจำกัด 1 โรงเรียนต่อ 1 แอดมิน (ถ้ามี)
+      let restrictOneAdminPerSchool = true;
       try {
         const settingsSnap = await getDoc(doc(db, 'settings', 'system_config'));
         if (settingsSnap.exists()) {
@@ -312,71 +313,94 @@ export default function AuthModal({
           }
         }
       } catch (e) {
-        console.warn('Failed to fetch system_config settings, defaulting to true:', e);
+        console.warn('Failed to fetch system_config settings:', e);
       }
 
-      // ตรวจสอบถ้าเปิดใช้งานนโยบายจำกัด 1 แอดมินต่อโรงเรียน
       if (restrictOneAdminPerSchool) {
-        let existingAdminsSnap;
         try {
           const qAdmins = query(collection(db, 'users'), where('schoolId', '==', selectedSchoolId));
-          existingAdminsSnap = await getDocs(qAdmins);
+          const existingAdminsSnap = await getDocs(qAdmins);
+          if (!existingAdminsSnap.empty) {
+            const duplicateAdmin = existingAdminsSnap.docs
+              .map(d => d.data())
+              .find(u => u.role === 'school_admin' && (u.status === 'approved' || u.status === 'pending') && u.email?.toLowerCase() !== cleanEmail);
+
+            if (duplicateAdmin) {
+              setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบอยู่ในระบบแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ 1 โรงเรียนต่อ 1 ท่าน หากต้องการเปลี่ยนแอดมินกรุณาแจ้ง Super Admin (tamrri@gmail.com)`);
+              setIsLoading(false);
+              return;
+            }
+          }
         } catch (e) {
-          handleFirestoreError(e, OperationType.LIST, 'users');
+          console.warn('Check duplicate admin query failed:', e);
         }
+      }
 
-        if (existingAdminsSnap && !existingAdminsSnap.empty) {
-          // กรองหาเฉพาะคนที่เป็นแอดมินโรงเรียนที่สถานะเป็นอนุมัติหรือรออนุมัติ (และไม่ใช่อีเมลนี้)
-          const duplicateAdmin = existingAdminsSnap.docs
-            .map(d => d.data())
-            .find(u => u.role === 'school_admin' && (u.status === 'approved' || u.status === 'pending') && u.email !== email);
-
-          if (duplicateAdmin) {
-            setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบ (แอดมิน) อยู่ในระบบเรียบร้อยแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ให้สมัครได้เพียงโรงเรียนละ 1 ท่านเท่านั้น หากต้องการเปลี่ยนแปลงข้อมูลกรุณาติดต่อแอดมินเดิมหรือแจ้ง Super Admin (tamrri@gmail.com)`);
+      // 2. สร้างบัญชีใน Firebase Auth (หรือใช้บัญชีเดิมหากมีอยู่แล้ว)
+      let userId = '';
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+        userId = userCredential.user.uid;
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          // ถ้าอีเมลนี้เคยถูกสร้างใน Auth แล้ว ลองล็อกอินเพื่อดึง UID มาสร้าง/อัปเดตคำขอใน Firestore
+          try {
+            const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, password);
+            userId = signInRes.user.uid;
+          } catch (signInErr: any) {
+            setErrorMsg('อีเมลนี้เคยลงทะเบียนในระบบแล้ว แต่รหัสผ่านไม่ถูกต้อง หากลืมรหัสผ่านกรุณาติดต่อ Super Admin (tamrri@gmail.com)');
             setIsLoading(false);
             return;
           }
+        } else if (authErr.code === 'auth/operation-not-allowed') {
+          setErrorMsg('⚠️ บริการสมัครสมาชิกด้วย Email/Password ยังไม่ถูกเปิดใช้งานใน Firebase Console');
+          setIsLoading(false);
+          return;
+        } else {
+          throw authErr;
         }
       }
 
-      // กรณีพิเศษ: tamrri@gmail.com เป็น Super Admin สมัครแล้วผ่านทันที
-      const isSuper = email === 'tamrri@gmail.com';
+      if (!userId) {
+        setErrorMsg('ไม่สามารถยืนยันตัวตนบัญชีได้ กรุณาลองใหม่อีกครั้ง');
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. บันทึกคำขอสิทธิ์ลงใน Firestore คอลเลกชัน 'users' ให้ Super Admin มองเห็นทันที
+      const isSuper = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
+      const targetSchool = schools.find(s => s.id === selectedSchoolId);
+      const schoolNameVal = targetSchool?.name || '';
 
       const newUserProfile: UserProfile = {
         uid: userId,
-        email: email,
-        firstName,
-        lastName,
+        email: cleanEmail,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
         schoolId: selectedSchoolId,
-        schoolName: selectedSchoolName,
+        schoolName: schoolNameVal,
         role: isSuper ? 'super_admin' : 'school_admin',
         status: isSuper ? 'approved' : 'pending',
         createdAt: new Date()
       };
 
-      try {
-        await setDoc(tempUserRef, newUserProfile);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `users/${userId}`);
-      }
+      const userDocRef = doc(db, 'users', userId);
+      await setDoc(userDocRef, newUserProfile, { merge: true });
 
+      // 4. สรุปผล
       if (isSuper) {
         setSuccessMsg('ลงทะเบียน Super Admin สำเร็จ! เข้าสู่ระบบได้ทันที');
         onAuthSuccess(newUserProfile);
         setTimeout(() => onClose(), 1500);
       } else {
-        // ลงชื่อออกทันที เพื่อไม่ให้ค้างสถานะล็อกอินใน Firebase Auth
+        // ลงชื่อออกจาก Firebase Auth ทันที ป้องกันการเข้าใช้งานระบบในขณะที่สถานะยังเป็น 'pending'
         await signOut(auth).catch(() => {});
-        setSuccessMsg(`ส่งคำสมัครสิทธิ์แอดมินโรงเรียนเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) ห้ามเข้าระบบเด็ดขาดจนกว่า Super Admin (${'tamrri@gmail.com'}) จะพิจารณาและกดอนุมัติสิทธิ์`);
+        setSuccessMsg(`ส่งคำขอสมัครสิทธิ์แอดมินเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) คำขอถูกส่งไปยัง Super Admin (tamrri@gmail.com) เรียบร้อยแล้ว ห้ามเข้าระบบจนกว่าจะได้รับการอนุมัติ`);
         setIsSignUpMode(false);
       }
     } catch (error: any) {
-      console.error(error);
-      if (error.code === 'auth/operation-not-allowed') {
-        setErrorMsg('⚠️ บริการสมัครสมาชิกด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่เมนู Authentication > Sign-in method');
-      } else {
-        setErrorMsg(`เกิดข้อผิดพลาดในการลงทะเบียน: ${error.message || 'กรุณาลองใหม่อีกครั้ง'}`);
-      }
+      console.error('Sign up error:', error);
+      setErrorMsg(`เกิดข้อผิดพลาดในการลงทะเบียน: ${error.message || 'กรุณาลองใหม่อีกครั้ง'}`);
     } finally {
       setIsLoading(false);
     }

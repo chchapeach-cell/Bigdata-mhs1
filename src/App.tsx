@@ -229,11 +229,9 @@ export default function App() {
             } else {
               // คำร้องสมัครสิทธิ์ยังไม่ได้รับการอนุมัติ (pending หรือ rejected) ห้ามเข้าระบบเด็ดขาด!
               setUserProfile(null);
-              await signOut(auth).catch(() => {});
             }
           } else {
             setUserProfile(null);
-            await signOut(auth).catch(() => {});
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
