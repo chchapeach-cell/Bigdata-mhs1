@@ -1604,6 +1604,52 @@ export default function SchoolListView({
           </div>
         </div>
       )}
+
+      {/* Floating Bottom Action Bar for School Comparison */}
+      {selectedForCompare.length > 0 && !isCompareModalOpen && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-lg bg-[#33272A] text-white p-3 rounded-2xl border-2 border-[#FFD3B6] shadow-[0_8px_25px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2 animate-slide-up">
+          <div className="flex items-center gap-2 pl-1">
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-purple-500 font-mono text-xs font-black text-white border border-white/30">
+              {selectedForCompare.length}
+            </span>
+            <div className="flex flex-col">
+              <span className="text-xs font-black text-[#FFD3B6]">
+                เลือกโรงเรียนเปรียบเทียบ
+              </span>
+              <span className="text-[10px] text-white/70">
+                {selectedForCompare.length < 2 ? 'เลือกอีกอย่างน้อย 1 แห่ง' : 'พร้อมเปรียบเทียบแล้ว!'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (selectedForCompare.length < 2) {
+                  alert('กรุณาเลือกโรงเรียนเพื่อเปรียบเทียบอย่างน้อย 2 แห่ง');
+                  return;
+                }
+                setIsCompareModalOpen(true);
+              }}
+              className={`btn-cute px-3.5 py-2 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                selectedForCompare.length >= 2
+                  ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-[2px_2px_0px_#000]'
+                  : 'bg-slate-700 text-slate-300 border-slate-600'
+              }`}
+            >
+              <GitCompare className="h-4 w-4" />
+              เปรียบเทียบ {selectedForCompare.length >= 2 ? 'เลย!' : ''}
+            </button>
+            <button
+              onClick={() => setSelectedForCompare([])}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-colors"
+              title="ยกเลิกการเลือก"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

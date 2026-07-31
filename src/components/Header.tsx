@@ -113,11 +113,11 @@ export default function Header({
             )}
           </button>
 
-          {/* 3. Font size adjuster */}
-          <div className="hidden sm:flex items-center gap-1 bg-[#FFF9F5] p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
+          {/* 3. Font size adjuster (Shown on xs and above) */}
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-[#FFF9F5] p-0.5 sm:p-1 rounded-xl border-2 border-[#33272A] dark:bg-[#1e1518] dark:border-[#FFD3B6]">
             <button
               onClick={() => setFontSize('small')}
-              className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
+              className={`px-1.5 sm:px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
                 fontSize === 'small'
                   ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
                   : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
@@ -128,7 +128,7 @@ export default function Header({
             </button>
             <button
               onClick={() => setFontSize('medium')}
-              className={`px-2 py-0.5 text-xs font-black rounded-lg transition-all cursor-pointer ${
+              className={`px-1.5 sm:px-2 py-0.5 text-xs font-black rounded-lg transition-all cursor-pointer ${
                 fontSize === 'medium'
                   ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
                   : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
@@ -139,23 +139,12 @@ export default function Header({
             </button>
             <button
               onClick={() => setFontSize('large')}
-              className={`px-2 py-0.5 text-sm font-black rounded-lg transition-all cursor-pointer ${
+              className={`px-1.5 sm:px-2 py-0.5 text-sm font-black rounded-lg transition-all cursor-pointer ${
                 fontSize === 'large'
                   ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
                   : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
               }`}
               title="ตัวอักษรขนาดใหญ่"
-            >
-              ก
-            </button>
-            <button
-              onClick={() => setFontSize('xlarge')}
-              className={`px-2 py-0.5 text-base font-black rounded-lg transition-all cursor-pointer ${
-                fontSize === 'xlarge'
-                  ? 'bg-[#FF8BA7] text-[#33272A] border border-[#33272A]'
-                  : 'text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
-              }`}
-              title="ตัวอักษรขนาดใหญ่พิเศษ"
             >
               ก
             </button>
