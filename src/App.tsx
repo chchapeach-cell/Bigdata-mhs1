@@ -127,12 +127,18 @@ export default function App() {
       'theme-royal-gold',
       'theme-green',
       'theme-clean-mobile',
-      'theme-nordic-breeze'
+      'theme-nordic-breeze',
+      'theme-ultra-modern',
+      'theme-luxury-violet',
+      'theme-sunset-ember',
+      'theme-gundam-mecha',
+      'theme-naruto-ninja',
+      'theme-lector-purple'
     );
     document.documentElement.classList.add(`theme-${themeStyle}`);
     localStorage.setItem('app-theme-style', themeStyle);
 
-    if (themeStyle === 'darktech' || themeStyle === 'cyan-futuristic') {
+    if (themeStyle === 'darktech' || themeStyle === 'cyan-futuristic' || themeStyle === 'gundam-mecha') {
       setIsDarkMode(true);
     }
   }, [themeStyle]);

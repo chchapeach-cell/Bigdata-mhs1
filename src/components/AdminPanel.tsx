@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -283,6 +284,28 @@ export default function AdminPanel({
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
   const [downloadLogs, setDownloadLogs] = useState<any[]>([]);
+
+  // คำนวณ 10 อันดับแรกข้อมูลที่มีการดาวน์โหลดมากที่สุด
+  const topDownloadedItems = useMemo(() => {
+    if (!downloadLogs || downloadLogs.length === 0) return [];
+
+    const counts: Record<string, { name: string; count: number; schoolId: string }> = {};
+
+    downloadLogs.forEach((log) => {
+      let rawName = (log.schoolName || log.schoolId || 'ไม่ระบุชื่อ').trim();
+      if (log.schoolId === 'all') {
+        rawName = log.schoolName || 'ข้อมูลสถานศึกษาทั้งหมดทุกแห่ง';
+      }
+      if (!counts[rawName]) {
+        counts[rawName] = { name: rawName, count: 0, schoolId: log.schoolId || '' };
+      }
+      counts[rawName].count += 1;
+    });
+
+    return Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [downloadLogs]);
   const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings' | 'theme'>(
     isSuperAdmin ? 'students_center' : 'schools'
   );
@@ -3002,60 +3025,212 @@ export default function AdminPanel({
           )}
 
           {adminTab === 'logs' && (
-            <div className="card p-6">
-              <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                <History className="h-4.5 w-4.5 text-[#FFD3B6]" /> ประวัติการดาวน์โหลดข้อมูล (Download Logs)
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
-                      <th className="p-2 w-32">วัน-เวลา</th>
-                      <th className="p-2">ผู้ดาวน์โหลด</th>
-                      <th className="p-2">ข้อมูลโรงเรียน</th>
-                      <th className="p-2">วัตถุประสงค์</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
-                    {downloadLogs.map((log) => {
-                      let timeStr = '-';
-                      if (log.timestamp) {
-                        try {
-                          const date = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-                          timeStr = date.toLocaleString('th-TH', { 
-                            year: 'numeric', month: 'short', day: 'numeric',
-                            hour: '2-digit', minute: '2-digit'
-                          });
-                        } catch(e) {}
-                      }
-                      
-                      return (
-                        <tr key={log.id} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-2 text-[#33272A]/70 dark:text-slate-400 whitespace-nowrap">{timeStr}</td>
-                          <td className="p-2 text-[#33272A] dark:text-slate-200">
-                            <div>{log.name}</div>
-                            <div className="text-[10px] text-[#33272A]/60 dark:text-slate-500">{log.email}</div>
-                          </td>
-                          <td className="p-2 text-[#33272A] dark:text-slate-200">
-                            {log.schoolId === 'all' ? (
-                              <span className="text-[#FF8BA7] font-black">ดาวน์โหลดทั้งหมด</span>
-                            ) : (
-                              <span>{log.schoolName} ({log.schoolId})</span>
-                            )}
-                          </td>
-                          <td className="p-2 text-[#33272A] dark:text-slate-300">
-                            {log.purpose}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {downloadLogs.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่มีประวัติการดาวน์โหลด</td>
-                      </tr>
+            <div className="space-y-6">
+              {/* สรุปสถิติภาพรวมการดาวน์โหลด */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
+                  <div className="p-3 rounded-2xl bg-[#FF8BA7]/20 text-[#33272A] dark:text-[#FF8BA7] border border-[#FF8BA7]/50">
+                    <Download className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">การดาวน์โหลดสะสมทั้งหมด</span>
+                    <span className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">{downloadLogs.length} <span className="text-xs font-bold">ครั้ง</span></span>
+                  </div>
+                </div>
+
+                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
+                  <div className="p-3 rounded-2xl bg-[#A0E7E5]/20 text-[#33272A] dark:text-[#A0E7E5] border border-[#A0E7E5]/50">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">หัวข้อ/รายงานที่ถูกขอเข้าถึง</span>
+                    <span className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">{topDownloadedItems.length} <span className="text-xs font-bold">รายการ</span></span>
+                  </div>
+                </div>
+
+                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
+                  <div className="p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    <Award className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">อันดับ 1 ที่ดาวน์โหลดมากที่สุด</span>
+                    <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] truncate block">
+                      {topDownloadedItems.length > 0 ? topDownloadedItems[0].name : '-'}
+                    </span>
+                    {topDownloadedItems.length > 0 && (
+                      <span className="text-[10px] font-black text-[#FF8BA7] block">
+                        ดาวน์โหลดไปแล้ว {topDownloadedItems[0].count} ครั้ง
+                      </span>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* 📊 กราฟแท่ง 10 อันดับแรกข้อมูลที่มีการดาวน์โหลดสูงสุด */}
+              <div className="card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3 mb-5">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-[#FF8BA7]" />
+                    <span>10 อันดับแรก ข้อมูลที่มีการดาวน์โหลดมากที่สุด (Top 10 Most Downloaded Data)</span>
+                  </h3>
+                  <span className="text-xs font-black px-3 py-1 rounded-full bg-[#FFD3B6]/40 text-[#33272A] dark:text-[#FFF9F5] border border-[#33272A] dark:border-[#FFD3B6] flex items-center gap-1">
+                    <TrendingUp className="h-3.5 w-3.5 text-[#FF8BA7]" /> อัปเดตล่าสุดเรียลไทม์
+                  </span>
+                </div>
+
+                {topDownloadedItems.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-bold text-[#33272A]/50 dark:text-[#FFF9F5]/50 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                    ยังไม่มีข้อมูลประวัติการดาวน์โหลดสำหรับประมวลผลกราฟ
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    {/* กราฟ Recharts แท่งแนวนอน */}
+                    <div className="lg:col-span-7 h-[340px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          layout="vertical"
+                          data={topDownloadedItems}
+                          margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                        >
+                          <XAxis type="number" allowDecimals={false} stroke="#888888" fontSize={11} tickLine={false} />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={160}
+                            tick={{ fontSize: 11, fontWeight: 700 }}
+                            stroke="#888888"
+                            tickLine={false}
+                            tickFormatter={(val) => (val.length > 20 ? val.substring(0, 20) + '...' : val)}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-white dark:bg-[#1e1518] p-3 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-md text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                                    <p className="font-black text-sm text-[#FF8BA7]">{data.name}</p>
+                                    <p className="mt-1">จำนวนการดาวน์โหลด: <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{data.count}</span> ครั้ง</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={22}>
+                            {topDownloadedItems.map((entry, index) => {
+                              const colors = [
+                                '#FF8BA7', '#A0E7E5', '#FFD3B6', '#93C5FD', '#FDE047',
+                                '#C084FC', '#4ADE80', '#F97316', '#38BDF8', '#F472B6'
+                              ];
+                              return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke="#33272A" strokeWidth={1.5} />;
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* ตารางการจัดอันดับ 10 อันดับแรกพร้อม Badge */}
+                    <div className="lg:col-span-5 space-y-2 bg-[#FFF9F5] dark:bg-slate-900/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] max-h-[340px] overflow-y-auto">
+                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block mb-2 underline decoration-[#FF8BA7] decoration-2">
+                        🏆 ตารางสรุป 10 อันดับการดาวน์โหลดสูงสุด
+                      </span>
+                      {topDownloadedItems.map((item, idx) => {
+                        const maxCount = topDownloadedItems[0]?.count || 1;
+                        const percent = Math.round((item.count / maxCount) * 100);
+                        const badgeColors = [
+                          'bg-amber-400 text-amber-950 border-amber-600',
+                          'bg-slate-300 text-slate-900 border-slate-500',
+                          'bg-amber-600 text-amber-50 border-amber-800',
+                          'bg-rose-100 text-rose-900 border-rose-300',
+                          'bg-sky-100 text-sky-900 border-sky-300'
+                        ];
+                        const badgeStyle = badgeColors[idx] || 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200';
+
+                        return (
+                          <div key={item.name} className="p-2 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/20 dark:border-slate-700 space-y-1">
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className={`h-5 w-5 rounded-full border flex items-center justify-center font-black text-[10px] shrink-0 ${badgeStyle}`}>
+                                  {idx === 0 ? '1' : idx === 1 ? '2' : idx === 2 ? '3' : idx + 1}
+                                </span>
+                                <span className="font-black text-[#33272A] dark:text-[#FFF9F5] truncate text-xs" title={item.name}>
+                                  {item.name}
+                                </span>
+                              </div>
+                              <span className="font-black text-xs text-[#FF8BA7] shrink-0">
+                                {item.count} ครั้ง
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-[#FF8BA7] h-full rounded-full transition-all duration-500"
+                                style={{ width: `${percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ตารางบันทึกประวัติการดาวน์โหลดแบบละเอียด */}
+              <div className="card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6]">
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <History className="h-4.5 w-4.5 text-[#FFD3B6]" /> บันทึกประวัติการดาวน์โหลดข้อมูลอย่างละเอียด (Download Logs Audit Trail)
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
+                        <th className="p-2 w-32">วัน-เวลา</th>
+                        <th className="p-2">ผู้ดาวน์โหลด</th>
+                        <th className="p-2">ข้อมูลโรงเรียน</th>
+                        <th className="p-2">วัตถุประสงค์</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold">
+                      {downloadLogs.map((log) => {
+                        let timeStr = '-';
+                        if (log.timestamp) {
+                          try {
+                            const date = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+                            timeStr = date.toLocaleString('th-TH', { 
+                              year: 'numeric', month: 'short', day: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
+                            });
+                          } catch(e) {}
+                        }
+                        
+                        return (
+                          <tr key={log.id} className="hover:bg-[#FFF9F5] dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-2 text-[#33272A]/70 dark:text-slate-400 whitespace-nowrap">{timeStr}</td>
+                            <td className="p-2 text-[#33272A] dark:text-slate-200">
+                              <div>{log.name}</div>
+                              <div className="text-[10px] text-[#33272A]/60 dark:text-slate-500">{log.email}</div>
+                            </td>
+                            <td className="p-2 text-[#33272A] dark:text-slate-200">
+                              {log.schoolId === 'all' ? (
+                                <span className="text-[#FF8BA7] font-black">ดาวน์โหลดทั้งหมด</span>
+                              ) : (
+                                <span>{log.schoolName} ({log.schoolId})</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-[#33272A] dark:text-slate-300">
+                              {log.purpose}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {downloadLogs.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="p-8 text-center text-[#33272A]/50 dark:text-[#FFF9F5]/50 font-bold">ไม่มีประวัติการดาวน์โหลด</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -3843,6 +4018,114 @@ export default function AdminPanel({
                     <Globe className="h-6 w-6 text-teal-200" />
                     <span className="text-xs font-black">❄️ นอร์ดิก บรีซ (Nordic Breeze)</span>
                     <span className="text-[10px] opacity-80 leading-relaxed">สไตล์นอร์ดิกมินต์ คลีน เรียบหรู ถนอมสายตาบนสมาร์ตโฟน</span>
+                  </button>
+
+                  {/* 12. ธีม Ultra Modern Glass (กระจกใสพรีเมียม) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('ultra-modern')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'ultra-modern'
+                        ? 'bg-indigo-700 text-white border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-indigo-200 text-indigo-950 px-1.5 py-0.5 rounded-md font-black">
+                      ✨ NEW Premium
+                    </span>
+                    <Sparkles className="h-6 w-6 text-indigo-400 animate-pulse" />
+                    <span className="text-xs font-black">💎 อัลตราโมเดิร์น กลาส (Ultra Modern Glass)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์กระจกใส Glassmorphism ระดับผู้บริหาร พรีเมียม ทันสมัยที่สุด</span>
+                  </button>
+
+                  {/* 13. ธีม Luxury Violet (ม่วงอินดิโก้พรีเมียม) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('luxury-violet')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'luxury-violet'
+                        ? 'bg-purple-800 text-purple-50 border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.5)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-purple-200 text-purple-950 px-1.5 py-0.5 rounded-md font-black">
+                      ✨ NEW Executive
+                    </span>
+                    <Palette className="h-6 w-6 text-purple-300" />
+                    <span className="text-xs font-black">👑 ลักชูรี ไวโอเลต (Luxury Violet)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์โทนสีม่วงอินดิโก้ หรูหรา ไฮเทค คอนทราสต์ระดับองค์กรชั้นนำ</span>
+                  </button>
+
+                  {/* 14. ธีม Sunset Ember (ส้มชมพูพระอาทิตย์ตก) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('sunset-ember')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'sunset-ember'
+                        ? 'bg-gradient-to-br from-orange-600 to-rose-600 text-white border-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.5)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-orange-200 text-orange-950 px-1.5 py-0.5 rounded-md font-black">
+                      ✨ NEW Warm
+                    </span>
+                    <Sun className="h-6 w-6 text-orange-300" />
+                    <span className="text-xs font-black">🌅 ซันเซ็ต เอ็มเบอร์ (Sunset Ember)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์สีพระอาทิตย์ตก อบอุ่น สดใส ดึงดูดสายตา มองง่ายสบายตา</span>
+                  </button>
+
+                  {/* 15. ธีม Gundam Mecha HUD (หุ่นยนต์ไซเบอร์/RX-78) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('gundam-mecha')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'gundam-mecha'
+                        ? 'bg-[#0F172A] text-sky-400 border-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.6)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-yellow-400 text-slate-950 px-1.5 py-0.5 rounded-md font-black">
+                      🤖 GUNDAM MECHA
+                    </span>
+                    <Zap className="h-6 w-6 text-sky-400 animate-pulse" />
+                    <span className="text-xs font-black">🤖 กันดั้ม เมก้า HUD (Gundam Mecha)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์หุ่นยนต์รบรวงข้าว HUD กรอบเหลี่ยมเหล็ก Cyber Light/Glow</span>
+                  </button>
+
+                  {/* 16. ธีม Naruto Ninja Scroll (นินจาโคโนฮะ/คัมภีร์) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('naruto-ninja')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'naruto-ninja'
+                        ? 'bg-amber-950 text-orange-400 border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.6)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded-md font-black">
+                      📜 NINJA SCROLL
+                    </span>
+                    <Sparkles className="h-6 w-6 text-orange-400" />
+                    <span className="text-xs font-black">📜 นารูโตะ นินจา (Naruto Ninja Scroll)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์คัมภีร์คาถานินจา ตราโคโนฮะ โทนสีส้มด้ายน้ำตาล-ทอง</span>
+                  </button>
+
+                  {/* 17. ธีม Lector SaaS Dashboard (สไตล์แดชบอร์ดแดร็กม่วงพรีเมียมตามตัวอย่าง Lector UI) */}
+                  <button
+                    type="button"
+                    onClick={() => setThemeStyle && setThemeStyle('lector-purple')}
+                    className={`p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col items-center justify-center text-center gap-2 transition-all cursor-pointer relative overflow-hidden ${
+                      themeStyle === 'lector-purple'
+                        ? 'bg-gradient-to-br from-purple-700 to-pink-600 text-white border-purple-300 shadow-[0_0_20px_rgba(168,85,247,0.6)] scale-[1.02] font-black'
+                        : 'bg-white dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] hover:bg-[#FFD3B6]/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 right-2 text-[9px] bg-pink-500 text-white px-1.5 py-0.5 rounded-md font-black">
+                      📊 LECTOR DASHBOARD
+                    </span>
+                    <Layout className="h-6 w-6 text-pink-300" />
+                    <span className="text-xs font-black">📊 เล็กเตอร์ สการ์เลต ม่วง (Lector Modern Dashboard)</span>
+                    <span className="text-[10px] opacity-80 leading-relaxed">สไตล์แดชบอร์ด Lector UI คลีน พรีเมียม การ์ดไล่เฉดม่วง-ชมพู สถิติอ่านง่ายสบายตา</span>
                   </button>
                 </div>
               </div>

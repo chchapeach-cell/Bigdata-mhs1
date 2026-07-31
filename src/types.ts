@@ -130,7 +130,7 @@ export interface InfrastructureOption {
   label: string;
 }
 
-export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint' | 'cyan-futuristic' | 'royal-gold' | 'green' | 'clean-mobile' | 'nordic-breeze';
+export type ThemeStyle = 'pastel' | 'modern' | 'darktech' | 'minimal-slate' | 'warm-nature' | 'emerald-mint' | 'cyan-futuristic' | 'royal-gold' | 'green' | 'clean-mobile' | 'nordic-breeze' | 'ultra-modern' | 'luxury-violet' | 'sunset-ember' | 'gundam-mecha' | 'naruto-ninja' | 'lector-purple';
 export type DesignStyle = 'classic' | 'glass-float' | 'compact-grid';
 
 export interface ContactChannel {

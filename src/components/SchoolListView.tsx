@@ -1,6 +1,6 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -115,6 +115,23 @@ export default function SchoolListView({
   const [isDownloading, setIsDownloading] = useState(false);
   const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
 
+  // สำหรับโหมดเปรียบเทียบโรงเรียน (Compare Mode: เลือกได้ 2-3 โรงเรียน)
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [highlightDiff, setHighlightDiff] = useState(true);
+
+  const toggleCompareSchool = (schoolId: string) => {
+    if (selectedForCompare.includes(schoolId)) {
+      setSelectedForCompare(prev => prev.filter(id => id !== schoolId));
+    } else {
+      if (selectedForCompare.length >= 3) {
+        alert('คุณสามารถเลือกเปรียบเทียบได้สูงสุดครั้งละ 3 โรงเรียน');
+        return;
+      }
+      setSelectedForCompare(prev => [...prev, schoolId]);
+    }
+  };
+
   // คำนวณจำนวนนักเรียนรวมและวิเคราะห์ขนาดโรงเรียนตามเกณฑ์ ก.ค.ศ. ตามปีการศึกษาที่เลือก
   const schoolsWithCounts = useMemo(() => {
     return schools.map(school => {
@@ -133,6 +150,17 @@ export default function SchoolListView({
       };
     });
   }, [schools, studentData, academicYear]);
+
+  // รายชื่อโรงเรียนที่ถูกเลือกเพื่อนำมาเปรียบเทียบ
+  const compareSchools = useMemo(() => {
+    return selectedForCompare
+      .map(id => schoolsWithCounts.find(s => s.id === id))
+      .filter(Boolean) as (School & {
+        studentCount: number;
+        maleCount: number;
+        femaleCount: number;
+      })[];
+  }, [selectedForCompare, schoolsWithCounts]);
 
   // คัดกรองข้อมูลโรงเรียน
   const filteredSchools = useMemo(() => {
@@ -466,8 +494,25 @@ export default function SchoolListView({
             </button>
           </div>
 
-          {/* Export Buttons */}
+          {/* Export & Compare Buttons */}
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                if (selectedForCompare.length < 2) {
+                  alert('กรุณาเลือกโรงเรียนเพื่อเปรียบเทียบอย่างน้อย 2 แห่ง (เลือกได้สูงสุด 3 แห่ง) โดยคลิกปุ่ม "เปรียบเทียบ" ในตาราง');
+                  return;
+                }
+                setIsCompareModalOpen(true);
+              }}
+              className={`btn-cute px-4 py-2.5 text-xs font-black flex items-center gap-1.5 transition-all shadow-[2px_2px_0px_#33272A] cursor-pointer ${
+                selectedForCompare.length >= 2
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white animate-pulse'
+                  : 'bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border-2 border-purple-400'
+              }`}
+            >
+              <GitCompare className="h-4 w-4" />
+              เปรียบเทียบโรงเรียน ({selectedForCompare.length}/3)
+            </button>
             {filteredSchools.length < schools.length && (
               <button
                 onClick={() => handleOpenDownload('filtered', `ผลลัพธ์ที่กรอง (${filteredSchools.length} โรงเรียน)`)}
@@ -668,6 +713,9 @@ export default function SchoolListView({
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-xs">
+                <th className="p-3 text-center w-12">
+                  <span className="text-[10px] font-bold">เทียบ</span>
+                </th>
                 <th 
                   className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
                   onClick={() => handleSort('id')}
@@ -765,7 +813,21 @@ export default function SchoolListView({
                   const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                   const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
                   return (
-                    <tr key={school.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                    <tr key={school.id} className={`hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10 ${selectedForCompare.includes(school.id) ? 'bg-purple-50/70 dark:bg-purple-950/30' : ''}`}>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleCompareSchool(school.id)}
+                          className={`p-1 rounded-lg border-2 transition-all cursor-pointer ${
+                            selectedForCompare.includes(school.id)
+                              ? 'bg-purple-600 border-purple-800 text-white shadow-sm'
+                              : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-slate-400 hover:border-purple-400'
+                          }`}
+                          title={selectedForCompare.includes(school.id) ? 'ยกเลิกการเลือกเปรียบเทียบ' : 'เลือกเพื่อเปรียบเทียบ (สูงสุด 3 แห่ง)'}
+                        >
+                          {selectedForCompare.includes(school.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                        </button>
+                      </td>
                       <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
                       <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
                         <div className="flex flex-col gap-1">
@@ -888,7 +950,7 @@ export default function SchoolListView({
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400">
+                  <td colSpan={9} className="p-8 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
                       <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
@@ -1006,7 +1068,19 @@ export default function SchoolListView({
                       </div>
                     </div>
 
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => toggleCompareSchool(school.id)}
+                        className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          selectedForCompare.includes(school.id)
+                            ? 'bg-purple-600 text-white border-purple-800'
+                            : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                        }`}
+                      >
+                        <GitCompare className="h-4 w-4" />
+                        {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
+                      </button>
                       {(school.schoolPhone || school.directorPhone) && (
                         <a
                           href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
@@ -1167,6 +1241,366 @@ export default function SchoolListView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Schools Modal */}
+      {isCompareModalOpen && compareSchools.length >= 2 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-[#33272A]/70 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-5xl card p-3 sm:p-4 md:p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] animate-zoom-in my-auto max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex flex-wrap justify-between items-center gap-2 pb-3 md:pb-4 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-2xl bg-purple-500 border-2 border-[#33272A] p-2 text-white shadow-sm">
+                  <Columns className="h-5 w-5 md:h-6 md:w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base md:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    เปรียบเทียบข้อมูลโรงเรียน ({compareSchools.length} แห่ง)
+                  </h3>
+                  <p className="text-[11px] md:text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+                    เปรียบเทียบข้อมูลพื้นฐาน สาธารณูปโภค ครู และนักเรียน ปีการศึกษา {academicYear || '2568'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setHighlightDiff(!highlightDiff)}
+                  className={`px-3 py-1.5 rounded-xl border-2 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                    highlightDiff
+                      ? 'bg-amber-400 text-[#33272A] border-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  }`}
+                  title="เน้นสีแถวที่มีข้อมูลต่างกัน"
+                >
+                  <Sparkles className={`h-3.5 w-3.5 ${highlightDiff ? 'text-amber-900 fill-amber-300' : ''}`} />
+                  {highlightDiff ? 'กำลังเน้นจุดต่าง' : 'เน้นจุดต่าง'}
+                </button>
+                <button
+                  onClick={() => setIsCompareModalOpen(false)}
+                  className="p-1.5 md:p-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] hover:bg-rose-100 dark:hover:bg-rose-950 text-[#33272A] dark:text-[#FFF9F5] transition-colors"
+                  title="ปิด"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Scroll Hint */}
+            <div className="md:hidden mt-2 px-3 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-[11px] font-bold text-purple-900 dark:text-purple-200 flex items-center justify-between">
+              <span>👈 เลื่อนซ้าย-ขวาเพื่อดูโรงเรียนอื่นๆ</span>
+              <span className="text-[10px] text-purple-600 dark:text-purple-300 font-mono">ตรึงหัวข้อไว้ซ้ายสุด</span>
+            </div>
+
+            {/* Modal Body / Comparison Table */}
+            <div className="overflow-x-auto overflow-y-auto my-3 md:my-4 flex-1 rounded-xl border border-[#33272A]/20 dark:border-[#FFD3B6]/20">
+              <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[600px]">
+                <thead>
+                  <tr className="bg-purple-100 dark:bg-purple-950/90 text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
+                    <th className="p-3 w-36 md:w-52 sticky left-0 z-20 bg-purple-100 dark:bg-purple-950 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
+                      หัวข้อข้อมูล
+                    </th>
+                    {compareSchools.map((sch) => (
+                      <th key={sch.id} className="p-3 min-w-[170px] md:min-w-[220px] text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                        <div className="flex flex-col items-center justify-between gap-1 h-full">
+                          <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">รหัส {sch.id}</span>
+                          <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] line-clamp-2">{sch.name}</span>
+                          <button
+                            onClick={() => toggleCompareSchool(sch.id)}
+                            className="mt-1 text-[10px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" /> เอาออก
+                          </button>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-medium">
+                  {(() => {
+                    // คำนวณความแตกต่างแต่ละหัวข้อ
+                    const isDiffAmphoe = new Set(compareSchools.map(s => (s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe) + (s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup))).size > 1;
+                    const isDiffSize = new Set(compareSchools.map(s => s.size)).size > 1;
+                    const isDiffExpansion = new Set(compareSchools.map(s => s.isExpansion)).size > 1;
+                    const isDiffStudent = new Set(compareSchools.map(s => s.studentCount)).size > 1;
+                    const isDiffStaff = new Set(compareSchools.map(s => s.staffCount)).size > 1;
+                    const isDiffElec = new Set(compareSchools.map(s => s.electricity)).size > 1;
+                    const isDiffInternet = new Set(compareSchools.map(s => s.internetType)).size > 1;
+                    const isDiffWater = new Set(compareSchools.map(s => s.waterSystem)).size > 1;
+                    const isDiffMajors = new Set(compareSchools.map(s => (s.majorSubjects || s.majorSubjectsWithStaff?.map(m => m.name) || []).sort().join(','))).size > 1;
+                    const isDiffPhone = new Set(compareSchools.map(s => s.schoolPhone || s.directorPhone || '')).size > 1;
+
+                    const getRowBg = (isDiff: boolean) => {
+                      if (highlightDiff && isDiff) {
+                        return 'bg-amber-100/70 dark:bg-amber-950/40 border-l-4 border-l-amber-500';
+                      }
+                      return 'hover:bg-slate-50 dark:hover:bg-slate-800/30';
+                    };
+
+                    const getCellBg = (isDiff: boolean) => {
+                      if (highlightDiff && isDiff) {
+                        return 'bg-amber-200/90 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100';
+                      }
+                      return 'bg-slate-100/80 dark:bg-[#251b1f] text-[#33272A] dark:text-[#FFF9F5]';
+                    };
+
+                    return (
+                      <>
+                        {/* อำเภอ & กลุ่มเครือข่าย */}
+                        <tr className={getRowBg(isDiffAmphoe)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffAmphoe)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>📍 อำเภอ / เครือข่าย</span>
+                              {highlightDiff && isDiffAmphoe && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => {
+                            const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe;
+                            const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup;
+                            return (
+                              <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                <div className="font-bold">อ.{amp}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{net}</div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* ขนาดโรงเรียน */}
+                        <tr className={getRowBg(isDiffSize)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffSize)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>📏 ขนาดโรงเรียน</span>
+                              {highlightDiff && isDiffSize && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] inline-block ${
+                                s.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                                s.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                                s.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFAAA5] text-[#33272A]'
+                              }`}>
+                                {getSchoolSizeLabel(s.size)}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* ประเภทสถานศึกษา */}
+                        <tr className={getRowBg(isDiffExpansion)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffExpansion)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>🏫 ประเภทสถานศึกษา</span>
+                              {highlightDiff && isDiffExpansion && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                s.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                              }`}>
+                                {s.isExpansion ? 'ขยายโอกาส (ประถม-ม.3)' : 'ประถมศึกษา/อนุบาล'}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* จำนวนนักเรียนรวม */}
+                        <tr className={getRowBg(isDiffStudent)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStudent)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>👨‍🎓 จำนวนนักเรียนรวม</span>
+                              {highlightDiff && isDiffStudent && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <div className="text-base font-black text-[#FF8BA7]">{s.studentCount} คน</div>
+                              <div className="text-[11px] text-slate-500">ชาย {s.maleCount} / หญิง {s.femaleCount}</div>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* จำนวนครูและบุคลากร */}
+                        <tr className={getRowBg(isDiffStaff)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStaff)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>👩‍🏫 ครูและบุคลากร</span>
+                              {highlightDiff && isDiffStaff && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <div className="text-sm font-black">{s.staffCount} คน</div>
+                              <div className="text-[11px] text-slate-500">
+                                สัดส่วนครู:นร. {s.staffCount > 0 ? `1:${(s.studentCount / s.staffCount).toFixed(1)}` : '-'}
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* ระบบไฟฟ้า */}
+                        <tr className={getRowBg(isDiffElec)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffElec)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>⚡ ระบบไฟฟ้า</span>
+                              {highlightDiff && isDiffElec && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <span className={`text-xs font-bold px-2 py-1 rounded-md border inline-flex items-center gap-1 ${
+                                s.electricity === 'has_electric' || s.electricity === true
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                                  : s.electricity === 'solar'
+                                  ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                                  : s.electricity === 'hybrid'
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                              }`}>
+                                <Zap className="h-3 w-3 text-amber-500 fill-amber-400" />
+                                {s.electricity === 'has_electric' || s.electricity === true ? 'ไฟฟ้าถาวร' :
+                                 s.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                                 s.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีระบบไฟฟ้า'}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* ระบบอินเทอร์เน็ต */}
+                        <tr className={getRowBg(isDiffInternet)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffInternet)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>🌐 ระบบอินเทอร์เน็ต</span>
+                              {highlightDiff && isDiffInternet && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 inline-flex items-center gap-1">
+                                <Globe className="h-3 w-3 text-sky-600" />
+                                {s.internetType === 'fiber' ? 'สายไฟเบอร์ (Fiber)' :
+                                 s.internetType === 'satellite' ? 'ดาวเทียม (Satellite)' :
+                                 s.internetType === 'sim' ? 'ซิมมือถือ (SIM 4G)' : 'ไม่มีอินเทอร์เน็ต'}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* ระบบน้ำประปา */}
+                        <tr className={getRowBg(isDiffWater)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffWater)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>💧 ระบบน้ำประปา</span>
+                              {highlightDiff && isDiffWater && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 inline-flex items-center gap-1">
+                                <Droplets className="h-3 w-3 text-blue-600" />
+                                {s.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                                 s.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
+                                 s.waterSystem === 'other' ? 'น้ำอื่นๆ / บาดาล' : 'ประปาภาครัฐ'}
+                              </span>
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* วิชาเอกที่มีครูสอน */}
+                        <tr className={getRowBg(isDiffMajors)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffMajors)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>🎓 ครูวิชาเอกที่มี</span>
+                              {highlightDiff && isDiffMajors && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => {
+                            const majors = s.majorSubjects || s.majorSubjectsWithStaff?.map(m => m.name) || [];
+                            return (
+                              <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                {majors.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 justify-center">
+                                    {majors.map((m, idx) => (
+                                      <span key={idx} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 dark:bg-purple-950 dark:text-purple-200">
+                                        เอก{m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-medium">ไม่ระบุวิชาเอก</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* เบอร์โทรศัพท์ติดต่อ */}
+                        <tr className={getRowBg(isDiffPhone)}>
+                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffPhone)}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <span>📞 เบอร์โทรติดต่อ</span>
+                              {highlightDiff && isDiffPhone && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                              )}
+                            </div>
+                          </td>
+                          {compareSchools.map(s => (
+                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                              {(s.schoolPhone || s.directorPhone) ? (
+                                <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                                  {s.schoolPhone || s.directorPhone}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-medium">-</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      </>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-between items-center pt-3 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 shrink-0">
+              <button
+                onClick={() => setSelectedForCompare([])}
+                className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+              >
+                ล้างการเลือกทั้งหมด
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsCompareModalOpen(false)}
+                  className="btn-cute bg-[#FFD3B6] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

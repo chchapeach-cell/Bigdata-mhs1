@@ -655,6 +655,331 @@ html, #root {
   color: #FFFFFF !important;
 }
 
+/* ธีมที่ 12: Ultra Modern Glass - กระจกใส พรีเมียม ทันสมัยระดับผู้บริหาร */
+.theme-ultra-modern, html.theme-ultra-modern {
+  --bg-vibrant: #F8FAFC;
+  --text-vibrant: #0F172A;
+}
+
+.theme-ultra-modern.dark, html.theme-ultra-modern.dark, .dark.theme-ultra-modern, .theme-ultra-modern .dark {
+  --bg-vibrant: #090D16;
+  --text-vibrant: #F8FAFC;
+}
+
+.theme-ultra-modern body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-ultra-modern .card {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1.5px solid rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 20px !important;
+}
+
+.theme-ultra-modern.dark .card,
+.theme-ultra-modern .dark .card,
+.dark.theme-ultra-modern .card {
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1.5px solid rgba(51, 65, 85, 0.7) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  color: #F8FAFC !important;
+}
+
+.theme-ultra-modern .btn-cute {
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.35) !important;
+  font-weight: 700;
+}
+
+.theme-ultra-modern.dark .btn-cute,
+.theme-ultra-modern .dark .btn-cute,
+.dark.theme-ultra-modern .btn-cute {
+  border: 1px solid rgba(129, 140, 248, 0.4) !important;
+  background: linear-gradient(135deg, #4F46E5 0%, #4338CA 100%) !important;
+  color: #FFFFFF !important;
+}
+
+/* ธีมที่ 13: Luxury Violet - สไตล์ม่วงอินดิโก้ พรีเมียม หรูหรา */
+.theme-luxury-violet, html.theme-luxury-violet {
+  --bg-vibrant: #FAF5FF;
+  --text-vibrant: #2E1065;
+}
+
+.theme-luxury-violet.dark, html.theme-luxury-violet.dark, .dark.theme-luxury-violet, .theme-luxury-violet .dark {
+  --bg-vibrant: #170B2C;
+  --text-vibrant: #FAF5FF;
+}
+
+.theme-luxury-violet body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-luxury-violet .card {
+  background-color: #FFFFFF !important;
+  border: 1.5px solid #E9D5FF !important;
+  box-shadow: 0 8px 20px rgba(147, 51, 234, 0.07) !important;
+  border-radius: 18px !important;
+}
+
+.theme-luxury-violet.dark .card,
+.theme-luxury-violet .dark .card,
+.dark.theme-luxury-violet .card {
+  background-color: #241142 !important;
+  border: 1.5px solid #581C87 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+  color: #FAF5FF !important;
+}
+
+.theme-luxury-violet .btn-cute {
+  border: 1.5px solid #9333EA !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #A855F7 0%, #7E22CE 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(147, 51, 234, 0.3) !important;
+  font-weight: 700;
+}
+
+.theme-luxury-violet.dark .btn-cute,
+.theme-luxury-violet .dark .btn-cute,
+.dark.theme-luxury-violet .btn-cute {
+  border: 1.5px solid #C084FC !important;
+  background: linear-gradient(135deg, #9333EA 0%, #6B21A8 100%) !important;
+  color: #FFFFFF !important;
+}
+
+/* ธีมที่ 14: Sunset Ember - สไตล์สีส้มอมชมพูพระอาทิตย์ตก สดใส อบอุ่น */
+.theme-sunset-ember, html.theme-sunset-ember {
+  --bg-vibrant: #FFF7ED;
+  --text-vibrant: #431407;
+}
+
+.theme-sunset-ember.dark, html.theme-sunset-ember.dark, .dark.theme-sunset-ember, .theme-sunset-ember .dark {
+  --bg-vibrant: #1C0A06;
+  --text-vibrant: #FFF7ED;
+}
+
+.theme-sunset-ember body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-sunset-ember .card {
+  background-color: #FFFFFF !important;
+  border: 1.5px solid #FFEDD5 !important;
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.08) !important;
+  border-radius: 18px !important;
+}
+
+.theme-sunset-ember.dark .card,
+.theme-sunset-ember .dark .card,
+.dark.theme-sunset-ember .card {
+  background-color: #2E120A !important;
+  border: 1.5px solid #7C2D12 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45) !important;
+  color: #FFF7ED !important;
+}
+
+.theme-sunset-ember .btn-cute {
+  border: 1.5px solid #EA580C !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #F97316 0%, #E11D48 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3) !important;
+  font-weight: 700;
+}
+
+.theme-sunset-ember.dark .btn-cute,
+.theme-sunset-ember .dark .btn-cute,
+.dark.theme-sunset-ember .btn-cute {
+  border: 1.5px solid #FB923C !important;
+  background: linear-gradient(135deg, #EA580C 0%, #BE123C 100%) !important;
+  color: #FFFFFF !important;
+}
+
+/* ธีมพิเศษที่ 15: Gundam Mecha HUD - หุ่นยนต์รบ หุ่นยนต์ไซเบอร์ Cyber HUD */
+.theme-gundam-mecha, html.theme-gundam-mecha {
+  --bg-vibrant: #0B1021;
+  --text-vibrant: #E2E8F0;
+}
+
+.theme-gundam-mecha body {
+  background-color: #0B1021 !important;
+  background-image: radial-gradient(rgba(14, 165, 233, 0.15) 1px, transparent 1px), radial-gradient(rgba(234, 179, 8, 0.1) 1px, #0B1021 1px) !important;
+  background-size: 24px 24px !important;
+  color: #F8FAFC !important;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
+}
+
+.theme-gundam-mecha .card {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 2px solid #0EA5E9 !important;
+  box-shadow: 0 0 15px rgba(14, 165, 233, 0.25), inset 0 0 15px rgba(14, 165, 233, 0.05), 4px 4px 0px #EAB308 !important;
+  border-radius: 6px !important;
+  position: relative !important;
+  color: #F8FAFC !important;
+}
+
+.theme-gundam-mecha .card::before {
+  content: 'RX-78 HUD SYSTEM' !important;
+  position: absolute !important;
+  top: -10px !important;
+  right: 16px !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  background: #EAB308 !important;
+  color: #0F172A !important;
+  padding: 1px 6px !important;
+  border-radius: 2px !important;
+}
+
+.theme-gundam-mecha .btn-cute {
+  border: 2px solid #0EA5E9 !important;
+  border-radius: 4px !important;
+  background: linear-gradient(135deg, #0284C7 0%, #0F172A 100%) !important;
+  color: #38BDF8 !important;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.4) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.theme-gundam-mecha .btn-cute:hover {
+  background: linear-gradient(135deg, #0EA5E9 0%, #0369A1 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.7) !important;
+}
+
+/* ธีมพิเศษที่ 16: Naruto Ninja Scroll - นินจาคาถา คัมภีร์โคโนฮะ */
+.theme-naruto-ninja, html.theme-naruto-ninja {
+  --bg-vibrant: #FFF7ED;
+  --text-vibrant: #451A03;
+}
+
+.theme-naruto-ninja.dark, html.theme-naruto-ninja.dark, .dark.theme-naruto-ninja, .theme-naruto-ninja .dark {
+  --bg-vibrant: #1F1009;
+  --text-vibrant: #FFEDD5;
+}
+
+.theme-naruto-ninja body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+}
+
+.theme-naruto-ninja .card {
+  background-color: #FFFBEB !important;
+  border: 2.5px solid #EA580C !important;
+  box-shadow: 5px 5px 0px #78350F, inset 0 0 12px rgba(245, 158, 11, 0.15) !important;
+  border-radius: 14px !important;
+  position: relative !important;
+}
+
+.theme-naruto-ninja.dark .card,
+.theme-naruto-ninja .dark .card,
+.dark.theme-naruto-ninja .card {
+  background-color: #2D1810 !important;
+  border: 2.5px solid #F97316 !important;
+  box-shadow: 5px 5px 0px #F59E0B, inset 0 0 12px rgba(249, 115, 22, 0.2) !important;
+  color: #FFEDD5 !important;
+}
+
+.theme-naruto-ninja .card::after {
+  content: '📜 🍃 KONOHA' !important;
+  position: absolute !important;
+  top: -12px !important;
+  left: 16px !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  background: #EA580C !important;
+  color: #FFFFFF !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid #78350F !important;
+}
+
+.theme-naruto-ninja .btn-cute {
+  border: 2px solid #78350F !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 3px 3px 0px #78350F !important;
+  font-weight: 900 !important;
+}
+
+.theme-naruto-ninja.dark .btn-cute,
+.theme-naruto-ninja .dark .btn-cute,
+.dark.theme-naruto-ninja .btn-cute {
+  border: 2px solid #F59E0B !important;
+  background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 3px 3px 0px #F59E0B !important;
+}
+
+/* ธีมที่ 17: Lector Modern SaaS Dashboard - สไตล์แดชบอร์ดแดร็กม่วงพรีเมียม Lector UI */
+.theme-lector-purple, html.theme-lector-purple {
+  --bg-vibrant: #F4F5FA;
+  --text-vibrant: #1F2937;
+}
+
+.theme-lector-purple.dark, html.theme-lector-purple.dark, .dark.theme-lector-purple, .theme-lector-purple .dark {
+  --bg-vibrant: #0F1117;
+  --text-vibrant: #F3F4F6;
+}
+
+.theme-lector-purple body {
+  background-color: var(--bg-vibrant) !important;
+  color: var(--text-vibrant) !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+}
+
+.theme-lector-purple .card {
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 4px 20px -2px rgba(139, 92, 246, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.03) !important;
+  border-radius: 18px !important;
+}
+
+.theme-lector-purple.dark .card,
+.theme-lector-purple .dark .card,
+.dark.theme-lector-purple .card {
+  background: #181B26 !important;
+  border: 1px solid #2D3245 !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5) !important;
+  color: #F3F4F6 !important;
+}
+
+.theme-lector-purple .btn-cute {
+  border: none !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #A855F7 0%, #EC4899 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.35) !important;
+  font-weight: 800 !important;
+  transition: all 0.2s ease !important;
+}
+
+.theme-lector-purple .btn-cute:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px 0 rgba(168, 85, 247, 0.45) !important;
+}
+
+.theme-lector-purple.dark .btn-cute,
+.theme-lector-purple .dark .btn-cute,
+.dark.theme-lector-purple .btn-cute {
+  border: none !important;
+  background: linear-gradient(135deg, #9333EA 0%, #DB2777 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px 0 rgba(147, 51, 234, 0.4) !important;
+}
+
 /* Fallback default styles if theme class not set */
 .card {
   background: white;

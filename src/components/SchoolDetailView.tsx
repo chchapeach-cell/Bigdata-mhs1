@@ -495,16 +495,8 @@ export default function SchoolDetailView({
     try {
       const schoolRef = doc(db, 'schools', school.id);
       
-      const textMajors = editMajorsStr.split(',').map(m => m.trim()).filter(m => m !== '');
-      const listMajors = editMajorsWithStaff.map(m => m.name);
-      const combinedMajors = Array.from(new Set([...textMajors, ...listMajors]));
-      const updatedMajorsWithStaff = combinedMajors.map(name => {
-        const found = editMajorsWithStaff.find(m => m.name === name);
-        return {
-          name,
-          teachersCount: found ? found.teachersCount : 1
-        };
-      });
+      const combinedMajors = editMajorsWithStaff.map(m => m.name.trim()).filter(Boolean);
+      const updatedMajorsWithStaff = editMajorsWithStaff;
 
       const updatedData = {
         name: editName || '',
@@ -1382,14 +1374,6 @@ export default function SchoolDetailView({
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs">วิชาเอกที่มีผู้เชี่ยวชาญ:</span>
                 {isEditing ? (
                   <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={editMajorsStr}
-                      onChange={(e) => setEditMajorsStr(e.target.value)}
-                      placeholder="คอมพิวเตอร์, คณิตศาสตร์, ภาษาไทย (แยกด้วยจุลภาค)"
-                      className="w-full rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
-                    />
-                    
                     {/* ส่วน Interactive สำหรับจัดการวิชาเอกพร้อมจำนวนครู */}
                     <div className="bg-[#FFF9F5] dark:bg-slate-900 p-3 rounded-xl border border-[#33272A]/30 space-y-2.5">
                       <span className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
