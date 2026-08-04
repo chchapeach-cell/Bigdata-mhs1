@@ -45,7 +45,7 @@ export function formatFirestoreError(error: any): FormattedError {
       message: 'ระบบกำลังประมวลผลด้วยข้อมูลสำรองในเครื่องเพื่อเปิดใช้งานได้อย่างต่อเนื่อง',
       isQuotaError: true,
       consoleUrl: FIREBASE_CONSOLE_UPGRADE_URL,
-      rawError: errorStr
+      rawError: 'Firestore quota limit reached'
     };
   }
 
