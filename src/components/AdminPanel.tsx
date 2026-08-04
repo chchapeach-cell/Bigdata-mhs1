@@ -280,6 +280,139 @@ export default function AdminPanel({
     return [];
   }, [isSuperAdmin, userProfile, schools]);
 
+  // State สำหรับค้นหาชื่อโรงเรียนในตารางจัดการโรงเรียน
+  const [manageSchoolSearchQuery, setManageSchoolSearchQuery] = useState<string>('');
+  // State สำหรับกรองตามสถานะการอัปเดตข้อมูล (ทั้งหมด / เขียว / เหลือง / แดง)
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'green' | 'yellow' | 'red'>('all');
+
+  // ฟังก์ชันคำนวณและประมวลผลสถานะการอัปเดตข้อมูลล่าสุดของสถานศึกษา
+  const getSchoolUpdateStatus = (updatedAt: any) => {
+    if (!updatedAt) {
+      return {
+        status: 'red',
+        label: 'ไม่ได้อัปเดต > 7 เดือน',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+        dotClass: 'bg-rose-500',
+        timeText: 'ยังไม่มีบันทึกเวลา'
+      };
+    }
+
+    try {
+      let dateObj: Date;
+      if (typeof updatedAt === 'string') {
+        dateObj = new Date(updatedAt);
+      } else if (typeof updatedAt === 'number') {
+        dateObj = new Date(updatedAt);
+      } else if (updatedAt && typeof updatedAt.toDate === 'function') {
+        dateObj = updatedAt.toDate();
+      } else if (updatedAt && typeof updatedAt.seconds === 'number') {
+        dateObj = new Date(updatedAt.seconds * 1000);
+      } else {
+        dateObj = new Date(updatedAt);
+      }
+
+      if (isNaN(dateObj.getTime())) {
+        return {
+          status: 'red',
+          label: 'ไม่ได้อัปเดต > 7 เดือน',
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+          dotClass: 'bg-rose-500',
+          timeText: 'ยังไม่มีบันทึกเวลา'
+        };
+      }
+
+      const now = new Date();
+      const diffMs = now.getTime() - dateObj.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      const formattedDate = dateObj.toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: '2-digit'
+      });
+
+      // 1. สีเขียว: อัปเดตไม่เกิน 3 เดือน (<= 90 วัน)
+      if (diffDays <= 90) {
+        return {
+          status: 'green',
+          label: 'อัปเดต < 3 เดือน',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800',
+          dotClass: 'bg-emerald-500 animate-pulse',
+          timeText: formattedDate,
+          diffDays
+        };
+      }
+      // 2. สีเหลือง: ข้อมูลไม่ได้อัปเดตมา 3-6 เดือน (> 90 วัน ถึง <= 210 วัน หรือ 6-7 เดือน)
+      else if (diffDays <= 210) {
+        return {
+          status: 'yellow',
+          label: 'ไม่ได้อัปเดต 3-6 เดือน',
+          badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800',
+          dotClass: 'bg-amber-500',
+          timeText: formattedDate,
+          diffDays
+        };
+      }
+      // 3. สีแดง: ไม่ได้อัปเดตข้อมูลมาแล้วมากกว่า 7 เดือนขึ้นไป (> 210 วัน)
+      else {
+        return {
+          status: 'red',
+          label: 'ไม่ได้อัปเดต > 7 เดือน',
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+          dotClass: 'bg-rose-500',
+          timeText: formattedDate,
+          diffDays
+        };
+      }
+    } catch (e) {
+      return {
+        status: 'red',
+        label: 'ไม่ได้อัปเดต > 7 เดือน',
+        badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800',
+        dotClass: 'bg-rose-500',
+        timeText: 'ยังไม่มีบันทึกเวลา'
+      };
+    }
+  };
+
+  // คำนวณจำนวนสถานศึกษาตามแต่ละสถานะสี
+  const schoolStatusCounts = useMemo(() => {
+    const counts = { all: manageableSchools.length, green: 0, yellow: 0, red: 0 };
+    manageableSchools.forEach(s => {
+      const st = getSchoolUpdateStatus(s.updatedAt);
+      if (st.status === 'green') counts.green++;
+      else if (st.status === 'yellow') counts.yellow++;
+      else if (st.status === 'red') counts.red++;
+    });
+    return counts;
+  }, [manageableSchools]);
+
+  // กรองรายชื่อโรงเรียนตามคำค้นหาและสถานะสีที่กดเลือก
+  const filteredManageableSchools = useMemo(() => {
+    let result = manageableSchools;
+
+    // กรองตามสีสถานะ
+    if (selectedStatusFilter !== 'all') {
+      result = result.filter(s => {
+        const st = getSchoolUpdateStatus(s.updatedAt);
+        return st.status === selectedStatusFilter;
+      });
+    }
+
+    // กรองตามคำค้นหา
+    const queryStr = manageSchoolSearchQuery.trim().toLowerCase();
+    if (queryStr) {
+      result = result.filter(s => 
+        (s.name || '').toLowerCase().includes(queryStr) ||
+        (s.id || '').toLowerCase().includes(queryStr) ||
+        (s.amphoe || '').toLowerCase().includes(queryStr) ||
+        (s.networkGroup || '').toLowerCase().includes(queryStr)
+      );
+    }
+
+    return result;
+  }, [manageableSchools, manageSchoolSearchQuery, selectedStatusFilter]);
+
   // State สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<UserProfile[]>([]);
@@ -1661,7 +1794,9 @@ export default function AdminPanel({
         directorImageUrl: editDirectorImageUrl,
         specialHighlights: editSpecialHighlights.trim(),
         majorSubjects: combinedMajors,
-        majorSubjectsWithStaff: updatedMajorsWithStaff
+        majorSubjectsWithStaff: updatedMajorsWithStaff,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'ผู้ดูแลระบบ')
       };
 
       try {
@@ -1913,7 +2048,9 @@ export default function AdminPanel({
                 directorPhone: "081-2345678",
                 schoolPhone: "053-611000",
                 imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
-                majorSubjects: ["คอมพิวเตอร์/เทคโนโลยี", "คณิตศาสตร์", "ภาษาไทย", "ภาษาอังกฤษ"]
+                majorSubjects: ["คอมพิวเตอร์/เทคโนโลยี", "คณิตศาสตร์", "ภาษาไทย", "ภาษาอังกฤษ"],
+                updatedAt: new Date().toISOString(),
+                updatedBy: 'ระบบนำเข้าข้อมูล Excel'
               }, { merge: true });
             } catch (e) {
               handleFirestoreError(e, OperationType.WRITE, `schools/${schoolId}`);
@@ -3745,18 +3882,116 @@ export default function AdminPanel({
                 )}
               </div>
 
-              {/* ตารางแสดงรายชื่อโรงเรียนที่สามารถจัดการข้อมูลได้ (แสดงเฉพาะ Super Admin เพื่อเลือกโรงเรียนที่ต้องการแก้ไขหรือลบ) */}
-              {isSuperAdmin && (
+              {/* ตารางแสดงรายชื่อโรงเรียนที่สามารถจัดการข้อมูลได้ */}
+              {manageableSchools.length > 0 && (
                 <div className="card p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]">
                     <div>
-                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        รายชื่อสถานศึกษาในสังกัด ({manageableSchools.length} โรงเรียน)
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                        <span>รายชื่อสถานศึกษาในสังกัด ({filteredManageableSchools.length} / {manageableSchools.length} โรงเรียน)</span>
                       </h3>
-                      <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-                        คลิกปุ่ม "แก้ไขข้อมูล" เพื่อดึงข้อมูลโรงเรียนขึ้นมาแก้ไขด้านบน
+                      <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                        แสดงสถานะการอัปเดตข้อมูลล่าสุด และคลิกปุ่ม "แก้ไขข้อมูล" เพื่อเลือกโรงเรียนที่ต้องการแก้ไข
                       </p>
                     </div>
+
+                    {/* ปุ่มกรองสถานะสีข้อมูล (Filter Buttons) */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStatusFilter('all')}
+                        className={`px-3 py-1.5 rounded-full border-2 transition-all cursor-pointer font-black flex items-center gap-1.5 ${
+                          selectedStatusFilter === 'all'
+                            ? 'bg-[#33272A] text-white border-[#33272A] dark:bg-[#FFD3B6] dark:text-[#33272A] dark:border-[#FFD3B6] shadow-xs scale-105'
+                            : 'bg-white text-[#33272A] border-[#33272A]/30 hover:border-[#33272A] dark:bg-slate-800 dark:text-[#FFF9F5] dark:border-[#FFD3B6]/30 dark:hover:border-[#FFD3B6]'
+                        }`}
+                      >
+                        <span>ทั้งหมด</span>
+                        <span className="px-1.5 py-0.2 bg-black/15 dark:bg-black/25 rounded-full text-[10px]">
+                          {schoolStatusCounts.all}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'green' ? 'all' : 'green')}
+                        className={`px-3 py-1.5 rounded-full border-2 transition-all cursor-pointer font-black flex items-center gap-1.5 ${
+                          selectedStatusFilter === 'green'
+                            ? 'bg-emerald-600 text-white border-emerald-800 shadow-md scale-105 ring-2 ring-emerald-400 dark:bg-emerald-600 dark:border-emerald-400'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
+                        }`}
+                        title="คลิกเพื่อกรองแสดงเฉพาะโรงเรียนที่อัปเดตไม่เกิน 3 เดือน"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-300 animate-pulse"></span>
+                        <span>อัปเดตไม่เกิน 3 เดือน</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          selectedStatusFilter === 'green' ? 'bg-emerald-800 text-white' : 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100'
+                        }`}>
+                          {schoolStatusCounts.green}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'yellow' ? 'all' : 'yellow')}
+                        className={`px-3 py-1.5 rounded-full border-2 transition-all cursor-pointer font-black flex items-center gap-1.5 ${
+                          selectedStatusFilter === 'yellow'
+                            ? 'bg-amber-500 text-white border-amber-800 shadow-md scale-105 ring-2 ring-amber-400 dark:bg-amber-600 dark:border-amber-400'
+                            : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800'
+                        }`}
+                        title="คลิกเพื่อกรองแสดงเฉพาะโรงเรียนที่ไม่ได้อัปเดต 3-6 เดือน"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-300"></span>
+                        <span>ไม่ได้อัปเดต 3-6 เดือน</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          selectedStatusFilter === 'yellow' ? 'bg-amber-800 text-white' : 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100'
+                        }`}>
+                          {schoolStatusCounts.yellow}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'red' ? 'all' : 'red')}
+                        className={`px-3 py-1.5 rounded-full border-2 transition-all cursor-pointer font-black flex items-center gap-1.5 ${
+                          selectedStatusFilter === 'red'
+                            ? 'bg-rose-600 text-white border-rose-800 shadow-md scale-105 ring-2 ring-rose-400 dark:bg-rose-600 dark:border-rose-400'
+                            : 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800'
+                        }`}
+                        title="คลิกเพื่อกรองแสดงเฉพาะโรงเรียนที่ไม่ได้อัปเดตมากกว่า 7 เดือนขึ้นไป"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-rose-500 dark:bg-rose-300"></span>
+                        <span>ไม่ได้อัปเดต &gt; 7 เดือน</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          selectedStatusFilter === 'red' ? 'bg-rose-800 text-white' : 'bg-rose-200 text-rose-900 dark:bg-rose-900 dark:text-rose-100'
+                        }`}>
+                          {schoolStatusCounts.red}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ช่องค้นหาชื่อโรงเรียน */}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-[#33272A]/50 dark:text-[#FFF9F5]/50" />
+                    </div>
+                    <input
+                      type="text"
+                      value={manageSchoolSearchQuery}
+                      onChange={(e) => setManageSchoolSearchQuery(e.target.value)}
+                      placeholder="🔍 ค้นหาชื่อสถานศึกษา, รหัสโรงเรียน, อำเภอ หรือกลุ่มเครือข่าย..."
+                      className="input-cute pl-9 pr-8 py-2 w-full text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] bg-white dark:bg-slate-800/80 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    {manageSchoolSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setManageSchoolSearchQuery('')}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
                   <div className="overflow-x-auto rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
@@ -3765,49 +4000,72 @@ export default function AdminPanel({
                         <tr className="bg-[#FFF9F5] dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
                           <th className="p-3">รหัสโรงเรียน</th>
                           <th className="p-3">ชื่อสถานศึกษา</th>
-                          <th className="p-3">อำเภอ</th>
+                          <th className="p-3">อำเภอ / เครือข่าย</th>
+                          <th className="p-3 text-center">ประวัติอัปเดตล่าสุด</th>
                           <th className="p-3 text-center">ครู (คน)</th>
                           <th className="p-3 text-center">จัดการ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-bold">
-                        {manageableSchools.length === 0 ? (
+                        {filteredManageableSchools.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="p-6 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 font-bold">
-                              ไม่พบข้อมูลสถานศึกษาในระบบ
+                            <td colSpan={6} className="p-6 text-center text-[#33272A]/60 dark:text-[#FFF9F5]/60 font-bold">
+                              {manageSchoolSearchQuery ? `ไม่พบโรงเรียนที่ตรงกับคำค้นหา "${manageSchoolSearchQuery}"` : 'ไม่พบข้อมูลสถานศึกษาในระบบ'}
                             </td>
                           </tr>
                         ) : (
-                          manageableSchools.map((s) => (
-                            <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
-                              <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6]">{s.id}</td>
-                              <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
-                              <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">{s.amphoe}</td>
-                              <td className="p-3 text-center">{s.staffCount}</td>
-                              <td className="p-3 text-center">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedSchoolId(s.id);
-                                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                                    }}
-                                    className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
-                                    title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
-                                  >
-                                    <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
-                                    className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
-                                  >
-                                    <Trash2 className="h-3 w-3" /> ลบโรงเรียน
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
+                          filteredManageableSchools.map((s) => {
+                            const statusInfo = getSchoolUpdateStatus(s.updatedAt);
+                            return (
+                              <tr key={s.id} className="hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40">
+                                <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] whitespace-nowrap">{s.id}</td>
+                                <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">{s.name}</td>
+                                <td className="p-3 text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+                                  <div>{s.amphoe || '-'}</div>
+                                  {s.networkGroup && (
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{s.networkGroup}</div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center whitespace-nowrap">
+                                  <div className="inline-flex flex-col items-center gap-1">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border ${statusInfo.badgeClass}`}>
+                                      <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dotClass}`}></span>
+                                      {statusInfo.label}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                      {statusInfo.timeText}
+                                      {s.updatedBy ? ` (${s.updatedBy})` : ''}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-center">{s.staffCount}</td>
+                                <td className="p-3 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedSchoolId(s.id);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                      }}
+                                      className="btn-cute bg-amber-400 text-[#33272A] px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-amber-500 inline-flex items-center gap-1"
+                                      title="แก้ไขข้อมูลพื้นฐานโรงเรียนนี้"
+                                    >
+                                      <Edit3 className="h-3 w-3" /> แก้ไขข้อมูล
+                                    </button>
+                                    {isSuperAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSchoolAdmin(s.id, s.name)}
+                                        className="btn-cute bg-rose-500 text-white px-2.5 py-1 text-[11px] font-black cursor-pointer hover:bg-rose-600 inline-flex items-center gap-1"
+                                      >
+                                        <Trash2 className="h-3 w-3" /> ลบโรงเรียน
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>

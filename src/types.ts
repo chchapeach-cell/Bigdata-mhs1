@@ -68,6 +68,8 @@ export interface School {
   size: 'small' | 'medium' | 'large' | 'special_large'; // ขนาดโรงเรียน (วิเคราะห์จากจำนวนนักเรียน)
   isExpansion: boolean; // โรงเรียนขยายโอกาส (มีนักเรียน ม.1 - ม.3)
   specialHighlights?: string; // ความพิเศษ / จุดเด่นของโรงเรียน
+  updatedAt?: string | any; // เวลาอัปเดตข้อมูลล่าสุด
+  updatedBy?: string; // ผู้ทำการแก้ไขข้อมูลล่าสุด
 }
 
 export interface GradeData {

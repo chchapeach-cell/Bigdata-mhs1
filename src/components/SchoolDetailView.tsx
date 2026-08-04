@@ -8,7 +8,7 @@ import {
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, Droplets,
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
   Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
-  Mail, ExternalLink, MessageCircle
+  Mail, ExternalLink, MessageCircle, Clock, History, UserCheck
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -347,7 +347,11 @@ export default function SchoolDetailView({
 
       const cleanClassrooms = JSON.parse(JSON.stringify(updatedList));
       const schoolRef = doc(db, 'schools', school.id);
-      await setDoc(schoolRef, { classrooms: cleanClassrooms }, { merge: true });
+      await setDoc(schoolRef, { 
+        classrooms: cleanClassrooms,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน')
+      }, { merge: true });
       
       setClassrooms(updatedList);
       setIsClassroomModalOpen(false);
@@ -369,7 +373,11 @@ export default function SchoolDetailView({
     try {
       const updatedList = (school.classrooms || []).filter(c => c.id !== classroomId);
       const schoolRef = doc(db, 'schools', school.id);
-      await setDoc(schoolRef, { classrooms: updatedList }, { merge: true });
+      await setDoc(schoolRef, { 
+        classrooms: updatedList,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน')
+      }, { merge: true });
       
       setClassrooms(updatedList);
       setSuccessMsg('ลบรายการเรียบร้อยแล้ว!');
@@ -525,7 +533,9 @@ export default function SchoolDetailView({
         latitude: Number(editLatitude) || 19.3,
         longitude: Number(editLongitude) || 97.9,
         size: editSize || 'small',
-        isExpansion: !!editIsExpansion
+        isExpansion: !!editIsExpansion,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอนมินประจำโรงเรียน')
       };
 
       const cleanData = JSON.parse(JSON.stringify(updatedData));
@@ -565,6 +575,43 @@ export default function SchoolDetailView({
     const lng = isEditing ? editLongitude : school.longitude;
     return `https://maps.google.com/maps?q=${lat},${lng}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
   }, [school.latitude, school.longitude, isEditing, editLatitude, editLongitude]);
+
+  // แปลงรูปแบบ timestamp จาก field updatedAt ในเอกสารของโรงเรียน
+  const formattedLastUpdated = useMemo(() => {
+    if (!school.updatedAt) return null;
+    try {
+      let d: Date | null = null;
+      if (typeof school.updatedAt === 'string') {
+        d = new Date(school.updatedAt);
+      } else if (typeof school.updatedAt === 'number') {
+        d = new Date(school.updatedAt);
+      } else if (school.updatedAt && typeof school.updatedAt.toDate === 'function') {
+        d = school.updatedAt.toDate();
+      } else if (school.updatedAt && typeof school.updatedAt.seconds === 'number') {
+        d = new Date(school.updatedAt.seconds * 1000);
+      }
+
+      if (!d || isNaN(d.getTime())) return null;
+
+      const day = d.getDate();
+      const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      const month = thaiMonths[d.getMonth()];
+      const year = d.getFullYear() + 543;
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+
+      return {
+        fullText: `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`,
+        dateOnly: `${day} ${month} ${year}`,
+        timeOnly: `${hours}:${minutes} น.`
+      };
+    } catch (e) {
+      return null;
+    }
+  }, [school.updatedAt]);
 
   // สถานะปีการศึกษาที่กำลังดูในหน้ารายละเอียดโรงเรียน
   const [selectedYear, setSelectedYear] = useState<string>(
@@ -1493,6 +1540,46 @@ export default function SchoolDetailView({
             )}
           </div>
         )}
+
+        {/* กล่องประวัติการอัปเดตข้อมูลล่าสุด (Last Updated History Box) */}
+        <div className="p-4 sm:p-5 border-t-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-[#A0E7E5]/30 border-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#A0E7E5] shrink-0 shadow-xs">
+              <Clock className="h-5 w-5 text-[#2e6d6b] dark:text-[#A0E7E5]" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  ประวัติการอัปเดตข้อมูลล่าสุด (Last Updated)
+                </h4>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  ข้อมูลเป็นปัจจุบัน
+                </span>
+              </div>
+              <p className="text-xs font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+                {formattedLastUpdated ? (
+                  <span>เวลาบันทึกแก้ไขล่าสุด: <strong className="text-[#FF8BA7] dark:text-[#FF8BA7] font-black">{formattedLastUpdated.fullText}</strong></span>
+                ) : (
+                  <span className="text-slate-500 dark:text-slate-400 font-bold">ยังไม่มีบันทึกเวลาแก้ไขในระบบ (ระบบจะบันทึก timestamp อัตโนมัติเมื่อมีการกดบันทึกแก้ไขข้อมูล)</span>
+                )}
+              </p>
+              {school.updatedBy && (
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1 mt-0.5">
+                  <UserCheck className="h-3.5 w-3.5 text-[#FF8BA7] shrink-0" />
+                  <span>ผู้แก้ไขล่าสุด: <strong className="font-bold">{school.updatedBy}</strong></span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            <div className="text-[10px] font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 bg-white dark:bg-slate-800 border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
+              <History className="h-3.5 w-3.5 text-[#FF8BA7]" />
+              <span>รหัสสถานศึกษา: {school.id}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* รายละเอียดจำนวนนักเรียน + แผนที่ Google Maps */}

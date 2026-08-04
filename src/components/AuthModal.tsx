@@ -1,11 +1,12 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { School, UserProfile } from '../types';
-import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn, ExternalLink } from 'lucide-react';
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, db, OperationType, handleFirestoreError } from '../firebase';
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
 import { signOut } from 'firebase/auth';
+import { formatFirestoreError } from '../utils/errorHelper';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -70,34 +71,24 @@ export default function AuthModal({
         return;
       }
 
-      // ดึงโปรไฟล์ผู้ใช้จาก Firestore dmc-mhs1
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDocSnap;
-      try {
-        userDocSnap = await getDoc(userDocRef);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.GET, `users/${user.uid}`);
-      }
-
-      // กรณีพิเศษ: อีเมลที่ได้รับอนุมัติเป็น Super Admin อัตโนมัติทันที
+      // ตรวจสอบว่าเป็น Super Admin ที่กำหนดล่วงหน้าไว้หรือไม่ ก่อนทำการคิวรี Firestore
       const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
       if (isHardcodedSuperAdmin) {
-        const existingData = (userDocSnap && userDocSnap.exists()) ? userDocSnap.data() : null;
         const superAdminProfile: UserProfile = {
           uid: user.uid,
           email: user.email || '',
-          firstName: existingData?.firstName || 'ผู้ดูแลระบบ',
-          lastName: existingData?.lastName || 'ส่วนกลาง',
+          firstName: 'ผู้ดูแลระบบ',
+          lastName: 'ส่วนกลาง',
           schoolId: 'all',
           schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
           role: 'super_admin',
           status: 'approved',
-          createdAt: existingData?.createdAt || serverTimestamp()
+          createdAt: new Date()
         };
         try {
-          await setDoc(userDocRef, superAdminProfile, { merge: true });
+          await setDoc(doc(db, 'users', user.uid), superAdminProfile, { merge: true });
         } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, `users/${user.uid}`);
+          console.warn('Super Admin setDoc warning:', e);
         }
         onAuthSuccess(superAdminProfile);
         setIsLoading(false);
@@ -105,8 +96,23 @@ export default function AuthModal({
         return;
       }
 
+      // ดึงโปรไฟล์ผู้ใช้จาก Firestore dmc-mhs1
+      const userDocRef = doc(db, 'users', user.uid);
+      let userDocSnap;
+      try {
+        userDocSnap = await getDoc(userDocRef);
+      } catch (e) {
+        const formatted = formatFirestoreError(e);
+        if (formatted.isQuotaError) {
+          setErrorMsg(`${formatted.title}: ${formatted.message}`);
+          setIsLoading(false);
+          return;
+        }
+        handleFirestoreError(e, OperationType.GET, `users/${user.uid}`);
+      }
+
       let profile: UserProfile | null = null;
-      if (userDocSnap.exists()) {
+      if (userDocSnap && userDocSnap.exists()) {
         profile = userDocSnap.data() as UserProfile;
       } else {
         // ค้นหาตาม email ในกรณีที่สมัครผ่านฟอร์มด้วย email-sanitized ID
@@ -115,17 +121,22 @@ export default function AuthModal({
         try {
           qSnap = await getDocs(q);
         } catch (e) {
+          const formatted = formatFirestoreError(e);
+          if (formatted.isQuotaError) {
+            setErrorMsg(`${formatted.title}: ${formatted.message}`);
+            setIsLoading(false);
+            return;
+          }
           handleFirestoreError(e, OperationType.LIST, 'users');
         }
-        if (!qSnap.empty) {
+        if (qSnap && !qSnap.empty) {
           const matchedDoc = qSnap.docs[0];
           profile = { ...matchedDoc.data(), uid: matchedDoc.id } as UserProfile;
           
-          // เพื่อความสะดวกในอนาคต อัปเดต uid ของสิทธิ์นี้ให้เชื่อมโยงกับ UID จริงของ Google Authentication
           try {
             await setDoc(doc(db, 'users', user.uid), { ...profile, uid: user.uid }, { merge: true });
           } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+            console.warn('Set doc error:', err);
           }
         }
       }
@@ -158,15 +169,17 @@ export default function AuthModal({
         setIsLoading(false);
         onClose();
       } else {
-        // ไม่มีข้อมูลผู้ใช้ในระบบ (เมลยังไม่ได้สมัคร/ไม่ตรงกับฐานข้อมูลสิทธิ์)
         setErrorMsg('ไม่พบบัญชีอีเมลนี้ในฐานข้อมูลสิทธิ์การเป็นแอดมิน กรุณาสมัครคำขอสิทธิ์ลงทะเบียนด้านล่างก่อน');
         await signOut(auth).catch(() => {});
         setIsLoading(false);
       }
     } catch (error: any) {
-      console.error(error);
+      console.error('Google login error:', error);
       setIsLoading(false);
-      if (error.code === 'auth/popup-blocked') {
+      const formatted = formatFirestoreError(error);
+      if (formatted.isQuotaError) {
+        setErrorMsg(`${formatted.title}: ${formatted.message}`);
+      } else if (error.code === 'auth/popup-blocked') {
         setErrorMsg('ป๊อปอัปเข้าสู่ระบบถูกบล็อกโดยเบราว์เซอร์ของคุณ กรุณาอนุญาตหน้าต่างป๊อปอัปหรือเปลี่ยนเบราว์เซอร์');
       } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         setErrorMsg('หน้าต่างลงชื่อเข้าใช้ถูกยกเลิกหรือถูกปิดก่อนที่จะทำรายการเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
@@ -175,7 +188,7 @@ export default function AuthModal({
       } else if (error.code === 'auth/unauthorized-domain') {
         setErrorMsg('⚠️ โดเมนปัจจุบันยังไม่ได้ถูกตั้งค่าเป็น Authorized Domain ในระบบ Firebase Console ของคุณ กรุณาตั้งค่าโดเมนในหน้า Authentication');
       } else {
-        setErrorMsg(`เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google: ${error.message || error.code || 'Unknown Error'}`);
+        setErrorMsg(`เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google: ${formatted.message || error.message || error.code || 'Unknown Error'}`);
       }
     }
   };
@@ -191,35 +204,40 @@ export default function AuthModal({
       const result = await signInWithEmailAndPassword(auth, email, password);
       const user = result.user;
       
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDocSnap;
-      try {
-        userDocSnap = await getDoc(userDocRef);
-      } catch (e) {
-        handleFirestoreError(e, OperationType.GET, `users/${user.uid}`);
-      }
-
       const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
       if (isHardcodedSuperAdmin) {
-        const existingData = (userDocSnap && userDocSnap.exists()) ? userDocSnap.data() : null;
         const superAdminProfile: UserProfile = {
           uid: user.uid,
           email: user.email || '',
-          firstName: existingData?.firstName || 'ผู้ดูแลระบบ',
-          lastName: existingData?.lastName || 'ส่วนกลาง',
+          firstName: 'ผู้ดูแลระบบ',
+          lastName: 'ส่วนกลาง',
           schoolId: 'all',
           schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
           role: 'super_admin',
           status: 'approved',
-          createdAt: existingData?.createdAt || serverTimestamp()
+          createdAt: new Date()
         };
         try {
-          await setDoc(userDocRef, superAdminProfile, { merge: true });
-        } catch (e) {}
+          await setDoc(doc(db, 'users', user.uid), superAdminProfile, { merge: true });
+        } catch (err) {}
         onAuthSuccess(superAdminProfile);
         setIsLoading(false);
         onClose();
         return;
+      }
+
+      const userDocRef = doc(db, 'users', user.uid);
+      let userDocSnap;
+      try {
+        userDocSnap = await getDoc(userDocRef);
+      } catch (err) {
+        const formatted = formatFirestoreError(err);
+        if (formatted.isQuotaError) {
+          setErrorMsg(`${formatted.title}: ${formatted.message}`);
+          setIsLoading(false);
+          return;
+        }
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
       }
 
       if (userDocSnap && userDocSnap.exists()) {
@@ -237,7 +255,6 @@ export default function AuthModal({
           return;
         }
 
-        // ตรวจสอบโควตาการเข้าใช้งานพร้อมกัน 70 คน
         const concurrencyCheck = await checkActiveUsersConcurrency(profile);
         if (!concurrencyCheck.allowed) {
           setErrorMsg(concurrencyCheck.message || 'ขออภัยในความไม่สะดวก มีผู้ใช้งานเข้าระบบเต็มจำนวนแล้ว');
@@ -256,10 +273,13 @@ export default function AuthModal({
     } catch (error: any) {
       console.error(error);
       setIsLoading(false);
-      if (error.code === 'auth/operation-not-allowed') {
+      const formatted = formatFirestoreError(error);
+      if (formatted.isQuotaError) {
+        setErrorMsg(`${formatted.title}: ${formatted.message}`);
+      } else if (error.code === 'auth/operation-not-allowed') {
         setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเปิดใช้งานที่ Authentication > Sign-in method');
       } else {
-        setErrorMsg(`เข้าสู่ระบบไม่สำเร็จ: ${error.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'}`);
+        setErrorMsg(`เข้าสู่ระบบไม่สำเร็จ: ${formatted.message || error.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'}`);
       }
     }
   };
@@ -472,9 +492,22 @@ export default function AuthModal({
 
           {/* Error & Success Messages */}
           {errorMsg && (
-            <div className="rounded-2xl bg-rose-50 border-2 border-[#33272A] p-3 text-xs font-black text-rose-700 flex gap-1.5 items-start">
-              <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-600 mt-0.5" />
-              <span>{errorMsg}</span>
+            <div className="rounded-2xl bg-rose-50 border-2 border-[#33272A] p-3 text-xs font-black text-rose-700 flex flex-col gap-2 items-start">
+              <div className="flex gap-1.5 items-start">
+                <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-600 mt-0.5" />
+                <span className="leading-relaxed">{errorMsg}</span>
+              </div>
+              {(errorMsg.includes('Quota') || errorMsg.includes('โควตา') || errorMsg.includes('Free daily read')) && (
+                <a
+                  href="https://console.firebase.google.com/project/mhs1-dmc/firestore/databases/ai-studio-mhs1bigdata-b097cba8-6fe0-43e2-ad20-e20681250b82/data?openUpgradeDialog=true"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl border border-rose-800 text-[11px] font-bold hover:bg-rose-700 transition-colors shadow-sm"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>เปิด Firebase Console เพื่ออัปเกรดแผน / ดูการใช้งาน</span>
+                </a>
+              )}
             </div>
           )}
           {successMsg && (
