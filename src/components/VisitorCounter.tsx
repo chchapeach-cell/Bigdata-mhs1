@@ -38,23 +38,20 @@ export default function VisitorCounter() {
       const docRef = doc(db, 'system_stats', 'visitor_count');
 
       try {
-        // Listening to realtime visitor statistics updates from Firestore
-        unsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as VisitorData;
-            setVisitorData(data);
-            setTotalVisits(data.totalVisits || 0);
-            if (data.dailyVisits && data.dailyVisits[todayStr]) {
-              setTodayVisits(data.dailyVisits[todayStr]);
-            } else if (data.todayDate === todayStr && data.todayVisits !== undefined) {
-              setTodayVisits(data.todayVisits);
-            } else {
-              setTodayVisits(0);
-            }
+        // Fetch visitor statistics once from Firestore instead of continuous onSnapshot to save quota
+        const docSnap = await getDoc(docRef).catch(() => null);
+        if (docSnap && docSnap.exists()) {
+          const data = docSnap.data() as VisitorData;
+          setVisitorData(data);
+          setTotalVisits(data.totalVisits || 0);
+          if (data.dailyVisits && data.dailyVisits[todayStr]) {
+            setTodayVisits(data.dailyVisits[todayStr]);
+          } else if (data.todayDate === todayStr && data.todayVisits !== undefined) {
+            setTodayVisits(data.todayVisits);
+          } else {
+            setTodayVisits(0);
           }
-        }, (_err) => {
-          // Fallback if offline or listener error
-        });
+        }
 
         // Increment visit count once per browser session
         if (!sessionStorage.getItem(sessionKey)) {

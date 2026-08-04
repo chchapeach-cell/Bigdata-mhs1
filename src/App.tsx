@@ -95,6 +95,7 @@ export default function App() {
     message: string;
     type: 'kicked' | 'blocked';
   } | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(false);
   
   // สถานะการโหลดข้อมูล
   const [isLoading, setIsLoading] = useState(true);
@@ -254,10 +255,10 @@ export default function App() {
     // 1. ลงทะเบียนเซสชันใช้งาน
     registerActiveSession(userProfile);
 
-    // 2. ตั้งเวลาส่ง Heartbeat อัปเดตสถานะออนไลน์ทุก 20 วินาที
+    // 2. ตั้งเวลาส่ง Heartbeat อัปเดตสถานะออนไลน์ทุก 2 นาที (120 วินาที) เพื่อประหยัดโควตาการเขียน/อ่านฐานข้อมูล
     const heartbeatTimer = setInterval(() => {
       sendSessionHeartbeat(userProfile.uid);
-    }, 20000);
+    }, 120000);
 
     // 3. ฟังสถานะ real-time กรณี Super Admin กดเตะออกจากระบบ
     const sessionRef = doc(db, 'active_sessions', userProfile.uid);
@@ -329,25 +330,37 @@ export default function App() {
     }
   }, [systemConfig?.contactEnabled, userProfile?.role, activeTab]);
 
-  // 2. ฟังจำนวน Active Sessions แบบ Real-time เพื่อคำนวณภาระงาน
+  // 2. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน (ไม่เปิด onSnapshot ค้างไว้เพื่อประหยัดโควตาอ่าน)
   const [activeSessionCount, setActiveSessionCount] = useState<number>(1);
   useEffect(() => {
-    const unsubSessions = onSnapshot(collection(db, 'active_sessions'), (snap) => {
-      let activeCount = 0;
-      const now = Date.now();
-      const THREE_MINUTES = 3 * 60 * 1000;
-      snap.forEach((docSnap) => {
-        const d = docSnap.data();
-        if (d && d.lastActiveTime && (now - d.lastActiveTime < THREE_MINUTES) && !d.kicked) {
-          activeCount++;
+    let isMounted = true;
+    const fetchActiveCount = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'active_sessions'));
+        let activeCount = 0;
+        const now = Date.now();
+        const THREE_MINUTES = 3 * 60 * 1000;
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d && d.lastActiveTime && (now - d.lastActiveTime < THREE_MINUTES) && !d.kicked) {
+            activeCount++;
+          }
+        });
+        if (isMounted) {
+          setActiveSessionCount(Math.max(1, activeCount));
         }
-      });
-      setActiveSessionCount(Math.max(1, activeCount));
-    }, (err) => {
-      console.warn('Active sessions snapshot error:', err);
-    });
+      } catch (err) {
+        console.warn('Active sessions query notice:', err);
+      }
+    };
 
-    return () => unsubSessions();
+    fetchActiveCount();
+    const interval = setInterval(fetchActiveCount, 3 * 60 * 1000); // อัปเดตทุก 3 นาที
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // 3. คำนวณภาระทรัพยากรระบบและสถานะของเซิร์ฟเวอร์ (Server Resource Load Calculation)
@@ -383,13 +396,50 @@ export default function App() {
   // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Firestore
   const fetchAllData = async () => {
     setIsLoading(true);
+
+    const CACHE_KEY = 'mhs_app_data_cache_v3';
+    // ตั้งเวลาแคช 10 นาที (600,000 ms) เพื่อประหยัดโควตาการอ่านฐานข้อมูลของ Firebase
+    const CACHE_TTL = 10 * 60 * 1000; 
+
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < CACHE_TTL && parsed.schools && parsed.schools.length > 0) {
+          setSchools(parsed.schools);
+          setStudentData(parsed.students);
+          setStudentGData(parsed.studentsG);
+          
+          if (parsed.systemConfig) {
+            setSystemConfig(parsed.systemConfig);
+          }
+
+          const years = Array.from(new Set((parsed.students as StudentData[]).map(s => s.academicYear)));
+          if (years.length > 0) {
+            years.sort((a, b) => b.localeCompare(a));
+            setAvailableYears(years);
+            if (years.includes(currentBEYear)) {
+              setAcademicYear(currentBEYear);
+            } else {
+              setAcademicYear(years[0]);
+            }
+          }
+          setIsLoading(false);
+          return; // ใช้ข้อมูลจากแคชโดยไม่ต้องดึงจาก Firebase ใหม่
+        }
+      }
+    } catch(e) {
+      // ignore cache read errors
+    }
+
     try {
       // ดึงนโยบายและค่าตั้งค่าระบบ
+      let fetchedConfig = { ...systemConfig };
       try {
         const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
         if (configSnap.exists()) {
           const data = configSnap.data();
-          setSystemConfig({
+          fetchedConfig = {
             allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
             contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
             restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
@@ -404,7 +454,8 @@ export default function App() {
             headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
             headerBannerFit: data.headerBannerFit || 'contain',
             headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
-          });
+          };
+          setSystemConfig(fetchedConfig);
         }
       } catch (e) {
         console.warn('Could not fetch system config from Firestore:', e);
@@ -505,9 +556,56 @@ export default function App() {
         }
       }
 
+      // บันทึกข้อมูลลงใน Local Storage เพื่อใช้เป็นแคชในครั้งต่อไป
+      if (schoolsList.length > 0) {
+        try {
+          const finalStudentsG = studentsGList.length === 0 ? generateInitialStudentGData(schoolsList) : studentsGList;
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            timestamp: Date.now(),
+            systemConfig: fetchedConfig,
+            schools: schoolsList,
+            students: studentsList,
+            studentsG: finalStudentsG
+          }));
+        } catch(e) {
+          // ignore cache write error
+        }
+      }
+
     } catch (error) {
-      console.warn('Notice fetching data (falling back to preset data):', error);
-      // Fallback to initial preset data if network or Firestore fails
+      console.warn('Notice fetching data (falling back to cache or preset data):', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('Quota') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Free daily read') || errMsg.includes('resource-exhausted')) {
+        setIsQuotaExceeded(true);
+      }
+      
+      // ลองใช้ข้อมูลจาก LocalStorage แม้จะหมดเวลาแคช เพื่อรองรับกรณี Quota ลิมิตของ Firebase เต็มในวันนั้น
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.schools && parsed.schools.length > 0) {
+            setSchools(parsed.schools);
+            setStudentData(parsed.students || []);
+            setStudentGData(parsed.studentsG || []);
+            if (parsed.systemConfig) setSystemConfig(parsed.systemConfig);
+            
+            const years = Array.from(new Set(((parsed.students || []) as StudentData[]).map(s => s.academicYear)));
+            if (years.length > 0) {
+              years.sort((a, b) => b.localeCompare(a));
+              setAvailableYears(years);
+              if (years.includes(currentBEYear)) setAcademicYear(currentBEYear);
+              else setAcademicYear(years[0]);
+            }
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (cacheErr) {
+        // ignore cache read error
+      }
+
+      // Fallback to initial preset data if network or Firestore fails and no cache exists
       if (schools.length === 0) {
         const { parseInitialData } = await import('./utils/initialData');
         const initial = parseInitialData('2568');
@@ -534,66 +632,20 @@ export default function App() {
   useEffect(() => {
     fetchAllData();
 
-    // ฟังการเปลี่ยนแปลงข้อมูล schools แบบ Real-time
-    const unsubSchools = onSnapshot(collection(db, 'schools'), (snapshot) => {
-      const list: School[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ ...docSnap.data() } as School);
-      });
-      if (list.length > 0) {
-        setSchools(list);
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason?.message || String(event.reason || '');
+      if (reason.includes('Quota') || reason.includes('quota') || reason.includes('RESOURCE_EXHAUSTED') || reason.includes('Free daily read') || reason.includes('resource-exhausted')) {
+        setIsQuotaExceeded(true);
       }
-    }, (err) => console.warn('Schools real-time listener warning:', err));
-
-    // ฟังการเปลี่ยนแปลงข้อมูล students แบบ Real-time
-    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-      const list: StudentData[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push({ ...docSnap.data(), id: docSnap.id } as StudentData);
-      });
-      if (list.length > 0) {
-        setStudentData(list);
-        const years = Array.from(new Set(list.map(s => s.academicYear)));
-        if (years.length > 0) {
-          years.sort((a, b) => b.localeCompare(a));
-          setAvailableYears(years);
-        }
-      }
-    }, (err) => console.warn('Students real-time listener warning:', err));
-
-    // ฟังการเปลี่ยนแปลงข้อมูล students_g แบบ Real-time
-    const unsubStudentsG = onSnapshot(collection(db, 'students_g'), (snapshot) => {
-      const list: StudentGData[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as StudentGData;
-        let year = data.academicYear;
-        if (!year || !/^\d{4}$/.test(year)) {
-          const parts = docSnap.id.split('_');
-          if (parts.length > 1 && /^\d{4}$/.test(parts[parts.length - 1])) {
-            year = parts[parts.length - 1];
-          }
-        }
-        list.push({
-          ...data,
-          id: docSnap.id,
-          academicYear: year || data.academicYear || 'ไม่ระบุ'
-        });
-      });
-      if (list.length > 0) {
-        setStudentGData(list);
-      }
-    }, (err) => console.warn('Students_g real-time listener warning:', err));
-
-    return () => {
-      unsubSchools();
-      unsubStudents();
-      unsubStudentsG();
     };
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => window.removeEventListener('unhandledrejection', handleRejection);
   }, []);
 
   // ออกจากระบบ
   const handleLogout = async () => {
     await signOut(auth);
+    localStorage.removeItem('mhs_app_data_cache_v3');
     setUserProfile(null);
     setUser(null);
     setActiveTab('dashboard');
@@ -606,6 +658,33 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant transition-colors duration-300 grid-pattern w-full max-w-full overflow-x-clip">
+      {/* QUOTA EXCEEDED ALERT BANNER */}
+      {isQuotaExceeded && (
+        <div className="bg-amber-400 dark:bg-amber-500 text-slate-900 border-b-2 border-slate-900 px-4 py-3 shadow-lg relative z-50 animate-fade-in">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 text-amber-400 rounded-xl shrink-0">
+                <AlertTriangle className="w-5 h-5 animate-bounce" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-xs sm:text-sm text-slate-900">
+                  แจ้งเตือนสมาชิก: โควต้าใช้งานเซิร์ฟเวอร์ประจำวันเต็มแล้ว
+                </h4>
+                <p className="text-xs sm:text-sm font-bold text-slate-950 mt-0.5">
+                  ระบบใช้โควต้า Server free เต็มแล้ว โปรดเข้าใช้หลังเที่ยงคืน ขออภัยในความไม่สะดวก
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsQuotaExceeded(false)}
+              className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition-colors shrink-0 border-2 border-slate-900 shadow-sm cursor-pointer"
+            >
+              รับทราบ
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <Header
         userProfile={userProfile}
@@ -617,6 +696,11 @@ export default function App() {
         setActiveTab={(tab) => {
           setActiveTab(tab);
           setSelectedSchoolId(null); // ล้างค่าเลือกโรงเรียนเมื่อเปลี่ยนแท็บหลัก
+          if (tab === 'admin') {
+            // ล้างแคชเพื่อให้ Admin เห็นข้อมูลล่าสุดเสมอ
+            localStorage.removeItem('mhs_app_data_cache_v3');
+            fetchAllData();
+          }
         }}
         fontSize={fontSize}
         setFontSize={setFontSize}

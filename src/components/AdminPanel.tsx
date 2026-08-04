@@ -10,6 +10,7 @@ import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils
 import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
+import { SupabaseMigrationModal } from './SupabaseMigrationModal';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -43,6 +44,7 @@ export default function AdminPanel({
   setIsDarkMode
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin';
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   // เลือกโรงเรียนที่ต้องการแก้ไข (สำหรับ Super Admin สามารถเลือกได้ทั้งหมด ส่วน School Admin จะถูกล็อกไว้ที่โรงเรียนตนเอง)
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
@@ -2120,14 +2122,23 @@ export default function AdminPanel({
           </div>
         </div>
         {isSuperAdmin && (
-          <button
-            onClick={handleResetAllSchoolData}
-            disabled={isResettingData}
-            className="button bg-rose-500 text-white hover:bg-rose-600 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-4 text-xs font-black disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
-          >
-            <RefreshCw className={`h-4 w-4 ${isResettingData ? 'animate-spin' : ''}`} />
-            {isResettingData ? 'กำลังล้างข้อมูล...' : 'ล้างข้อมูลเป็น 0 ทุกโรงเรียน'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsSupabaseModalOpen(true)}
+              className="button bg-emerald-600 text-white hover:bg-emerald-700 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-3.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
+            >
+              <Database className="h-4 w-4" />
+              <span>เครื่องมือย้ายไป Supabase</span>
+            </button>
+            <button
+              onClick={handleResetAllSchoolData}
+              disabled={isResettingData}
+              className="button bg-rose-500 text-white hover:bg-rose-600 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-4 text-xs font-black disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
+            >
+              <RefreshCw className={`h-4 w-4 ${isResettingData ? 'animate-spin' : ''}`} />
+              {isResettingData ? 'กำลังล้างข้อมูล...' : 'ล้างข้อมูลเป็น 0 ทุกโรงเรียน'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -5604,6 +5615,15 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+      {/* Supabase Migration Modal */}
+      <SupabaseMigrationModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        schools={schools}
+        studentData={studentData}
+        studentGData={studentGData}
+        systemConfig={systemConfig}
+      />
     </div>
   );
 }

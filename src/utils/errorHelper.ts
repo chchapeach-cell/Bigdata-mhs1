@@ -41,8 +41,8 @@ export function formatFirestoreError(error: any): FormattedError {
 
   if (isQuotaExceeded) {
     return {
-      title: 'ไม่สามารถดึงข้อมูลออนไลน์ได้ชั่วคราว',
-      message: 'ระบบกำลังประมวลผลด้วยข้อมูลสำรองในเครื่องเพื่อเปิดใช้งานได้อย่างต่อเนื่อง',
+      title: 'โควต้า Server free เต็มแล้ว',
+      message: 'ระบบใช้โควต้า Server free เต็มแล้ว โปรดเข้าใช้หลังเที่ยงคืน ขออภัยในความไม่สะดวก',
       isQuotaError: true,
       consoleUrl: FIREBASE_CONSOLE_UPGRADE_URL,
       rawError: 'Firestore quota limit reached'
