@@ -90,10 +90,6 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isHighTrafficNoticeOpen, setIsHighTrafficNoticeOpen] = useState<boolean>(false);
-  const [quotaErrorNotice, setQuotaErrorNotice] = useState<{
-    title: string;
-    message: string;
-  } | null>(null);
   const [sessionNoticeModal, setSessionNoticeModal] = useState<{
     title: string;
     message: string;
@@ -211,12 +207,6 @@ export default function App() {
           try {
             userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
           } catch (e) {
-            const formatted = formatFirestoreError(e);
-            if (formatted.isQuotaError) {
-              setQuotaErrorNotice({ title: formatted.title, message: formatted.message });
-              setUserProfile(null);
-              return;
-            }
             handleFirestoreError(e, OperationType.GET, `users/${currentUser.uid}`);
           }
 
@@ -229,12 +219,6 @@ export default function App() {
             try {
               qSnap = await getDocs(q);
             } catch (e) {
-              const formatted = formatFirestoreError(e);
-              if (formatted.isQuotaError) {
-                setQuotaErrorNotice({ title: formatted.title, message: formatted.message });
-                setUserProfile(null);
-                return;
-              }
               handleFirestoreError(e, OperationType.LIST, 'users');
             }
             if (qSnap && !qSnap.empty) {
@@ -254,10 +238,6 @@ export default function App() {
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
-          const formatted = formatFirestoreError(error);
-          if (formatted.isQuotaError) {
-            setQuotaErrorNotice({ title: formatted.title, message: formatted.message });
-          }
         }
       } else {
         setUserProfile(null);
@@ -336,7 +316,7 @@ export default function App() {
         });
       }
     }, (err) => {
-      console.warn('System config snapshot error:', err);
+      console.warn('System config snapshot notice:', err);
     });
 
     return () => unsubConfig();
@@ -427,21 +407,21 @@ export default function App() {
           });
         }
       } catch (e) {
-        console.error('Error fetching system config:', e);
+        console.warn('Could not fetch system config from Firestore:', e);
       }
 
       let schoolsSnapshot;
       try {
         schoolsSnapshot = await getDocs(collection(db, 'schools'));
       } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'schools');
+        console.warn('Could not fetch schools from Firestore:', e);
       }
 
       let studentsSnapshot;
       try {
         studentsSnapshot = await getDocs(collection(db, 'students'));
       } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'students');
+        console.warn('Could not fetch students from Firestore:', e);
       }
 
       let studentsGSnapshot;
@@ -527,10 +507,6 @@ export default function App() {
 
     } catch (error) {
       console.error('Error fetching data:', error);
-      const formatted = formatFirestoreError(error);
-      if (formatted.isQuotaError) {
-        setQuotaErrorNotice({ title: formatted.title, message: formatted.message });
-      }
       // Fallback to initial preset data if network or Firestore fails
       if (schools.length === 0) {
         const { parseInitialData } = await import('./utils/initialData');
@@ -658,36 +634,6 @@ export default function App() {
           ? 'max-w-none px-2 sm:px-4 lg:px-6'
           : 'max-w-7xl px-4 sm:px-6'
       }`}>
-        {quotaErrorNotice && (
-          <div className="mb-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-500 rounded-2xl p-4 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-amber-900 dark:text-amber-200">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-500 text-white rounded-xl font-bold shrink-0 text-lg">⚠️</div>
-              <div>
-                <h4 className="font-extrabold text-sm">{quotaErrorNotice.title}</h4>
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
-                  {quotaErrorNotice.message} ระบบได้สลับไปใช้ข้อมูลสำรองประจำสถาบันเพื่อให้ระบบยังคงทำงานต่อเนื่องได้ปกติ
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
-              <a
-                href={FIREBASE_CONSOLE_UPGRADE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <span>เปิด Firebase Console อัปเกรดแผน</span>
-              </a>
-              <button
-                onClick={() => setQuotaErrorNotice(null)}
-                className="px-3 py-2 bg-white dark:bg-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-100 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 transition-all cursor-pointer"
-              >
-                ปิดคำเตือน
-              </button>
-            </div>
-          </div>
-        )}
-
         {isLoading ? (
           <div className="flex h-96 flex-col items-center justify-center gap-3">
             <RefreshCw className="h-10 w-10 text-rose-500 animate-spin" />

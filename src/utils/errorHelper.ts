@@ -41,8 +41,8 @@ export function formatFirestoreError(error: any): FormattedError {
 
   if (isQuotaExceeded) {
     return {
-      title: '⚠️ โควตาการอ่านข้อมูลของ Firebase Firestore ในวันนี้เต็มแล้ว (Quota Exceeded)',
-      message: 'ปริมาณการอ่านข้อมูลของระบบในแผนบริการฟรีรายวัน (Free Tier / Spark Plan) ได้ใช้งานครบโควตาแล้ว ระบบจะรีเซ็ตโควตาโดยอัตโนมัติในวันถัดไป หรือผู้ดูแลระบบสามารถกดอัปเกรดแผนบริการได้ที่ Firebase Console',
+      title: 'ไม่สามารถดึงข้อมูลออนไลน์ได้ชั่วคราว',
+      message: 'ระบบกำลังประมวลผลด้วยข้อมูลสำรองในเครื่องเพื่อเปิดใช้งานได้อย่างต่อเนื่อง',
       isQuotaError: true,
       consoleUrl: FIREBASE_CONSOLE_UPGRADE_URL,
       rawError: errorStr

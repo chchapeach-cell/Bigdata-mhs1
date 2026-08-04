@@ -104,7 +104,7 @@ export default function AuthModal({
       } catch (e) {
         const formatted = formatFirestoreError(e);
         if (formatted.isQuotaError) {
-          setErrorMsg(`${formatted.title}: ${formatted.message}`);
+          setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
           setIsLoading(false);
           return;
         }
@@ -123,7 +123,7 @@ export default function AuthModal({
         } catch (e) {
           const formatted = formatFirestoreError(e);
           if (formatted.isQuotaError) {
-            setErrorMsg(`${formatted.title}: ${formatted.message}`);
+            setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
             setIsLoading(false);
             return;
           }
@@ -178,7 +178,7 @@ export default function AuthModal({
       setIsLoading(false);
       const formatted = formatFirestoreError(error);
       if (formatted.isQuotaError) {
-        setErrorMsg(`${formatted.title}: ${formatted.message}`);
+        setErrorMsg('การเชื่อมต่อขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/popup-blocked') {
         setErrorMsg('ป๊อปอัปเข้าสู่ระบบถูกบล็อกโดยเบราว์เซอร์ของคุณ กรุณาอนุญาตหน้าต่างป๊อปอัปหรือเปลี่ยนเบราว์เซอร์');
       } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
@@ -233,7 +233,7 @@ export default function AuthModal({
       } catch (err) {
         const formatted = formatFirestoreError(err);
         if (formatted.isQuotaError) {
-          setErrorMsg(`${formatted.title}: ${formatted.message}`);
+          setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
           setIsLoading(false);
           return;
         }
@@ -275,7 +275,7 @@ export default function AuthModal({
       setIsLoading(false);
       const formatted = formatFirestoreError(error);
       if (formatted.isQuotaError) {
-        setErrorMsg(`${formatted.title}: ${formatted.message}`);
+        setErrorMsg('การเชื่อมต่อขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/operation-not-allowed') {
         setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเปิดใช้งานที่ Authentication > Sign-in method');
       } else {
@@ -492,22 +492,9 @@ export default function AuthModal({
 
           {/* Error & Success Messages */}
           {errorMsg && (
-            <div className="rounded-2xl bg-rose-50 border-2 border-[#33272A] p-3 text-xs font-black text-rose-700 flex flex-col gap-2 items-start">
-              <div className="flex gap-1.5 items-start">
-                <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-600 mt-0.5" />
-                <span className="leading-relaxed">{errorMsg}</span>
-              </div>
-              {(errorMsg.includes('Quota') || errorMsg.includes('โควตา') || errorMsg.includes('Free daily read')) && (
-                <a
-                  href="https://console.firebase.google.com/project/mhs1-dmc/firestore/databases/ai-studio-mhs1bigdata-b097cba8-6fe0-43e2-ad20-e20681250b82/data?openUpgradeDialog=true"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl border border-rose-800 text-[11px] font-bold hover:bg-rose-700 transition-colors shadow-sm"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>เปิด Firebase Console เพื่ออัปเกรดแผน / ดูการใช้งาน</span>
-                </a>
-              )}
+            <div className="rounded-2xl bg-rose-50 border-2 border-[#33272A] p-3 text-xs font-black text-rose-700 flex gap-1.5 items-start">
+              <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-600 mt-0.5" />
+              <span className="leading-relaxed">{errorMsg}</span>
             </div>
           )}
           {successMsg && (

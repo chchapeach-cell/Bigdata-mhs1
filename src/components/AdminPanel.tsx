@@ -1670,8 +1670,8 @@ export default function AdminPanel({
       try {
         querySnapshot = await getDocs(q);
       } catch (e) {
-        handleFirestoreError(e, OperationType.LIST, 'users');
-        throw e;
+        console.warn('Could not load pending users:', e);
+        return;
       }
       const list: UserProfile[] = [];
       querySnapshot.forEach(doc => {
