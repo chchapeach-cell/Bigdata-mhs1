@@ -1484,7 +1484,7 @@ export default function AdminPanel({
         if (data.headerBannerEnabled !== undefined) setHeaderBannerEnabled(data.headerBannerEnabled);
       }
     } catch (e) {
-      console.error('Failed to load system settings:', e);
+      console.warn('Failed to load system settings:', e);
     }
   };
 

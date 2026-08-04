@@ -43,7 +43,7 @@ export default function AuthModal({
             setIsRegistrationOpen(snap.data().allowSchoolAdminRegistration);
           }
         } catch(e) {
-           console.error(e);
+           console.warn(e);
         }
       };
       checkConfig();

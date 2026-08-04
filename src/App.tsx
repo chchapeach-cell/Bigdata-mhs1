@@ -207,7 +207,7 @@ export default function App() {
           try {
             userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
           } catch (e) {
-            handleFirestoreError(e, OperationType.GET, `users/${currentUser.uid}`);
+            console.warn('Could not fetch user document:', e);
           }
 
           if (userDocSnap && userDocSnap.exists()) {
@@ -219,7 +219,7 @@ export default function App() {
             try {
               qSnap = await getDocs(q);
             } catch (e) {
-              handleFirestoreError(e, OperationType.LIST, 'users');
+              console.warn('Could not query users by email:', e);
             }
             if (qSnap && !qSnap.empty) {
               const matchedDoc = qSnap.docs[0];
@@ -237,7 +237,7 @@ export default function App() {
             setUserProfile(null);
           }
         } catch (error) {
-          console.error('Error fetching user profile:', error);
+          console.warn('Notice fetching user profile:', error);
         }
       } else {
         setUserProfile(null);
@@ -506,7 +506,7 @@ export default function App() {
       }
 
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.warn('Notice fetching data (falling back to preset data):', error);
       // Fallback to initial preset data if network or Firestore fails
       if (schools.length === 0) {
         const { parseInitialData } = await import('./utils/initialData');
