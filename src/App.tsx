@@ -466,6 +466,7 @@ export default function App() {
         schoolsSnapshot = await getDocs(collection(db, 'schools'));
       } catch (e) {
         console.warn('Could not fetch schools from Firestore:', e);
+        throw e;
       }
 
       let studentsSnapshot;
@@ -473,13 +474,15 @@ export default function App() {
         studentsSnapshot = await getDocs(collection(db, 'students'));
       } catch (e) {
         console.warn('Could not fetch students from Firestore:', e);
+        throw e;
       }
 
       let studentsGSnapshot;
       try {
         studentsGSnapshot = await getDocs(collection(db, 'students_g'));
       } catch (e) {
-        // collection may be new
+        console.warn('Could not fetch students_g from Firestore:', e);
+        // collection may be new, so we don't strictly throw here, but if we have quota issues, schools or students will fail first.
       }
       
       const schoolsList: School[] = [];
