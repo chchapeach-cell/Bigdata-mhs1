@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Database, Copy, Check, ExternalLink, Download, Upload, Shield, AlertTriangle, Key, Server } from 'lucide-react';
-import { isSupabaseConfigured, SUPABASE_SCHEMA_SQL } from '../lib/supabase';
+import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff } from 'lucide-react';
+import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL } from '../lib/supabase';
 
 interface SupabaseMigrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   schools: any[];
   studentData: any[];
-  studentGData: any[];
-  systemConfig: any;
+  studentGData?: any[];
+  systemConfig?: any;
 }
 
 export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
@@ -16,26 +16,47 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
   onClose,
   schools,
   studentData,
-  studentGData,
+  studentGData = [],
   systemConfig
 }) => {
-  const [copied, setCopied] = useState(false);
+  const [copiedSchema, setCopiedSchema] = useState(false);
+  const [copiedRls, setCopiedRls] = useState(false);
   const env = (import.meta as any).env || {};
   const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('override_supabase_url') || env.VITE_SUPABASE_URL || '');
   const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('override_supabase_anon_key') || env.VITE_SUPABASE_ANON_KEY || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Migration states
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<string>('');
+  const [migrationProgress, setMigrationProgress] = useState<number>(0);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
+  const [isRlsError, setIsRlsError] = useState<boolean>(false);
+  const [migrationSuccess, setMigrationSuccess] = useState<boolean>(false);
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
-  const handleCopySQL = () => {
+  const handleCopySchema = () => {
     navigator.clipboard.writeText(SUPABASE_SCHEMA_SQL);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+    setCopiedSchema(true);
+    setTimeout(() => setCopiedSchema(false), 3000);
+  };
+
+  const handleCopyRls = () => {
+    navigator.clipboard.writeText(SUPABASE_FIX_RLS_SQL);
+    setCopiedRls(true);
+    setTimeout(() => setCopiedRls(false), 3000);
   };
 
   const handleSaveCredentials = () => {
-    if (supabaseUrl.trim()) {
-      localStorage.setItem('override_supabase_url', supabaseUrl.trim());
+    let cleanUrl = supabaseUrl.trim();
+    if (cleanUrl && !cleanUrl.startsWith('http')) {
+      cleanUrl = 'https://' + cleanUrl;
+      setSupabaseUrl(cleanUrl);
+    }
+    if (cleanUrl) {
+      localStorage.setItem('override_supabase_url', cleanUrl);
     } else {
       localStorage.removeItem('override_supabase_url');
     }
@@ -50,7 +71,29 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     setTimeout(() => {
       setSaveSuccess(false);
       window.location.reload();
-    }, 1500);
+    }, 1200);
+  };
+
+  const handleTestConnection = async () => {
+    setTestStatus('กำลังทดสอบการเชื่อมต่อ...');
+    if (!supabase) {
+      setTestStatus('❌ ยังไม่ได้ตั้งค่า URL หรือ Anon Key ของ Supabase');
+      return;
+    }
+    try {
+      const { data, error } = await supabase.from('schools').select('id').limit(1);
+      if (error) {
+        if (error.message?.includes('row-level security') || error.code === '42501') {
+          setTestStatus('⚠️ เชื่อมต่อได้ แต่ติดขัดสิทธิ์ Row-Level Security (RLS) - กรุณากดปุ่ม "คัดลอก SQL ปลดล็อกสิทธิ์ RLS" แล้ว Run ใน Supabase SQL Editor');
+        } else {
+          setTestStatus(`❌ การเชื่อมต่อล้มเหลว: ${error.message} (กรุณารันคำสั่ง SQL ในขั้นตอนที่ 2 เพื่อสร้างตารางก่อน)`);
+        }
+      } else {
+        setTestStatus('✅ เชื่อมต่อ Supabase สำเร็จแล้ว! พร้อมสำหรับการย้ายข้อมูล');
+      }
+    } catch (err: any) {
+      setTestStatus(`❌ เกิดข้อผิดพลาด: ${err.message || 'ไม่สามารถเชื่อมต่อได้'}`);
+    }
   };
 
   const handleExportJSONData = () => {
@@ -74,6 +117,149 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     downloadAnchor.remove();
   };
 
+  const handleStartMigration = async () => {
+    if (!supabase) {
+      setMigrationError('ยังไม่ได้ตั้งค่า Supabase Credentials กรุณากรอก URL และ Key ในขั้นตอนที่ 3 แล้วกดบันทึกก่อน');
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationError(null);
+    setIsRlsError(false);
+    setMigrationSuccess(false);
+    setMigrationProgress(5);
+    setMigrationStatus('กำลังเริ่มต้นกระบวนการย้ายข้อมูลไปยัง Supabase...');
+
+    try {
+      // 1. Sync Schools
+      setMigrationStatus(`กำลังย้ายข้อมูลสถานศึกษา (Schools) ทั้งหมด ${schools.length} แห่ง...`);
+      setMigrationProgress(15);
+
+      const mappedSchools = schools.map((s) => ({
+        id: String(s.id),
+        name: s.name || '',
+        district: s.district || '',
+        amphoe: s.amphoe || null,
+        network_group: s.networkGroup || s.network_group || null,
+        internet_type: s.internetType || s.internet_type || null,
+        electricity: s.electricity || null,
+        water_system: s.waterSystem || s.water_system || null,
+        water_system_detail: s.waterSystemDetail || s.water_system_detail || null,
+        solar_kw: s.solarKw || s.solar_kw || null,
+        has_solar_battery: Boolean(s.hasSolarBattery),
+        solar_battery_capacity: s.solarBatteryCapacity || s.solar_battery_capacity || null,
+        staff_count: Number(s.staffCount) || 0,
+        major_subjects: s.majorSubjects || [],
+        major_subjects_with_staff: s.majorSubjectsWithStaff || [],
+        classrooms: s.classrooms || [],
+        director_phone: s.directorPhone || s.director_phone || null,
+        school_phone: s.schoolPhone || s.school_phone || null,
+        email: s.email || null,
+        facebook: s.facebook || null,
+        line: s.line || null,
+        website: s.website || null,
+        address: s.address || null,
+        image_url: s.imageUrl || s.image_url || null,
+        logo_url: s.logoUrl || s.logo_url || null,
+        director_image_url: s.directorImageUrl || s.director_image_url || null,
+        latitude: Number(s.latitude) || 0,
+        longitude: Number(s.longitude) || 0,
+        size: s.size || 'small',
+        is_expansion: Boolean(s.isExpansion),
+        special_highlights: s.specialHighlights || s.special_highlights || null
+      }));
+
+      // Batch insert schools
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < mappedSchools.length; i += BATCH_SIZE) {
+        const batch = mappedSchools.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('schools').upsert(batch, { onConflict: 'id' });
+        if (error) {
+          if (error.message?.includes('row-level security') || error.code === '42501') {
+            setIsRlsError(true);
+            throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง schools: ${error.message}`);
+          }
+          throw new Error(`ล้มเหลวในการบันทึก Schools: ${error.message}`);
+        }
+      }
+
+      setMigrationProgress(45);
+
+      // 2. Sync Student Data
+      setMigrationStatus(`กำลังย้ายข้อมูลนักเรียน (Students) ทั้งหมด ${studentData.length} รายการ...`);
+      const mappedStudents = studentData.map((st) => ({
+        id: String(st.id || `${st.schoolId}_${st.academicYear}`),
+        school_id: String(st.schoolId || st.school_id),
+        school_name: st.schoolName || st.school_name || '',
+        academic_year: String(st.academicYear || st.academic_year || '2567'),
+        grades: st.grades || {},
+        total_male: Number(st.totalMale ?? st.total_male) || 0,
+        total_female: Number(st.totalFemale ?? st.total_female) || 0,
+        total_students: Number(st.totalStudents ?? st.total_students) || 0
+      }));
+
+      for (let i = 0; i < mappedStudents.length; i += BATCH_SIZE) {
+        const batch = mappedStudents.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('students').upsert(batch, { onConflict: 'id' });
+        if (error) {
+          if (error.message?.includes('row-level security') || error.code === '42501') {
+            setIsRlsError(true);
+            throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง students: ${error.message}`);
+          }
+          throw new Error(`ล้มเหลวในการบันทึก Students: ${error.message}`);
+        }
+      }
+
+      setMigrationProgress(75);
+
+      // 3. Sync Student G Data
+      setMigrationStatus(`กำลังย้ายข้อมูลนักเรียนรหัส G (Students G) ทั้งหมด ${studentGData.length} รายการ...`);
+      const mappedStudentsG = (studentGData || []).map((sg) => ({
+        id: String(sg.id || `${sg.schoolId}_g_${sg.academicYear}`),
+        school_id: String(sg.schoolId || sg.school_id),
+        school_name: sg.schoolName || sg.school_name || '',
+        academic_year: String(sg.academicYear || sg.academic_year || '2567'),
+        total_g_students: Number(sg.totalGStudents ?? sg.total_g_students) || 0,
+        male_g_count: Number(sg.maleGCount ?? sg.male_g_count) || 0,
+        female_g_count: Number(sg.femaleGCount ?? sg.female_g_count) || 0,
+        notes: sg.notes || null
+      }));
+
+      if (mappedStudentsG.length > 0) {
+        for (let i = 0; i < mappedStudentsG.length; i += BATCH_SIZE) {
+          const batch = mappedStudentsG.slice(i, i + BATCH_SIZE);
+          const { error } = await supabase.from('students_g').upsert(batch, { onConflict: 'id' });
+          if (error) {
+            if (error.message?.includes('row-level security') || error.code === '42501') {
+              setIsRlsError(true);
+              throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง students_g: ${error.message}`);
+            }
+            throw new Error(`ล้มเหลวในการบันทึก Students G: ${error.message}`);
+          }
+        }
+      }
+
+      // 4. Sync System Config
+      if (systemConfig) {
+        await supabase.from('settings').upsert([
+          {
+            id: 'system_config',
+            config: systemConfig
+          }
+        ], { onConflict: 'id' });
+      }
+
+      setMigrationProgress(100);
+      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ)`);
+      setMigrationSuccess(true);
+    } catch (err: any) {
+      console.error('Migration error:', err);
+      setMigrationError(err.message || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุในการย้ายข้อมูล');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative my-8">
@@ -90,10 +276,10 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-              คู่มือและเครื่องมือเตรียมพร้อมย้ายไป Supabase
+              เครื่องมือย้ายข้อมูลเข้า Supabase (PostgreSQL Migration)
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              ลดโควตาอ่านเขียนและประหยัดค่าใช้จ่ายด้วยระบบ PostgreSQL บน Supabase
+              นำเข้าข้อมูลสถานศึกษาและนักเรียนจากระบบเข้าสู่ Supabase Database
             </p>
           </div>
         </div>
@@ -112,40 +298,63 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
                   สถานะการเชื่อมต่อปัจจุบัน: {isSupabaseConfigured() ? 'เชื่อมต่อ Supabase แล้ว' : 'ใช้ Firebase Firestore (ยังไม่ได้ตั้งค่า Supabase)'}
                 </div>
                 <div className="text-xs opacity-80 mt-0.5">
-                  {isSupabaseConfigured() ? 'ระบบประมวลผลผ่าน Supabase Database' : 'สามารถใช้งาน Firebase หรือสลับมา Supabase ได้ตลอดเวลา'}
+                  {isSupabaseConfigured() ? 'พร้อมส่งข้อมูลและประมวลผลผ่าน Supabase Database' : 'สามารถสลับไปใช้ Supabase ได้ตลอดเวลา'}
                 </div>
               </div>
             </div>
+            {isSupabaseConfigured() && (
+              <button
+                onClick={handleTestConnection}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                ทดสอบการเชื่อมต่อ
+              </button>
+            )}
           </div>
+
+          {testStatus && (
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700">
+              {testStatus}
+            </div>
+          )}
 
           {/* Step 1 */}
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">1</span>
-              สร้างโครงการบน Supabase (ฟรี 500 MB / 50,000 อ่านต่อวัน)
+              สร้างโครงการบน Supabase
             </h3>
-            <p className="mb-3 text-slate-500 dark:text-slate-400">
-              ไปที่ <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline font-medium inline-flex items-center gap-1">supabase.com <ExternalLink className="w-3 h-3" /></a> แล้วกดสมัครใช้งานสร้าง Project ใหม่ฟรี
+            <p className="mb-3 text-slate-500 dark:text-slate-400 text-xs">
+              ไปที่ <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline font-medium inline-flex items-center gap-1">supabase.com <ExternalLink className="w-3 h-3" /></a> แล้วกดสร้าง Project ใหม่ฟรี
             </p>
           </div>
 
           {/* Step 2 */}
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">2</span>
-                สร้างตารางฐานข้อมูลอัตโนมัติ (SQL Schema Script)
+                สร้างโครงสร้างตารางและปลดล็อกสิทธิ์ RLS
               </h3>
-              <button
-                onClick={handleCopySQL}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'คัดลอก SQL แล้ว!' : 'คัดลอกคำสั่ง SQL'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopySchema}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copiedSchema ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedSchema ? 'คัดลอก SQL แล้ว!' : 'คัดลอก SQL สร้างตาราง'}
+                </button>
+                <button
+                  onClick={handleCopyRls}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                >
+                  {copiedRls ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <ShieldOff className="w-3.5 h-3.5" />}
+                  {copiedRls ? 'คัดลอกคำสั่งปลดล็อก RLS แล้ว!' : 'คัดลอก SQL ปลดล็อก RLS'}
+                </button>
+              </div>
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-xs mb-2">
-              นำคำสั่ง SQL ไปวางที่ Supabase Dashboard &rarr; <b>SQL Editor</b> แล้วกด <b>Run</b> เพื่อสร้างตารางทั้งหมดทันที
+              นำคำสั่ง SQL ทั้งหมดไปวางที่ Supabase Dashboard &rarr; <b>SQL Editor</b> แล้วกด <b>Run</b> เพื่อสร้างตารางและเปิดสิทธิ์การบันทึกข้อมูล
             </p>
             <div className="bg-slate-900 text-emerald-400 p-3 rounded-lg text-xs font-mono max-h-32 overflow-y-auto border border-slate-800">
               <pre>{SUPABASE_SCHEMA_SQL}</pre>
@@ -156,30 +365,8 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">3</span>
-              ส่งออกสำรองข้อมูลจาก Firebase ทั้งหมด (JSON Backup)
+              ใส่ Supabase Credentials
             </h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs mb-3">
-              ดาวน์โหลดข้อมูลโรงเรียน ({schools.length} แห่ง) และข้อมูลนักเรียนทั้งหมดในระบบเก็บไว้เป็นไฟล์สำรอง
-            </p>
-            <button
-              onClick={handleExportJSONData}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              ดาวน์โหลดไฟล์สำรองข้อมูลระบบ (JSON)
-            </button>
-          </div>
-
-          {/* Step 4 */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">4</span>
-              ใส่ Supabase Credentials เพื่อเชื่อมต่อระบบ
-            </h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs mb-3">
-              คัดลอก Project URL และ anon public key จาก Supabase (Project Settings &rarr; API) มาวางที่นี่:
-            </p>
-
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -207,10 +394,10 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-1">
                 <button
                   onClick={handleSaveCredentials}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
                 >
                   <Key className="w-4 h-4" />
                   บันทึกการตั้งค่าการเชื่อมต่อ
@@ -223,12 +410,98 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Step 4: ACTION - MIGRATE NOW */}
+          <div className="bg-emerald-950/10 dark:bg-emerald-950/30 rounded-xl p-5 border-2 border-emerald-500/40">
+            <h3 className="font-extrabold text-emerald-800 dark:text-emerald-300 mb-2 text-base flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black">4</span>
+              🚀 เริ่มย้ายและซิงค์ข้อมูลเข้า Supabase (Migrate Now)
+            </h3>
+            <p className="text-slate-600 dark:text-slate-300 text-xs mb-4">
+              กดปุ่มด้านล่างเพื่อส่งข้อมูลสถานศึกษา ({schools.length} แห่ง) ข้อมูลนักเรียน ({studentData.length} รายการ) และนักเรียนรหัส G ({studentGData.length} รายการ) เข้าตารางบน Supabase ทันที
+            </p>
+
+            {isMigrating && (
+              <div className="space-y-2 mb-4">
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-full transition-all duration-300"
+                    style={{ width: `${migrationProgress}%` }}
+                  />
+                </div>
+                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  {migrationStatus}
+                </div>
+              </div>
+            )}
+
+            {migrationSuccess && (
+              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold mb-4 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                {migrationStatus}
+              </div>
+            )}
+
+            {migrationError && (
+              <div className="p-4 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-xl text-xs font-medium mb-4 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300 text-sm">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600" />
+                  ย้ายข้อมูลไม่สำเร็จ: {migrationError}
+                </div>
+                {isRlsError ? (
+                  <div className="p-3 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 rounded-lg text-amber-900 dark:text-amber-200 space-y-2 text-xs">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                      <ShieldOff className="w-4 h-4 text-amber-600" />
+                      วิธีแก้ไขปัญหาติดขัดสิทธิ์ Row-Level Security (RLS) บน Supabase:
+                    </div>
+                    <ol className="list-decimal pl-4 space-y-1 text-xs">
+                      <li>ไปที่ Supabase Dashboard &rarr; เปิดเมนู <b>SQL Editor</b></li>
+                      <li>กดปุ่ม <b>"คัดลอก SQL ปลดล็อก RLS"</b> ด้านล่างนี้</li>
+                      <li>นำโค้ดไปวางใน SQL Editor แล้วกดปุ่ม <b>Run</b> 1 ครั้ง</li>
+                      <li>กลับมากดปุ่ม <b>"ย้ายข้อมูลทั้งหมดเข้า Supabase ทันที"</b> อีกครั้ง</li>
+                    </ol>
+                    <button
+                      onClick={handleCopyRls}
+                      className="mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                    >
+                      {copiedRls ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                      {copiedRls ? 'คัดลอกคำสั่งปลดล็อก RLS เรียบร้อยแล้ว!' : 'คัดลอก SQL ปลดล็อก RLS ทันที'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-[11px] opacity-90">
+                    คำแนะนำ: ตรวจสอบว่าได้กด Run คำสั่ง SQL ในขั้นตอนที่ 2 เพื่อสร้างตาราง และตั้งค่า URL/Key ถูกต้องแล้ว
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={handleStartMigration}
+                disabled={isMigrating}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-extrabold transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+              >
+                <Send className={`w-4 h-4 ${isMigrating ? 'animate-bounce' : ''}`} />
+                {isMigrating ? 'กำลังย้ายข้อมูลไป Supabase...' : 'ย้ายข้อมูลทั้งหมดเข้า Supabase ทันที'}
+              </button>
+
+              <button
+                onClick={handleExportJSONData}
+                className="px-4 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                ดาวน์โหลดไฟล์สำรองข้อมูล (JSON)
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+            className="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >
             ปิดหน้าต่าง
           </button>
@@ -237,3 +510,4 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     </div>
   );
 };
+

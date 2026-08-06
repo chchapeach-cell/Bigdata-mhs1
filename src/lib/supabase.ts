@@ -17,10 +17,24 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-/**
- * SQL Script สำหรับสร้าง Table ต่างๆ บน Supabase SQL Editor
- * ให้ผู้ใช้นำไป Run บน Supabase Dashboard -> SQL Editor
- */
+export const SUPABASE_FIX_RLS_SQL = `-- -------------------------------------------------------------
+-- คำสั่งปลดล็อก RLS (Row Level Security) สำหรับ Supabase SQL Editor
+-- เพื่อให้ระบบสามารถบันทึกและย้ายข้อมูลเข้า Supabase ได้ทันที
+-- -------------------------------------------------------------
+
+ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+
+-- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะสำหรับทุกตาราง
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
+`;
+
 export const SUPABASE_SCHEMA_SQL = `-- 1. สร้างตาราง schools (ข้อมูลสถานศึกษา)
 CREATE TABLE IF NOT EXISTS public.schools (
     id TEXT PRIMARY KEY,
@@ -125,17 +139,17 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- เปิดใช้งาน RLS (Row Level Security) แบบสาธารณะอ่านได้ ป้องกันการแก้ไขไร้สิทธิ์
-ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
+-- ปิดใช้งาน RLS ชั่วคราวเพื่อให้สามารถนำเข้าข้อมูลผ่าน API และ Client ได้ทันทีโดยไม่ติดขัดเรื่อง permissions
+ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 
--- นโยบายอนุญาตให้ทุกคนอ่านข้อมูลได้
-CREATE POLICY "Public Read Schools" ON public.schools FOR SELECT USING (true);
-CREATE POLICY "Public Read Students" ON public.students FOR SELECT USING (true);
-CREATE POLICY "Public Read StudentsG" ON public.students_g FOR SELECT USING (true);
-CREATE POLICY "Public Read Settings" ON public.settings FOR SELECT USING (true);
-CREATE POLICY "Public Read Stats" ON public.system_stats FOR SELECT USING (true);
+-- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะ
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 `;
+

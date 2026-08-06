@@ -6,6 +6,7 @@ import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyl
 import { generateInitialStudentGData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatFirestoreError, FIREBASE_CONSOLE_UPGRADE_URL } from './utils/errorHelper';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowDataDownload: true,
@@ -434,6 +435,91 @@ export default function App() {
     }
 
     try {
+      // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
+      if (supabase && isSupabaseConfigured()) {
+        try {
+          const { data: suSchools, error: suErr } = await supabase.from('schools').select('*');
+          if (!suErr && suSchools && suSchools.length > 0) {
+            const mappedSchools: School[] = suSchools.map(s => ({
+              id: s.id,
+              name: s.name,
+              district: s.district,
+              amphoe: s.amphoe,
+              networkGroup: s.network_group,
+              internetType: s.internet_type,
+              electricity: s.electricity,
+              waterSystem: s.water_system,
+              waterSystemDetail: s.water_system_detail,
+              solarKw: s.solar_kw,
+              hasSolarBattery: s.has_solar_battery,
+              solarBatteryCapacity: s.solar_battery_capacity,
+              staffCount: s.staff_count,
+              majorSubjects: s.major_subjects || [],
+              majorSubjectsWithStaff: s.major_subjects_with_staff || [],
+              classrooms: s.classrooms || [],
+              directorPhone: s.director_phone,
+              schoolPhone: s.school_phone,
+              email: s.email,
+              facebook: s.facebook,
+              line: s.line,
+              website: s.website,
+              address: s.address,
+              imageUrl: s.image_url,
+              logoUrl: s.logo_url,
+              directorImageUrl: s.director_image_url,
+              latitude: s.latitude,
+              longitude: s.longitude,
+              size: s.size,
+              isExpansion: s.is_expansion,
+              specialHighlights: s.special_highlights
+            }));
+
+            const { data: suStudents } = await supabase.from('students').select('*');
+            const mappedStudents: StudentData[] = (suStudents || []).map(st => ({
+              id: st.id,
+              schoolId: st.school_id,
+              schoolName: st.school_name,
+              academicYear: st.academic_year,
+              grades: st.grades || {},
+              totalMale: st.total_male,
+              totalFemale: st.total_female,
+              totalStudents: st.total_students
+            }));
+
+            const { data: suStudentsG } = await supabase.from('students_g').select('*');
+            const mappedStudentsG: StudentGData[] = (suStudentsG || []).map(sg => ({
+              id: sg.id,
+              schoolId: sg.school_id,
+              schoolName: sg.school_name,
+              academicYear: sg.academic_year,
+              totalGStudents: sg.total_g_students,
+              maleGCount: sg.male_g_count,
+              femaleGCount: sg.female_g_count,
+              notes: sg.notes
+            }));
+
+            setSchools(mappedSchools);
+            setStudentData(mappedStudents);
+            setStudentGData(mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools));
+
+            const years = Array.from(new Set(mappedStudents.map(s => s.academicYear)));
+            if (years.length > 0) {
+              years.sort((a, b) => b.localeCompare(a));
+              setAvailableYears(years);
+              if (years.includes(currentBEYear)) {
+                setAcademicYear(currentBEYear);
+              } else {
+                setAcademicYear(years[0]);
+              }
+            }
+            setIsLoading(false);
+            return;
+          }
+        } catch (suEx) {
+          console.warn('Notice reading from Supabase:', suEx);
+        }
+      }
+
       // ดึงนโยบายและค่าตั้งค่าระบบ
       let fetchedConfig = { ...systemConfig };
       try {
