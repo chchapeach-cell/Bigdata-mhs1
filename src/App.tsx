@@ -314,6 +314,7 @@ export default function App() {
           headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
           headerBannerFit: data.headerBannerFit || 'contain',
           headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
+          contactChannels: data.contactChannels || undefined,
         });
       }
     }, (err) => {
@@ -454,6 +455,7 @@ export default function App() {
             headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
             headerBannerFit: data.headerBannerFit || 'contain',
             headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
+            contactChannels: data.contactChannels || undefined,
           };
           setSystemConfig(fetchedConfig);
         }
@@ -583,25 +585,36 @@ export default function App() {
       }
       
       // ลองใช้ข้อมูลจาก LocalStorage แม้จะหมดเวลาแคช เพื่อรองรับกรณี Quota ลิมิตของ Firebase เต็มในวันนั้น
+      let loadedFromCache = false;
       try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed.schools && parsed.schools.length > 0) {
             setSchools(parsed.schools);
-            setStudentData(parsed.students || []);
-            setStudentGData(parsed.studentsG || []);
             if (parsed.systemConfig) setSystemConfig(parsed.systemConfig);
             
-            const years = Array.from(new Set(((parsed.students || []) as StudentData[]).map(s => s.academicYear)));
+            let cachedStudents = parsed.students || [];
+            let cachedStudentsG = parsed.studentsG || [];
+            
+            if (cachedStudents.length === 0) {
+              const { parseInitialData } = await import('./utils/initialData');
+              const initial = parseInitialData('2568');
+              cachedStudents = initial.students;
+              cachedStudentsG = generateInitialStudentGData(initial.schools);
+            }
+            
+            setStudentData(cachedStudents);
+            setStudentGData(cachedStudentsG);
+            
+            const years = Array.from(new Set((cachedStudents as StudentData[]).map(s => s.academicYear)));
             if (years.length > 0) {
               years.sort((a, b) => b.localeCompare(a));
               setAvailableYears(years);
               if (years.includes(currentBEYear)) setAcademicYear(currentBEYear);
               else setAcademicYear(years[0]);
             }
-            setIsLoading(false);
-            return;
+            loadedFromCache = true;
           }
         }
       } catch (cacheErr) {
@@ -609,7 +622,7 @@ export default function App() {
       }
 
       // Fallback to initial preset data if network or Firestore fails and no cache exists
-      if (schools.length === 0) {
+      if (!loadedFromCache) {
         const { parseInitialData } = await import('./utils/initialData');
         const initial = parseInitialData('2568');
         setSchools(initial.schools);
@@ -671,10 +684,10 @@ export default function App() {
               </div>
               <div>
                 <h4 className="font-extrabold text-xs sm:text-sm text-slate-900">
-                  แจ้งเตือนสมาชิก: โควต้าใช้งานเซิร์ฟเวอร์ประจำวันเต็มแล้ว
+                  แจ้งเตือนผู้เข้าใช้บริการ: ระบบถึงขีดจำกัดของ Firebase แล้ว
                 </h4>
                 <p className="text-xs sm:text-sm font-bold text-slate-950 mt-0.5">
-                  ระบบใช้โควต้า Server free เต็มแล้ว โปรดเข้าใช้หลังเที่ยงคืน ขออภัยในความไม่สะดวก
+                  โปรดเข้ามาใช้ใหม่ในเวลา 14.00 น. เนื่องจากถึงขีดจำกัดแล้ว ขออภัยในความไม่สะดวก
                 </p>
               </div>
             </div>

@@ -554,31 +554,22 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
   return { schools, students };
 }
 
-// สร้างข้อมูลนักเรียนรหัส G ตัวอย่างหลายปีการศึกษา
+// สร้างข้อมูลตั้งต้นรหัส G (เริ่มต้นเป็น 0 ทุกโรงเรียน กรณีไม่มีบันทึกข้อมูลจริง)
 export function generateInitialStudentGData(schools: School[]) {
   const years = ['2565', '2566', '2567', '2568'];
   const gList: any[] = [];
 
-  schools.forEach((s, idx) => {
-    // ให้โรงเรียนในเขตชายแดน / พื้นที่ปางมะผ้า / ปาย / เมือง มีอัตราส่วนนักเรียนตัว G
-    const isBorder = s.amphoe === 'ปางมะผ้า' || s.amphoe === 'ปาย' || s.amphoe === 'เมืองแม่ฮ่องสอน';
-    const baseG = isBorder ? Math.floor(15 + (idx % 8) * 6) : Math.floor(2 + (idx % 4) * 2);
-
-    years.forEach((yr, yIdx) => {
-      const growth = 1 + yIdx * 0.12; // มีการเติบโตขึ้นตามปีการศึกษา
-      const totalG = Math.round(baseG * growth);
-      const maleG = Math.round(totalG * 0.52);
-      const femaleG = totalG - maleG;
-
+  schools.forEach((s) => {
+    years.forEach((yr) => {
       gList.push({
         id: `${s.id}_${yr}`,
         schoolId: s.id,
         schoolName: s.name,
         academicYear: yr,
-        totalGStudents: totalG,
-        maleGCount: maleG,
-        femaleGCount: femaleG,
-        notes: isBorder ? 'นักเรียนกลุ่มไม่มีหลักฐานทางทะเบียนราษฎร (รหัส G)' : 'นักเรียนตัว G'
+        totalGStudents: 0,
+        maleGCount: 0,
+        femaleGCount: 0,
+        notes: 'ไม่มีข้อมูลนักเรียนรหัส G (0 คน)'
       });
     });
   });

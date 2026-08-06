@@ -14,13 +14,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with specific databaseId and offline persistence
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+// Initialize Firestore with specific databaseId
+import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 
 const db = initializeFirestore(
   app,
   {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: memoryLocalCache()
   },
   'ai-studio-mhs1bigdata-b097cba8-6fe0-43e2-ad20-e20681250b82'
 );

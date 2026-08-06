@@ -41,8 +41,8 @@ export function formatFirestoreError(error: any): FormattedError {
 
   if (isQuotaExceeded) {
     return {
-      title: 'โควต้า Server free เต็มแล้ว',
-      message: 'ระบบใช้โควต้า Server free เต็มแล้ว โปรดเข้าใช้หลังเที่ยงคืน ขออภัยในความไม่สะดวก',
+      title: 'ระบบถึงขีดจำกัดของ Firebase แล้ว',
+      message: 'โปรดเข้ามาใช้ใหม่ในเวลา 14.00 น. เนื่องจากถึงขีดจำกัดแล้ว ขออภัยในความไม่สะดวก',
       isQuotaError: true,
       consoleUrl: FIREBASE_CONSOLE_UPGRADE_URL,
       rawError: 'Firestore quota limit reached'
@@ -55,4 +55,24 @@ export function formatFirestoreError(error: any): FormattedError {
     isQuotaError: false,
     rawError: errorStr
   };
+}
+
+/**
+ * Strips undefined properties recursively from an object/array so Firestore setDoc/updateDoc won't throw unsupported field value errors
+ */
+export function removeUndefinedFields<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefinedFields) as unknown as T;
+  }
+  if (typeof obj === 'object' && !(obj instanceof Date)) {
+    const cleaned: any = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (val !== undefined) {
+        cleaned[key] = removeUndefinedFields(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
 }

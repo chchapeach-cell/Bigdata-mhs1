@@ -1,6 +1,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import { ContactChannel, SystemConfig, UserProfile } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { removeUndefinedFields } from '../utils/errorHelper';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
   Phone, Mail, MessageCircle, Globe, MapPin, QrCode, Share2, Plus, Trash2, Edit3, 
@@ -86,6 +87,13 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Sync editedChannels when systemConfig contactChannels arrives or changes
+  React.useEffect(() => {
+    if (!isEditMode) {
+      setEditedChannels(channels);
+    }
+  }, [systemConfig?.contactChannels, isEditMode]);
+
   // Modal ส่อง QR Code ขยายใหญ่
   const [enlargedQrUrl, setEnlargedQrUrl] = useState<{ url: string; title: string } | null>(null);
 
@@ -96,10 +104,12 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
   const [newDesc, setNewDesc] = useState('');
   const [newQrUrl, setNewQrUrl] = useState('');
 
-  // เปิดโหมดแก้ไข
-  const handleOpenEdit = () => {
-    setEditedChannels([...channels]);
-    setIsEditMode(true);
+  // เปิด/ปิด โหมดแก้ไข
+  const handleToggleEditMode = () => {
+    if (!isEditMode) {
+      setEditedChannels([...channels]);
+    }
+    setIsEditMode(!isEditMode);
     setSuccessMsg('');
     setErrorMsg('');
   };
@@ -111,14 +121,25 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
     setSuccessMsg('');
     setErrorMsg('');
     try {
-      await setDoc(doc(db, 'settings', 'system_config'), {
-        contactChannels: updatedList,
+      const sanitizedList = updatedList.map(item => ({
+        id: item.id || `contact_${Date.now()}`,
+        name: item.name || '',
+        type: item.type || 'other',
+        value: item.value || '',
+        description: item.description || '',
+        qrImageUrl: item.qrImageUrl || '',
+        enabled: item.enabled ?? true
+      }));
+
+      const cleanData = removeUndefinedFields({
+        contactChannels: sanitizedList,
         updatedAt: new Date()
-      }, { merge: true });
+      });
+      await setDoc(doc(db, 'settings', 'system_config'), cleanData, { merge: true });
 
       setSuccessMsg('บันทึกข้อมูลช่องทางติดต่อสำเร็จแล้ว!');
       await onRefreshData();
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
       console.error(err);
       handleFirestoreError(err, OperationType.WRITE, 'settings/system_config');
@@ -138,15 +159,16 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
   };
 
   // ลบรายการ
-  const handleDeleteChannel = (id: string) => {
+  const handleDeleteChannel = async (id: string) => {
     if (confirm('คุณต้องการลบช่องทางติดต่อนี้ใช่หรือไม่?')) {
       const nextList = editedChannels.filter(c => c.id !== id);
       setEditedChannels(nextList);
+      await handleSaveContactChannels(nextList);
     }
   };
 
   // เพิ่มรายการใหม่
-  const handleAddChannel = () => {
+  const handleAddChannel = async () => {
     if (!newName.trim() || !newValue.trim()) {
       alert('กรุณากรอกชื่อรายการและข้อมูลติดต่อ/ลิงก์ให้ครบถ้วน');
       return;
@@ -157,8 +179,8 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
       name: newName.trim(),
       type: newType,
       value: newValue.trim(),
-      description: newDesc.trim(),
-      qrImageUrl: newQrUrl.trim() || undefined,
+      description: newDesc.trim() || '',
+      qrImageUrl: newQrUrl.trim() || '',
       enabled: true
     };
 
@@ -170,6 +192,9 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
     setNewValue('');
     setNewDesc('');
     setNewQrUrl('');
+
+    // บันทึกลง Firestore ทันที
+    await handleSaveContactChannels(nextList);
   };
 
   // อัปโหลดไฟล์รูปภาพ QR Code
@@ -290,7 +315,7 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
             <div className="flex flex-wrap items-center gap-3 z-10 shrink-0">
               <button
                 type="button"
-                onClick={() => setIsEditMode(!isEditMode)}
+                onClick={handleToggleEditMode}
                 className="btn-cute bg-[#A0E7E5] text-[#33272A] px-4 py-2 text-xs font-black flex items-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-teal-300 shrink-0"
               >
                 {isEditMode ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}

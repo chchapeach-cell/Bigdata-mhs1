@@ -7,6 +7,7 @@ import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils/initialData';
+import { removeUndefinedFields } from '../utils/errorHelper';
 import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
@@ -1496,23 +1497,23 @@ export default function AdminPanel({
     setIsSavingSettings(true);
     setSettingsSuccess('');
     try {
-      const configData = {
-        contactEnabled,
-        restrictOneAdminPerSchool,
-        allowSchoolAdminRegistration,
-        allowDataDownload,
-        highTrafficAlertEnabled,
-        highTrafficAlertMessage,
-        simulateRedServerStatus,
-        electricityOptions,
-        internetOptions,
-        waterSystemOptions,
-        headerBannerUrl,
-        headerBannerHeight,
-        headerBannerFit,
-        headerBannerEnabled,
+      const configData = removeUndefinedFields({
+        contactEnabled: contactEnabled ?? true,
+        restrictOneAdminPerSchool: restrictOneAdminPerSchool ?? true,
+        allowSchoolAdminRegistration: allowSchoolAdminRegistration ?? true,
+        allowDataDownload: allowDataDownload ?? true,
+        highTrafficAlertEnabled: highTrafficAlertEnabled ?? true,
+        highTrafficAlertMessage: highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
+        simulateRedServerStatus: simulateRedServerStatus ?? false,
+        electricityOptions: electricityOptions || [],
+        internetOptions: internetOptions || [],
+        waterSystemOptions: waterSystemOptions || [],
+        headerBannerUrl: headerBannerUrl || '',
+        headerBannerHeight: headerBannerHeight ?? 100,
+        headerBannerFit: headerBannerFit || 'contain',
+        headerBannerEnabled: headerBannerEnabled ?? true,
         updatedAt: new Date()
-      };
+      });
       await setDoc(doc(db, 'settings', 'system_config'), configData, { merge: true });
       setSettingsSuccess('บันทึกนโยบายระบบ โครงสร้างพื้นฐาน และแบนเนอร์หัวเว็บสำเร็จ!');
       await onRefreshData();
@@ -1538,7 +1539,9 @@ export default function AdminPanel({
       if (key === 'simulateRedServerStatus') setSimulateRedServerStatus(value);
       if (key === 'headerBannerEnabled') setHeaderBannerEnabled(value);
 
-      await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
+      if (key && value !== undefined) {
+        await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
+      }
       setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
       setTimeout(() => setSettingsSuccess(''), 3000);
     } catch (e: any) {
@@ -5211,6 +5214,33 @@ export default function AdminPanel({
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* จัดการแคชข้อมูล */}
+              <div className="bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] mt-6">
+                <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2 border-b border-[#33272A]/20 pb-2 mb-4">
+                  <Database className="h-4 w-4 text-emerald-500" />
+                  จัดการแคชข้อมูลและหน่วยความจำ (Cache & LocalStorage)
+                </h4>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">ล้างแคชข้อมูลระบบ</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-bold mt-1">
+                      ล้างข้อมูลนักเรียนและโรงเรียนที่บันทึกอยู่ในเครื่อง เพื่อบังคับดึงข้อมูลใหม่จากฐานข้อมูล Firestore หรือคืนพื้นที่หน่วยความจำ
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('คุณต้องการล้างแคชข้อมูลระบบทั้งหมดใช่หรือไม่? ระบบจะทำการโหลดหน้าเว็บใหม่')) {
+                        localStorage.removeItem('mhs_app_data_cache_v3');
+                        window.location.reload();
+                      }
+                    }}
+                    className="btn-cute bg-rose-500 text-white hover:bg-rose-600 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A]"
+                  >
+                    <Trash2 className="h-4 w-4" /> ล้างแคชทั้งหมด
+                  </button>
                 </div>
               </div>
             </div>

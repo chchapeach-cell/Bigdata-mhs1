@@ -57,17 +57,20 @@ export default function DatabaseQuotaMonitor({
   const MAX_STORAGE_MB = 1024; // 1 GB = 1024 MB
   const MAX_DAILY_READS = 50000; // 50,000 Reads/วัน
   const MAX_DAILY_WRITES = 20000; // 20,000 Writes/วัน
+  const MAX_DAILY_DELETES = 20000; // 20,000 Deletes/วัน
   const MAX_DOCUMENTS_CAPACITY = 100000; // 100,000 Docs
 
   // คำนวณเปอร์เซ็นต์ฐานข้อมูล
   const storageUsagePercent = Math.min(100, parseFloat(((estimatedStorageMB / MAX_STORAGE_MB) * 100).toFixed(2)));
   
-  // ประมาณการอ่าน/เขียนสะสมในเซสชัน + ข้อมูลตั้งต้น
+  // ประมาณการอ่าน/เขียน/ลบ สะสมในเซสชัน + ข้อมูลตั้งต้น
   const estimatedDailyReads = Math.max(readCountSession, totalDocuments * 2 + 15);
   const estimatedDailyWrites = Math.max(writeCountSession, 12);
+  const estimatedDailyDeletes = 5; // ค่าประมาณการลบข้อมูลทั่วไป
 
   const readQuotaPercent = Math.min(100, parseFloat(((estimatedDailyReads / MAX_DAILY_READS) * 100).toFixed(2)));
   const writeQuotaPercent = Math.min(100, parseFloat(((estimatedDailyWrites / MAX_DAILY_WRITES) * 100).toFixed(2)));
+  const deleteQuotaPercent = Math.min(100, parseFloat(((estimatedDailyDeletes / MAX_DAILY_DELETES) * 100).toFixed(2)));
   const documentQuotaPercent = Math.min(100, parseFloat(((totalDocuments / MAX_DOCUMENTS_CAPACITY) * 100).toFixed(2)));
 
   // === โควตาเซิร์ฟเวอร์ & คอนเทนเนอร์ (Cloud Run Server Resources) ===
@@ -313,13 +316,13 @@ export default function DatabaseQuotaMonitor({
           </div>
         </div>
 
-        {/* Grid สรุปมาตรวัด % โควตาหลัก 4 ตัว */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Grid สรุปมาตรวัด % โควตาหลัก 5 ตัว */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* 2.1 โควตาพื้นที่จัดเก็บ Storage % */}
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <HardDrive className="h-4 w-4 text-rose-500" /> พื้นที่ความจุข้อมูล
+                <HardDrive className="h-4 w-4 text-rose-500" /> พื้นที่จัดเก็บ (Storage)
               </span>
               <span className="font-mono text-rose-600 dark:text-rose-400">{storageUsagePercent}%</span>
             </div>
@@ -381,11 +384,33 @@ export default function DatabaseQuotaMonitor({
             </div>
           </div>
 
-          {/* 2.4 โควตาจำนวนเอกสาร Document Limit % */}
+          {/* 2.4 โควตาการลบข้อมูล Delete Quota % */}
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <Server className="h-4 w-4 text-purple-500" /> จำนวนเอกสารรวม
+                <ShieldAlert className="h-4 w-4 text-indigo-500" /> คำสั่งลบ (Deletes/วัน)
+              </span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400">{deleteQuotaPercent}%</span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden border border-[#33272A]/30">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  deleteQuotaPercent > 80 ? 'bg-rose-500' : deleteQuotaPercent > 50 ? 'bg-amber-500' : 'bg-indigo-500'
+                }`}
+                style={{ width: `${Math.max(2, deleteQuotaPercent)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+              <span>สะสม: {estimatedDailyDeletes.toLocaleString()} ครั้ง</span>
+              <span>จำกัด: {MAX_DAILY_DELETES.toLocaleString()}/วัน</span>
+            </div>
+          </div>
+
+          {/* 2.5 โควตาจำนวนเอกสาร Document Limit % */}
+          <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
+            <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+              <span className="flex items-center gap-1">
+                <Server className="h-4 w-4 text-purple-500" /> เอกสารรวมทั้งหมด
               </span>
               <span className="font-mono text-purple-600 dark:text-purple-400">{documentQuotaPercent}%</span>
             </div>
@@ -401,6 +426,117 @@ export default function DatabaseQuotaMonitor({
               <span>รวม: {totalDocuments.toLocaleString()} รายการ</span>
               <span>เป้าหมาย: {MAX_DOCUMENTS_CAPACITY.toLocaleString()}</span>
             </div>
+          </div>
+        </div>
+
+        {/* ตารางแสดงข้อมูลรายละเอียดขีดจำกัด Firebase สำหรับ Super Admin */}
+        <div className="p-4 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-2">
+            <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-500" />
+              <span>ตารางสรุปขีดจำกัดโควตา Firebase Spark Plan (สำหรับ Super Admin)</span>
+            </h4>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+              ⚡ Reset ประจำวันเวลา 14:00 น. (00:00 UTC)
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 text-[#33272A] dark:text-[#FFF9F5] font-black">
+                  <th className="py-2 px-2">ประเภททรัพยากร (Resource)</th>
+                  <th className="py-2 px-2">ขีดจำกัดสูงสุด (Limit)</th>
+                  <th className="py-2 px-2">ใช้งานปัจจุบัน (Current)</th>
+                  <th className="py-2 px-2">สถานะ (% Usage)</th>
+                  <th className="py-2 px-2">รอบเวลาการรีเซ็ต (Reset Cycle)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold text-slate-700 dark:text-slate-300">
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-sky-700 dark:text-sky-300">
+                    <Cpu className="h-3.5 w-3.5 shrink-0" /> คำสั่งอ่านข้อมูล (Stored Reads)
+                  </td>
+                  <td className="py-2 px-2 font-mono">50,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{estimatedDailyReads.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2">
+                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-black ${
+                      readQuotaPercent >= 90 ? 'bg-rose-100 text-rose-800' : readQuotaPercent >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {readQuotaPercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
+                    <BarChart2 className="h-3.5 w-3.5 shrink-0" /> คำสั่งเขียนข้อมูล (Stored Writes)
+                  </td>
+                  <td className="py-2 px-2 font-mono">20,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{estimatedDailyWrites.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2">
+                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-black ${
+                      writeQuotaPercent >= 90 ? 'bg-rose-100 text-rose-800' : writeQuotaPercent >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {writeQuotaPercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-indigo-700 dark:text-indigo-300">
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> คำสั่งลบข้อมูล (Stored Deletes)
+                  </td>
+                  <td className="py-2 px-2 font-mono">20,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{estimatedDailyDeletes.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
+                      {deleteQuotaPercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-rose-700 dark:text-rose-300">
+                    <HardDrive className="h-3.5 w-3.5 shrink-0" /> พื้นที่ความจุจัดเก็บ (Total Storage)
+                  </td>
+                  <td className="py-2 px-2 font-mono">1 GiB (1,024 MB)</td>
+                  <td className="py-2 px-2 font-mono">{estimatedStorageMB} MB</td>
+                  <td className="py-2 px-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
+                      {storageUsagePercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">ต่อเนื่อง (ไม่รีเซ็ต)</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-teal-700 dark:text-teal-300">
+                    <Wifi className="h-3.5 w-3.5 shrink-0" /> แบนด์วิธส่งออกข้อมูล (Network Egress)
+                  </td>
+                  <td className="py-2 px-2 font-mono">10 GiB/เดือน</td>
+                  <td className="py-2 px-2 font-mono">{estimatedMonthlyBandwidthGB} GB</td>
+                  <td className="py-2 px-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
+                      {bandwidthUsagePercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">รีเซ็ตทุกสิ้นเดือน</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-2 flex items-center gap-1.5 font-black text-purple-700 dark:text-purple-300">
+                    <Activity className="h-3.5 w-3.5 shrink-0" /> การเชื่อมต่อพร้อมกัน (Connections)
+                  </td>
+                  <td className="py-2 px-2 font-mono">100 Connections</td>
+                  <td className="py-2 px-2 font-mono">{concurrentConnections} Connections</td>
+                  <td className="py-2 px-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
+                      {concurrentPercent}%
+                    </span>
+                  </td>
+                  <td className="py-2 px-2 text-[11px]">Realtime Active Users</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
