@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { db, auth, OperationType, handleFirestoreError } from './firebase';
 import { collection, getDocs, setDoc, doc, getDoc, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -36,10 +36,10 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
 
 // นำเข้า Components
 import Header from './components/Header';
-import DashboardView from './components/DashboardView';
+const DashboardView = React.lazy(() => import('./components/DashboardView'));
 import SchoolListView from './components/SchoolListView';
 import SchoolDetailView from './components/SchoolDetailView';
-import AdminPanel from './components/AdminPanel';
+const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
 import AuthModal from './components/AuthModal';
 import InfrastructureView from './components/InfrastructureView';
 import ContactView from './components/ContactView';
@@ -766,17 +766,19 @@ export default function App() {
             ) : (
               <>
                 {activeTab === 'dashboard' && (
-                  <DashboardView
-                    schools={schools}
-                    studentData={studentData}
-                    studentGData={studentGData}
-                    academicYear={academicYear}
-                    setAcademicYear={setAcademicYear}
-                    availableYears={availableYears}
-                    onSelectSchool={(id) => setSelectedSchoolId(id)}
-                    isDarkMode={isDarkMode}
-                    onFilterNavigate={handleFilterNavigate}
-                  />
+                  <Suspense fallback={<div className="flex h-96 flex-col items-center justify-center gap-3"><div className="h-10 w-10 text-rose-500 animate-spin border-4 border-rose-200 border-t-rose-500 rounded-full" /><span className="text-sm font-extrabold text-slate-500">กำลังเปิดหน้าแดชบอร์ด...</span></div>}>
+                    <DashboardView
+                      schools={schools}
+                      studentData={studentData}
+                      studentGData={studentGData}
+                      academicYear={academicYear}
+                      setAcademicYear={setAcademicYear}
+                      availableYears={availableYears}
+                      onSelectSchool={(id) => setSelectedSchoolId(id)}
+                      isDarkMode={isDarkMode}
+                      onFilterNavigate={handleFilterNavigate}
+                    />
+                  </Suspense>
                 )}
 
                 {activeTab === 'schools' && (
@@ -831,21 +833,23 @@ export default function App() {
                 )}
 
                 {activeTab === 'admin' && userProfile && (
-                  <AdminPanel
-                    userProfile={userProfile}
-                    schools={schools}
-                    studentData={studentData}
-                    studentGData={studentGData}
-                    onRefreshData={fetchAllData}
-                    systemConfig={systemConfig}
-                    serverStatus={serverStatus}
-                    themeStyle={themeStyle}
-                    setThemeStyle={setThemeStyle}
-                    designStyle={designStyle}
-                    setDesignStyle={setDesignStyle}
-                    isDarkMode={isDarkMode}
-                    setIsDarkMode={setIsDarkMode}
-                  />
+                  <Suspense fallback={<div className="flex h-96 flex-col items-center justify-center gap-3"><div className="h-10 w-10 text-rose-500 animate-spin border-4 border-rose-200 border-t-rose-500 rounded-full" /><span className="text-sm font-extrabold text-slate-500">กำลังเปิดแผงควบคุมแอดมิน...</span></div>}>
+                    <AdminPanel
+                      userProfile={userProfile}
+                      schools={schools}
+                      studentData={studentData}
+                      studentGData={studentGData}
+                      onRefreshData={fetchAllData}
+                      systemConfig={systemConfig}
+                      serverStatus={serverStatus}
+                      themeStyle={themeStyle}
+                      setThemeStyle={setThemeStyle}
+                      designStyle={designStyle}
+                      setDesignStyle={setDesignStyle}
+                      isDarkMode={isDarkMode}
+                      setIsDarkMode={setIsDarkMode}
+                    />
+                  </Suspense>
                 )}
               </>
             )}

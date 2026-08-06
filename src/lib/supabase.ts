@@ -2,7 +2,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Read Supabase environment variables or localStorage overrides
 const env = (import.meta as any).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || localStorage.getItem('override_supabase_url') || '';
+let rawSupabaseUrl = env.VITE_SUPABASE_URL || localStorage.getItem('override_supabase_url') || '';
+if (rawSupabaseUrl && !rawSupabaseUrl.startsWith('http')) {
+  rawSupabaseUrl = 'https://' + rawSupabaseUrl;
+}
+const supabaseUrl = rawSupabaseUrl;
 const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('override_supabase_anon_key') || '';
 
 export const isSupabaseConfigured = (): boolean => {
