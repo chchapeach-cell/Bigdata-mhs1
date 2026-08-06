@@ -18,8 +18,8 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
   : null;
 
 export const SUPABASE_FIX_RLS_SQL = `-- =============================================================
--- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) และสร้างตารางแบบครบถ้วน
--- คัดลอกโค้ดทั้งหมดนี้ไปวางที่ Supabase Dashboard -> SQL Editor แล้วกด Run
+-- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) สำหรับ Supabase SQL Editor
+-- คัดลอกคำสั่งทั้งหมดนี้ไปวางใน SQL Editor บน Supabase Dashboard แล้วกด Run
 -- =============================================================
 
 -- 1. สร้างตารางทั้งหมด (หากยังไม่ได้สร้าง)
@@ -120,7 +120,16 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. เปิดใช้งาน RLS บนทุกตาราง
+-- 2. ปิดใช้งาน RLS บนทุกตารางก่อน
+ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+
+-- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัดสำหรับทุก role
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
@@ -129,43 +138,42 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 
--- 3. ลบ Policy เก่าทั้งหมด และสร้าง Policy อนุญาต อ่าน-เขียน-บันทึก ได้อิสระ (FOR ALL TO public)
+DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
-DROP POLICY IF EXISTS "Public Read/Write Schools" ON public.schools;
-DROP POLICY IF EXISTS "Public Read Schools" ON public.schools;
-CREATE POLICY "Public All Schools" ON public.schools FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.schools FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.students;
 DROP POLICY IF EXISTS "Public All Students" ON public.students;
-DROP POLICY IF EXISTS "Public Read/Write Students" ON public.students;
-DROP POLICY IF EXISTS "Public Read Students" ON public.students;
-CREATE POLICY "Public All Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.students_g;
 DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
-DROP POLICY IF EXISTS "Public Read/Write StudentsG" ON public.students_g;
-DROP POLICY IF EXISTS "Public Read StudentsG" ON public.students_g;
-CREATE POLICY "Public All StudentsG" ON public.students_g FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students_g FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.users;
 DROP POLICY IF EXISTS "Public All Users" ON public.users;
-DROP POLICY IF EXISTS "Public Read/Write Users" ON public.users;
-CREATE POLICY "Public All Users" ON public.users FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.users FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.settings;
 DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
-DROP POLICY IF EXISTS "Public Read/Write Settings" ON public.settings;
-CREATE POLICY "Public All Settings" ON public.settings FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.settings FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.system_stats;
 DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
-DROP POLICY IF EXISTS "Public Read/Write SystemStats" ON public.system_stats;
-CREATE POLICY "Public All SystemStats" ON public.system_stats FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.system_stats FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
-DROP POLICY IF EXISTS "Public Read/Write DownloadLogs" ON public.download_logs;
-CREATE POLICY "Public All DownloadLogs" ON public.download_logs FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.download_logs FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
 
--- 4. มอบสิทธิ์การเข้าถึงแบบเต็มรูปแบบแก่บทบาท anon, authenticated, postgres, service_role
+-- 4. ให้สิทธิ์การใช้งาน DB แก่ anon และ authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
+
+-- 5. สั่งรีโหลด PostgREST Schema Cache ทันที
+NOTIFY pgrst, 'reload schema';
 `;
 
 export const SUPABASE_SCHEMA_SQL = `-- 1. สร้างตาราง schools (ข้อมูลสถานศึกษา)
