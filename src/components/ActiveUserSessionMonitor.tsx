@@ -31,7 +31,7 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
   const [confirmKickSession, setConfirmKickSession] = useState<ActiveSessionData | null>(null);
   const [toastMsg, setToastMsg] = useState<string>('');
 
-  const MAX_CONCURRENT_LIMIT = 70;
+  const MAX_CONCURRENT_LIMIT = 10000;
 
   // อัปเดตเวลาปัจจุบันทุกๆ 10 วินาที เพื่อคำนวณจำนวนนาทีที่ใช้งาน
   useEffect(() => {
@@ -189,15 +189,15 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
           <p className="text-[10px] text-slate-500 font-bold">กำลังเชื่อมต่อใช้งานในระบบในขณะนี้</p>
         </div>
 
-        {/* Metric 2: Concurrency Cap Meter (% 70 คน) */}
+        {/* Metric 2: Concurrency Cap Meter */}
         <div className="p-4 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2 md:col-span-2">
           <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
             <span className="flex items-center gap-1.5">
-              <Shield className="h-4 w-4 text-rose-500" /> อัตราการใช้งานเทียบขีดจำกัด (Max {MAX_CONCURRENT_LIMIT} คน)
+              <Shield className="h-4 w-4 text-emerald-500" /> อัตราการใช้งานเทียบขีดจำกัด (Max {MAX_CONCURRENT_LIMIT} คน)
             </span>
             <span className={`font-mono text-sm px-2.5 py-0.5 rounded-lg border font-black ${
-              activeCount >= 70 ? 'bg-rose-100 text-rose-700 border-rose-400' :
-              activeCount >= 50 ? 'bg-amber-100 text-amber-700 border-amber-400' :
+              activeCount >= 9000 ? 'bg-rose-100 text-rose-700 border-rose-400' :
+              activeCount >= 5000 ? 'bg-amber-100 text-amber-700 border-amber-400' :
               'bg-emerald-100 text-emerald-700 border-emerald-400'
             }`}>
               {activeCount} / {MAX_CONCURRENT_LIMIT} คน ({activePercentage}%)
@@ -206,13 +206,13 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
           <div className="w-full bg-slate-200 dark:bg-slate-800 h-3 rounded-full overflow-hidden border border-[#33272A]/30">
             <div
               className={`h-full transition-all duration-500 ${
-                activeCount >= 70 ? 'bg-rose-600' : activeCount >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                activeCount >= 9000 ? 'bg-rose-600' : activeCount >= 5000 ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
               style={{ width: `${Math.max(4, activePercentage)}%` }}
             />
           </div>
           <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-            <span>{activeCount >= 70 ? '⚠️ ระบบล็อกเต็มจำนวน 70 คนแล้ว (ปฏิเสธผู้ใช้คนที่ 71+ เข้าสู่ระบบ)' : 'รองรับเพิ่มเติมได้อีก ' + (MAX_CONCURRENT_LIMIT - activeCount) + ' คน'}</span>
+            <span>{activeCount >= 10000 ? '⚠️ ระบบล็อกผู้ใช้งานเต็มจำนวนแล้ว' : 'รองรับเพิ่มเติมได้อีก ' + (MAX_CONCURRENT_LIMIT - activeCount) + ' คน'}</span>
             <span>ขีดจำกัดสูงสุด: {MAX_CONCURRENT_LIMIT} คน</span>
           </div>
         </div>

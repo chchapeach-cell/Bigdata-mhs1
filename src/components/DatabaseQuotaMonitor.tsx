@@ -76,7 +76,7 @@ export default function DatabaseQuotaMonitor({
   // === โควตาเซิร์ฟเวอร์ & คอนเทนเนอร์ (Cloud Run Server Resources) ===
   // ข้อกำหนดคอนเทนเนอร์มาตรฐาน: 1 GB RAM, 1 vCPU, Max 80 Concurrency
   const SERVER_MAX_RAM_MB = 1024; 
-  const SERVER_MAX_CONCURRENT_USERS = 80;
+  const SERVER_MAX_CONCURRENT_USERS = 1000;
   const SERVER_MAX_MONTHLY_BANDWIDTH_GB = 100;
 
   // ตรวจจับ Memory จริงจากเบราว์เซอร์หากสนับสนุน

@@ -2,7 +2,7 @@ import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
-export const MAX_CONCURRENT_USERS = 70;
+export const MAX_CONCURRENT_USERS = 10000;
 export const CONCURRENCY_BLOCKED_MESSAGE = "ขออภัยในความไม่สะดวก อีก 30 นาที เข้ามาใช้ใหม่ ตอนนี้มีคนเข้าระบบเป็นจำนวนมาก ทางระบบ บล็อกไว้ไม่ให้เข้าเพิ่ม หรือแจ้งเหตุมาที่กลุ่ม DLICT";
 
 /**
