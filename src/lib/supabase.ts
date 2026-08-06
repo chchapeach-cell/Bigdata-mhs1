@@ -18,21 +18,46 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
   : null;
 
 export const SUPABASE_FIX_RLS_SQL = `-- -------------------------------------------------------------
--- คำสั่งปลดล็อก RLS (Row Level Security) สำหรับ Supabase SQL Editor
--- เพื่อให้ระบบสามารถบันทึกและย้ายข้อมูลเข้า Supabase ได้ทันที
+-- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) สำหรับ Supabase SQL Editor
+-- คัดลอกทั้งหมดนี้ไปวางใน SQL Editor บน Supabase แล้วกด Run
 -- -------------------------------------------------------------
 
-ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+-- 1. เปิดใช้งาน RLS และสร้าง Policy อนุญาตให้อ่าน-เขียนข้อมูลได้แบบสาธารณะ (FOR ALL TO public)
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 
--- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะสำหรับทุกตาราง
+-- 2. สร้าง/อัปเดตนโยบายการเข้าถึงแบบเต็มรูปแบบ
+DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
+CREATE POLICY "Public All Schools" ON public.schools FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Students" ON public.students;
+CREATE POLICY "Public All Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
+CREATE POLICY "Public All StudentsG" ON public.students_g FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Users" ON public.users;
+CREATE POLICY "Public All Users" ON public.users FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
+CREATE POLICY "Public All Settings" ON public.settings FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
+CREATE POLICY "Public All SystemStats" ON public.system_stats FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
+CREATE POLICY "Public All DownloadLogs" ON public.download_logs FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- 3. ให้สิทธิ์การเข้าถึง Schema และ Sequence แก่ anon และ authenticated
+GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
 `;
 
 export const SUPABASE_SCHEMA_SQL = `-- 1. สร้างตาราง schools (ข้อมูลสถานศึกษา)
@@ -139,17 +164,40 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ปิดใช้งาน RLS ชั่วคราวเพื่อให้สามารถนำเข้าข้อมูลผ่าน API และ Client ได้ทันทีโดยไม่ติดขัดเรื่อง permissions
-ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+-- 8. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
+ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
+CREATE POLICY "Public All Schools" ON public.schools FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Students" ON public.students;
+CREATE POLICY "Public All Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
+CREATE POLICY "Public All StudentsG" ON public.students_g FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Users" ON public.users;
+CREATE POLICY "Public All Users" ON public.users FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
+CREATE POLICY "Public All Settings" ON public.settings FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
+CREATE POLICY "Public All SystemStats" ON public.system_stats FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
+CREATE POLICY "Public All DownloadLogs" ON public.download_logs FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะ
+GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
 `;
 
