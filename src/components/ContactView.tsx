@@ -76,7 +76,7 @@ export const DEFAULT_CONTACT_CHANNELS: ContactChannel[] = [
 ];
 
 export default function ContactView({ systemConfig, userProfile, onRefreshData }: ContactViewProps) {
-  const isSuperAdmin = userProfile?.role === 'super_admin';
+  const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.email === 'tamrri@gmail.com' || userProfile?.email === 'ch.chapeach@gmail.com';
   const channels: ContactChannel[] = systemConfig?.contactChannels && systemConfig.contactChannels.length > 0
     ? systemConfig.contactChannels
     : DEFAULT_CONTACT_CHANNELS;

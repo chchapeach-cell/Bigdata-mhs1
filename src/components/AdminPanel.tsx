@@ -44,7 +44,7 @@ export default function AdminPanel({
   isDarkMode = false,
   setIsDarkMode
 }: AdminPanelProps) {
-  const isSuperAdmin = userProfile.role === 'super_admin';
+  const isSuperAdmin = userProfile.role === 'super_admin' || userProfile.email === 'tamrri@gmail.com' || userProfile.email === 'ch.chapeach@gmail.com';
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   // เลือกโรงเรียนที่ต้องการแก้ไข (สำหรับ Super Admin สามารถเลือกได้ทั้งหมด ส่วน School Admin จะถูกล็อกไว้ที่โรงเรียนตนเอง)

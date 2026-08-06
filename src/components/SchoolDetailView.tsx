@@ -48,7 +48,7 @@ export default function SchoolDetailView({
   setAcademicYear,
   availableYears
 }: SchoolDetailViewProps) {
-  const isSuperAdmin = userProfile?.role === 'super_admin';
+  const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.email === 'tamrri@gmail.com' || userProfile?.email === 'ch.chapeach@gmail.com';
   const isSchoolAdmin = userProfile?.role === 'school_admin' && userProfile?.schoolId === school.id;
   const canEdit = isSuperAdmin || isSchoolAdmin;
 
