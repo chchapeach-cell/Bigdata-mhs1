@@ -17,12 +17,110 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
-export const SUPABASE_FIX_RLS_SQL = `-- -------------------------------------------------------------
--- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) สำหรับ Supabase SQL Editor
--- คัดลอกทั้งหมดนี้ไปวางใน SQL Editor บน Supabase แล้วกด Run
--- -------------------------------------------------------------
+export const SUPABASE_FIX_RLS_SQL = `-- =============================================================
+-- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) และสร้างตารางแบบครบถ้วน
+-- คัดลอกโค้ดทั้งหมดนี้ไปวางที่ Supabase Dashboard -> SQL Editor แล้วกด Run
+-- =============================================================
 
--- 1. เปิดใช้งาน RLS และสร้าง Policy อนุญาตให้อ่าน-เขียนข้อมูลได้แบบสาธารณะ (FOR ALL TO public)
+-- 1. สร้างตารางทั้งหมด (หากยังไม่ได้สร้าง)
+CREATE TABLE IF NOT EXISTS public.schools (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    district TEXT NOT NULL,
+    amphoe TEXT,
+    network_group TEXT,
+    internet_type TEXT,
+    electricity JSONB,
+    water_system TEXT,
+    water_system_detail TEXT,
+    solar_kw TEXT,
+    has_solar_battery BOOLEAN,
+    solar_battery_capacity TEXT,
+    staff_count INT DEFAULT 0,
+    major_subjects JSONB DEFAULT '[]'::jsonb,
+    major_subjects_with_staff JSONB DEFAULT '[]'::jsonb,
+    classrooms JSONB DEFAULT '[]'::jsonb,
+    director_phone TEXT,
+    school_phone TEXT,
+    email TEXT,
+    facebook TEXT,
+    line TEXT,
+    website TEXT,
+    address TEXT,
+    image_url TEXT,
+    logo_url TEXT,
+    director_image_url TEXT,
+    latitude DOUBLE PRECISION DEFAULT 0,
+    longitude DOUBLE PRECISION DEFAULT 0,
+    size TEXT DEFAULT 'small',
+    is_expansion BOOLEAN DEFAULT false,
+    special_highlights TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS public.students (
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    academic_year TEXT NOT NULL,
+    grades JSONB NOT NULL DEFAULT '{}'::jsonb,
+    total_male INT DEFAULT 0,
+    total_female INT DEFAULT 0,
+    total_students INT DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.students_g (
+    id TEXT PRIMARY KEY,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    academic_year TEXT NOT NULL,
+    total_g_students INT DEFAULT 0,
+    male_g_count INT DEFAULT 0,
+    female_g_count INT DEFAULT 0,
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.users (
+    uid TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    school_id TEXT,
+    school_name TEXT,
+    role TEXT DEFAULT 'public',
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.settings (
+    id TEXT PRIMARY KEY DEFAULT 'system_config',
+    config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.system_stats (
+    id TEXT PRIMARY KEY DEFAULT 'visitor_count',
+    total_visits INT DEFAULT 0,
+    today_visits INT DEFAULT 0,
+    today_date TEXT,
+    daily_visits JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.download_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. เปิดใช้งาน RLS บนทุกตาราง
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
@@ -31,29 +129,39 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 
--- 2. สร้าง/อัปเดตนโยบายการเข้าถึงแบบเต็มรูปแบบ
+-- 3. ลบ Policy เก่าทั้งหมด และสร้าง Policy อนุญาต อ่าน-เขียน-บันทึก ได้อิสระ (FOR ALL TO public)
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
+DROP POLICY IF EXISTS "Public Read/Write Schools" ON public.schools;
+DROP POLICY IF EXISTS "Public Read Schools" ON public.schools;
 CREATE POLICY "Public All Schools" ON public.schools FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Students" ON public.students;
+DROP POLICY IF EXISTS "Public Read/Write Students" ON public.students;
+DROP POLICY IF EXISTS "Public Read Students" ON public.students;
 CREATE POLICY "Public All Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
+DROP POLICY IF EXISTS "Public Read/Write StudentsG" ON public.students_g;
+DROP POLICY IF EXISTS "Public Read StudentsG" ON public.students_g;
 CREATE POLICY "Public All StudentsG" ON public.students_g FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Users" ON public.users;
+DROP POLICY IF EXISTS "Public Read/Write Users" ON public.users;
 CREATE POLICY "Public All Users" ON public.users FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
+DROP POLICY IF EXISTS "Public Read/Write Settings" ON public.settings;
 CREATE POLICY "Public All Settings" ON public.settings FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
+DROP POLICY IF EXISTS "Public Read/Write SystemStats" ON public.system_stats;
 CREATE POLICY "Public All SystemStats" ON public.system_stats FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
+DROP POLICY IF EXISTS "Public Read/Write DownloadLogs" ON public.download_logs;
 CREATE POLICY "Public All DownloadLogs" ON public.download_logs FOR ALL TO public USING (true) WITH CHECK (true);
 
--- 3. ให้สิทธิ์การเข้าถึง Schema และ Sequence แก่ anon และ authenticated
+-- 4. มอบสิทธิ์การเข้าถึงแบบเต็มรูปแบบแก่บทบาท anon, authenticated, postgres, service_role
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
