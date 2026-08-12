@@ -129,7 +129,7 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 
--- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัดสำหรับทุก role
+-- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัด
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
@@ -140,31 +140,31 @@ ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
-CREATE POLICY "Public All Access" ON public.schools FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.schools FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.students;
 DROP POLICY IF EXISTS "Public All Students" ON public.students;
-CREATE POLICY "Public All Access" ON public.students FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.students_g;
 DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
-CREATE POLICY "Public All Access" ON public.students_g FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students_g FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.users;
 DROP POLICY IF EXISTS "Public All Users" ON public.users;
-CREATE POLICY "Public All Access" ON public.users FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.users FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.settings;
 DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
-CREATE POLICY "Public All Access" ON public.settings FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.system_stats;
 DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
-CREATE POLICY "Public All Access" ON public.system_stats FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.system_stats FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
-CREATE POLICY "Public All Access" ON public.download_logs FOR ALL TO anon, authenticated, public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. ให้สิทธิ์การใช้งาน DB แก่ anon และ authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;

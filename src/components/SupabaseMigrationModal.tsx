@@ -96,6 +96,123 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     }
   };
 
+  const handleDownloadDataSql = () => {
+    let sql = `-- =============================================================\n`;
+    sql += `-- ข้อมูลสำหรับนำเข้า Supabase แบบ Manual\n`;
+    sql += `-- วันที่สร้าง: ${new Date().toLocaleString('th-TH')}\n`;
+    sql += `-- คำแนะนำ: นำโค้ดนี้ไปวางใน SQL Editor บน Supabase แล้วกด Run\n`;
+    sql += `-- =============================================================\n\n`;
+
+    const escapeString = (str: string | null | undefined) => {
+      if (str === null || str === undefined || str === '') return 'NULL';
+      return `'${String(str).replace(/'/g, "''")}'`;
+    };
+
+    const escapeNumber = (num: number | null | undefined) => {
+      if (num === null || num === undefined || isNaN(Number(num))) return 'NULL';
+      return Number(num);
+    };
+
+    const escapeBoolean = (bool: boolean | null | undefined) => {
+      if (bool === null || bool === undefined) return 'false';
+      return bool ? 'true' : 'false';
+    };
+
+    const escapeJson = (obj: any) => {
+      if (!obj) return 'NULL';
+      return `'${JSON.stringify(obj).replace(/'/g, "''")}'::jsonb`;
+    };
+
+    // 1. Schools
+    sql += `-- ข้อมูลสถานศึกษา (${schools.length} แห่ง)\n`;
+    schools.forEach(s => {
+      const id = escapeString(s.id);
+      const name = escapeString(s.name);
+      const district = escapeString(s.district);
+      const amphoe = escapeString(s.amphoe);
+      const network = escapeString(s.networkGroup || (s as any).network_group);
+      const internet = escapeString(s.internetType || (s as any).internet_type);
+      const electricity = escapeJson(s.electricity || null);
+      const water = escapeString(s.waterSystem || (s as any).water_system);
+      const waterDetail = escapeString(s.waterSystemDetail || (s as any).water_system_detail);
+      const solarKw = escapeString(s.solarKw || (s as any).solar_kw);
+      const hasBattery = escapeBoolean(s.hasSolarBattery);
+      const batteryCap = escapeString(s.solarBatteryCapacity || (s as any).solar_battery_capacity);
+      const staff = escapeNumber(s.staffCount);
+      const majorSubj = escapeJson(s.majorSubjects || []);
+      const majorSubjStaff = escapeJson(s.majorSubjectsWithStaff || []);
+      const classrooms = escapeJson(s.classrooms || []);
+      const dPhone = escapeString(s.directorPhone || (s as any).director_phone);
+      const sPhone = escapeString(s.schoolPhone || (s as any).school_phone);
+      const email = escapeString(s.email);
+      const facebook = escapeString(s.facebook);
+      const line = escapeString(s.line);
+      const website = escapeString(s.website);
+      const address = escapeString(s.address);
+      const img = escapeString(s.imageUrl || (s as any).image_url);
+      const logo = escapeString(s.logoUrl || (s as any).logo_url);
+      const dImg = escapeString(s.directorImageUrl || (s as any).director_image_url);
+      const lat = escapeNumber(s.latitude);
+      const lng = escapeNumber(s.longitude);
+      const size = escapeString(s.size || 'small');
+      const isExp = escapeBoolean(s.isExpansion);
+      const highlights = escapeString(s.specialHighlights || (s as any).special_highlights);
+
+      sql += `INSERT INTO public.schools (id, name, district, amphoe, network_group, internet_type, electricity, water_system, water_system_detail, solar_kw, has_solar_battery, solar_battery_capacity, staff_count, major_subjects, major_subjects_with_staff, classrooms, director_phone, school_phone, email, facebook, line, website, address, image_url, logo_url, director_image_url, latitude, longitude, size, is_expansion, special_highlights) VALUES (${id}, ${name}, ${district}, ${amphoe}, ${network}, ${internet}, ${electricity}, ${water}, ${waterDetail}, ${solarKw}, ${hasBattery}, ${batteryCap}, ${staff}, ${majorSubj}, ${majorSubjStaff}, ${classrooms}, ${dPhone}, ${sPhone}, ${email}, ${facebook}, ${line}, ${website}, ${address}, ${img}, ${logo}, ${dImg}, ${lat}, ${lng}, ${size}, ${isExp}, ${highlights}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+    });
+    sql += `\n`;
+
+    // 2. Students
+    sql += `-- ข้อมูลนักเรียน (${studentData.length} รายการ)\n`;
+    studentData.forEach(st => {
+      const id = escapeString(st.id || `${st.schoolId}_${st.academicYear}`);
+      const sId = escapeString(st.schoolId || (st as any).school_id);
+      const sName = escapeString(st.schoolName || (st as any).school_name);
+      const year = escapeString(st.academicYear || (st as any).academic_year || '2567');
+      const grades = escapeJson(st.grades || {});
+      const tm = escapeNumber(st.totalMale ?? (st as any).total_male);
+      const tf = escapeNumber(st.totalFemale ?? (st as any).total_female);
+      const ts = escapeNumber(st.totalStudents ?? (st as any).total_students);
+
+      sql += `INSERT INTO public.students (id, school_id, school_name, academic_year, grades, total_male, total_female, total_students) VALUES (${id}, ${sId}, ${sName}, ${year}, ${grades}, ${tm}, ${tf}, ${ts}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+    });
+    sql += `\n`;
+
+    // 3. Students G
+    sql += `-- ข้อมูลนักเรียนรหัส G (${studentGData.length} รายการ)\n`;
+    (studentGData || []).forEach(sg => {
+      const id = escapeString(sg.id || `${sg.schoolId}_g_${sg.academicYear}`);
+      const sId = escapeString(sg.schoolId || (sg as any).school_id);
+      const sName = escapeString(sg.schoolName || (sg as any).school_name);
+      const year = escapeString(sg.academicYear || (sg as any).academic_year || '2567');
+      const ts = escapeNumber(sg.totalGStudents ?? (sg as any).total_g_students);
+      const m = escapeNumber(sg.maleGCount ?? (sg as any).male_g_count);
+      const f = escapeNumber(sg.femaleGCount ?? (sg as any).female_g_count);
+      const notes = escapeString(sg.notes);
+
+      sql += `INSERT INTO public.students_g (id, school_id, school_name, academic_year, total_g_students, male_g_count, female_g_count, notes) VALUES (${id}, ${sId}, ${sName}, ${year}, ${ts}, ${m}, ${f}, ${notes}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+    });
+    sql += `\n`;
+
+    // 4. Settings
+    if (systemConfig) {
+      sql += `-- ข้อมูลตั้งค่าระบบ\n`;
+      const sysConf = escapeJson(systemConfig);
+      sql += `INSERT INTO public.settings (id, config) VALUES ('system_config', ${sysConf}) ON CONFLICT (id) DO UPDATE SET config = EXCLUDED.config, updated_at = NOW();\n`;
+    }
+    sql += `\n`;
+
+    const blob = new Blob([sql], { type: 'text/sql' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mhs1_supabase_data_${new Date().getTime()}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportJSONData = () => {
     const backupObj = {
       exportDate: new Date().toISOString(),
@@ -485,6 +602,14 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
               >
                 <Send className={`w-4 h-4 ${isMigrating ? 'animate-bounce' : ''}`} />
                 {isMigrating ? 'กำลังย้ายข้อมูลไป Supabase...' : 'ย้ายข้อมูลทั้งหมดเข้า Supabase ทันที'}
+              </button>
+
+              <button
+                onClick={handleDownloadDataSql}
+                className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <Download className="w-4 h-4" />
+                ดาวน์โหลดไฟล์ SQL เพื่อ Insert ข้อมูลเอง
               </button>
 
               <button

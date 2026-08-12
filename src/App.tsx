@@ -278,8 +278,8 @@ export default function App() {
           setActiveTab('dashboard');
         }
       }
-    }, (error) => {
-      console.warn('Session listener error:', error);
+    }, (err) => {
+      console.warn("Session snapshot error:", err);
     });
 
     // 4. ลบเซสชันเมื่อปิดหน้าต่างเบราว์เซอร์
