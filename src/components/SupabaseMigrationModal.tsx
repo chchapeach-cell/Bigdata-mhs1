@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL } from '../lib/supabase';
+import { dbMigrateUsersToSupabase } from '../lib/dbAdapter';
 
 interface SupabaseMigrationModalProps {
   isOpen: boolean;
@@ -445,8 +446,25 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
         ], { onConflict: 'id' });
       }
 
+      setMigrationProgress(85);
+
+      // 5. Sync Users Data
+      setMigrationStatus(`กำลังย้ายข้อมูลผู้ใช้งานระบบ (Users) เข้าสู่ Supabase...`);
+      let migratedUsersCount = 0;
+      try {
+        migratedUsersCount = await dbMigrateUsersToSupabase(activeClient);
+      } catch (uErr: any) {
+        console.warn('Users migration warning:', uErr);
+        if (uErr.message?.includes('row-level security') || uErr.code === '42501') {
+          setIsRlsError(true);
+          throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง users: ${uErr.message}`);
+        } else if (uErr.code === '42P01' || uErr.message?.includes('does not exist')) {
+          throw new Error(`ไม่พบตาราง "users" บน Supabase (กรุณารัน SQL ในขั้นตอนที่ 2 ก่อน)`);
+        }
+      }
+
       setMigrationProgress(100);
-      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ)`);
+      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ, ผู้ใช้งาน ${migratedUsersCount} รายการ)`);
       setMigrationSuccess(true);
     } catch (err: any) {
       console.error('Migration error:', err);

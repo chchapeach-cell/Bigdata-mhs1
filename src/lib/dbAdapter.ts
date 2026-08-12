@@ -586,6 +586,142 @@ export async function dbDeleteUser(uid: string): Promise<void> {
   }
 }
 
+export async function dbFetchUserProfile(uid: string, email?: string): Promise<UserProfile | null> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      let suUser: any = null;
+      const { data: byUid } = await supabase.from('users').select('*').eq('uid', uid).maybeSingle();
+      if (byUid) {
+        suUser = byUid;
+      } else if (email) {
+        const { data: byEmail } = await supabase.from('users').select('*').eq('email', email).limit(1);
+        if (byEmail && byEmail.length > 0) {
+          suUser = byEmail[0];
+        }
+      }
+
+      if (suUser) {
+        return {
+          uid: suUser.uid,
+          email: suUser.email,
+          firstName: suUser.first_name || '',
+          lastName: suUser.last_name || '',
+          schoolId: suUser.school_id || '',
+          schoolName: suUser.school_name || '',
+          role: suUser.role || 'public',
+          status: suUser.status || 'pending',
+          createdAt: suUser.created_at ? new Date(suUser.created_at) : new Date(),
+        };
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchUserProfile warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    const userDocSnap = await getDoc(doc(db, 'users', uid));
+    if (userDocSnap.exists()) {
+      return { ...userDocSnap.data(), uid: userDocSnap.id } as UserProfile;
+    }
+    if (email) {
+      const q = query(collection(db, 'users'), where('email', '==', email));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        const docSnap = qSnap.docs[0];
+        return { ...docSnap.data(), uid: docSnap.id } as UserProfile;
+      }
+    }
+  } catch (err) {
+    console.warn('Firestore dbFetchUserProfile warning:', err);
+  }
+
+  return null;
+}
+
+export async function dbFetchUsersByStatus(status: 'pending' | 'approved' | 'all'): Promise<UserProfile[]> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      let queryBuilder = supabase.from('users').select('*');
+      if (status !== 'all') {
+        queryBuilder = queryBuilder.eq('status', status);
+      }
+      const { data, error } = await queryBuilder;
+      if (!error && data) {
+        return data.map((u: any) => ({
+          uid: u.uid,
+          email: u.email,
+          firstName: u.first_name || '',
+          lastName: u.last_name || '',
+          schoolId: u.school_id || '',
+          schoolName: u.school_name || '',
+          role: u.role || 'public',
+          status: u.status || 'pending',
+          createdAt: u.created_at ? new Date(u.created_at) : new Date(),
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchUsersByStatus warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    let q;
+    if (status === 'all') {
+      q = collection(db, 'users');
+    } else {
+      q = query(collection(db, 'users'), where('status', '==', status));
+    }
+    const querySnapshot = await getDocs(q);
+    const list: UserProfile[] = [];
+    querySnapshot.forEach(docSnap => {
+      const data = docSnap.data() as Record<string, any>;
+      list.push({ ...data, uid: docSnap.id } as UserProfile);
+    });
+    return list;
+  } catch (err) {
+    console.warn('Firestore dbFetchUsersByStatus warning:', err);
+    return [];
+  }
+}
+
+export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
+  const activeClient = client || supabase;
+  if (!activeClient) return 0;
+
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    if (snap.empty) return 0;
+
+    const usersToUpsert = snap.docs.map(docSnap => {
+      const u = docSnap.data() as UserProfile;
+      return {
+        uid: String(docSnap.id),
+        email: u.email || '',
+        first_name: u.firstName || '',
+        last_name: u.lastName || '',
+        school_id: u.schoolId || null,
+        school_name: u.schoolName || null,
+        role: u.role || 'public',
+        status: u.status || 'pending',
+        created_at: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString()
+      };
+    });
+
+    const { error } = await activeClient.from('users').upsert(usersToUpsert, { onConflict: 'uid' });
+    if (error) {
+      console.error('Error migrating users to Supabase:', error);
+      throw error;
+    }
+    console.log(`✅ Migrated ${usersToUpsert.length} users to Supabase`);
+    return usersToUpsert.length;
+  } catch (err) {
+    console.error('dbMigrateUsersToSupabase exception:', err);
+    throw err;
+  }
+}
+
 // -------------------------------------------------------------
 // 6. SYSTEM STATS / VISITOR COUNTER
 // -------------------------------------------------------------

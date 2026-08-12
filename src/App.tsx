@@ -7,6 +7,7 @@ import { generateInitialStudentGData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatFirestoreError, FIREBASE_CONSOLE_UPGRADE_URL } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { dbFetchUserProfile } from './lib/dbAdapter';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowDataDownload: true,
@@ -203,31 +204,8 @@ export default function App() {
         }
 
         try {
-          // ดึงโปรไฟล์แอดมินโรงเรียนจาก Firestore ด้วยวิธีเฉพาะเจาะจงและปลอดภัย
-          let matchedProfile: UserProfile | null = null;
-          let userDocSnap;
-          try {
-            userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
-          } catch (e) {
-            console.warn('Could not fetch user document:', e);
-          }
-
-          if (userDocSnap && userDocSnap.exists()) {
-            matchedProfile = { ...userDocSnap.data(), uid: userDocSnap.id } as UserProfile;
-          } else if (currentUser.email) {
-            // ค้นหาเฉพาะเจาะจงด้วย Email แทนการดึงข้อมูลทั้งคอลเลกชัน
-            const q = query(collection(db, 'users'), where('email', '==', currentUser.email));
-            let qSnap;
-            try {
-              qSnap = await getDocs(q);
-            } catch (e) {
-              console.warn('Could not query users by email:', e);
-            }
-            if (qSnap && !qSnap.empty) {
-              const matchedDoc = qSnap.docs[0];
-              matchedProfile = { ...matchedDoc.data(), uid: matchedDoc.id } as UserProfile;
-            }
-          }
+          // ดึงโปรไฟล์แอดมินโรงเรียนจาก Supabase/Firestore ด้วยวิธีเฉพาะเจาะจงและปลอดภัย
+          const matchedProfile = await dbFetchUserProfile(currentUser.uid, currentUser.email || undefined);
 
           if (matchedProfile) {
             if (matchedProfile.status === 'approved') {

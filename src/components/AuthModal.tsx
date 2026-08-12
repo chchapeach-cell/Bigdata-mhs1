@@ -7,7 +7,7 @@ import { auth, googleProvider, db, OperationType, handleFirestoreError } from '.
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
 import { signOut } from 'firebase/auth';
 import { formatFirestoreError } from '../utils/errorHelper';
-import { dbSaveUser } from '../lib/dbAdapter';
+import { dbSaveUser, dbFetchUserProfile } from '../lib/dbAdapter';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -97,48 +97,13 @@ export default function AuthModal({
         return;
       }
 
-      // ดึงโปรไฟล์ผู้ใช้จาก Firestore dmc-mhs1
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDocSnap;
-      try {
-        userDocSnap = await getDoc(userDocRef);
-      } catch (e) {
-        const formatted = formatFirestoreError(e);
-        if (formatted.isQuotaError) {
-          setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
-          setIsLoading(false);
-          return;
-        }
-        handleFirestoreError(e, OperationType.GET, `users/${user.uid}`);
-      }
-
-      let profile: UserProfile | null = null;
-      if (userDocSnap && userDocSnap.exists()) {
-        profile = userDocSnap.data() as UserProfile;
-      } else {
-        // ค้นหาตาม email ในกรณีที่สมัครผ่านฟอร์มด้วย email-sanitized ID
-        const q = query(collection(db, 'users'), where('email', '==', user.email));
-        let qSnap;
+      // ดึงโปรไฟล์ผู้ใช้จาก Supabase / Firestore
+      let profile: UserProfile | null = await dbFetchUserProfile(user.uid, user.email || undefined);
+      if (profile) {
         try {
-          qSnap = await getDocs(q);
-        } catch (e) {
-          const formatted = formatFirestoreError(e);
-          if (formatted.isQuotaError) {
-            setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
-            setIsLoading(false);
-            return;
-          }
-          handleFirestoreError(e, OperationType.LIST, 'users');
-        }
-        if (qSnap && !qSnap.empty) {
-          const matchedDoc = qSnap.docs[0];
-          profile = { ...matchedDoc.data(), uid: matchedDoc.id } as UserProfile;
-          
-          try {
-            await dbSaveUser({ ...profile, uid: user.uid });
-          } catch (err) {
-            console.warn('Set doc error:', err);
-          }
+          await dbSaveUser({ ...profile, uid: user.uid });
+        } catch (err) {
+          console.warn('Set doc error:', err);
         }
       }
 

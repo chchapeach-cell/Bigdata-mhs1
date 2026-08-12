@@ -12,7 +12,7 @@ import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
-import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser } from '../lib/dbAdapter';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus } from '../lib/dbAdapter';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -1636,18 +1636,7 @@ export default function AdminPanel({
     if (!isSuperAdmin) return;
     setIsLoadingUsers(true);
     try {
-      const q = query(collection(db, 'users'), where('status', '==', 'pending'));
-      let querySnapshot;
-      try {
-        querySnapshot = await getDocs(q);
-      } catch (e) {
-        console.warn('Could not load pending users:', e);
-        return;
-      }
-      const list: UserProfile[] = [];
-      querySnapshot.forEach(doc => {
-        list.push({ ...doc.data(), uid: doc.id } as UserProfile);
-      });
+      const list = await dbFetchUsersByStatus('pending');
       setPendingUsers(list);
     } catch (e) {
       console.error(e);
@@ -1659,12 +1648,7 @@ export default function AdminPanel({
   const loadApprovedUsers = async () => {
     if (!isSuperAdmin) return;
     try {
-      const q = query(collection(db, 'users'), where('status', '==', 'approved'));
-      const querySnapshot = await getDocs(q);
-      const list: UserProfile[] = [];
-      querySnapshot.forEach(doc => {
-        list.push({ ...doc.data(), uid: doc.id } as UserProfile);
-      });
+      const list = await dbFetchUsersByStatus('approved');
       setApprovedUsers(list);
     } catch (e) {
       console.error(e);
