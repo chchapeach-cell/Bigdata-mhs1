@@ -3,6 +3,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { Users, UserX, Clock, Shield, AlertTriangle, CheckCircle, RefreshCw, LogOut, Radio, UserCheck } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface ActiveSessionData {
   uid: string;
@@ -41,19 +42,66 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
     return () => clearInterval(timer);
   }, []);
 
-  // Listen real-time on `active_sessions` collection
+  // Listen real-time on `active_sessions` collection (or poll Supabase)
   useEffect(() => {
     setIsLoading(true);
-    const sessionsRef = collection(db, 'active_sessions');
-    
-    const unsubscribe = onSnapshot(sessionsRef, (snapshot) => {
+    const THREE_MINUTES = 3 * 60 * 1000;
+
+    let intervalId: any = null;
+
+    const fetchSessions = async () => {
       const now = Date.now();
-      const THREE_MINUTES = 3 * 60 * 1000;
+      const minActiveTime = now - THREE_MINUTES;
+
+      if (supabase && isSupabaseConfigured()) {
+        try {
+          const { data, error } = await supabase
+            .from('active_sessions')
+            .select('*')
+            .gt('last_active_time', minActiveTime)
+            .eq('kicked', false);
+
+          if (!error && data) {
+            const loadedSessions: ActiveSessionData[] = data.map((d: any) => ({
+              uid: d.uid,
+              email: d.email || '',
+              firstName: d.first_name || '',
+              lastName: d.last_name || '',
+              schoolName: d.school_name || '',
+              role: d.role || '',
+              loginTime: Number(d.login_time) || now,
+              lastActiveTime: Number(d.last_active_time) || now,
+              kicked: d.kicked || false,
+            }));
+
+            loadedSessions.sort((a, b) => (b.lastActiveTime || 0) - (a.lastActiveTime || 0));
+            setActiveSessions(loadedSessions);
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Supabase fetch active sessions error:', err);
+        }
+      }
+    };
+
+    if (supabase && isSupabaseConfigured()) {
+      fetchSessions();
+      intervalId = setInterval(fetchSessions, 10000);
+    }
+
+    // Firestore Listener (Primary or Fallback)
+    const sessionsRef = collection(db, 'active_sessions');
+    const unsubscribe = onSnapshot(sessionsRef, (snapshot) => {
+      if (supabase && isSupabaseConfigured()) {
+        // If Supabase is active, fetchSessions handled it, but update if snapshot has data
+        return;
+      }
+      const now = Date.now();
       
       const loadedSessions: ActiveSessionData[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as ActiveSessionData;
-        // พิจารณาว่ายังออนไลน์ถ้า lastActiveTime อยู่ภายใน 3 นาทีที่ผ่านมา และยังไม่ถูกเตะ
         if (data && data.lastActiveTime && (now - data.lastActiveTime < THREE_MINUTES) && !data.kicked) {
           loadedSessions.push({
             ...data,
@@ -62,7 +110,6 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
         }
       });
 
-      // เรียงลำดับตามเวลาเข้าใช้งานล่าสุด
       loadedSessions.sort((a, b) => (b.lastActiveTime || 0) - (a.lastActiveTime || 0));
 
       setActiveSessions(loadedSessions);
@@ -72,36 +119,45 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   // ฟังก์ชันสำหรับเตะผู้ใช้เป้าหมายออกจากระบบ
   const handleKickUser = async (sessionToKick: ActiveSessionData) => {
     setKickingUid(sessionToKick.uid);
     try {
+      const now = Date.now();
+
+      if (supabase && isSupabaseConfigured()) {
+        await supabase.from('active_sessions').update({
+          kicked: true,
+          kicked_at: now,
+          kicked_by: currentUserProfile.email,
+          updated_at: new Date().toISOString()
+        }).eq('uid', sessionToKick.uid);
+      }
+
       const sessionRef = doc(db, 'active_sessions', sessionToKick.uid);
       await updateDoc(sessionRef, {
         kicked: true,
-        kickedAt: Date.now(),
+        kickedAt: now,
         kickedBy: currentUserProfile.email
+      }).catch(async () => {
+        await setDoc(doc(db, 'active_sessions', sessionToKick.uid), {
+          kicked: true,
+          kickedAt: now,
+          kickedBy: currentUserProfile.email
+        }, { merge: true });
       });
 
       setToastMsg(`เตะผู้ใช้ ${sessionToKick.firstName || ''} (${sessionToKick.email}) ออกจากระบบเรียบร้อยแล้ว`);
       setTimeout(() => setToastMsg(''), 4000);
     } catch (e: any) {
       console.error('Error kicking user:', e);
-      // Fallback: หาก updateDoc ไม่ผ่าน ให้พยายาม setDoc merge
-      try {
-        await setDoc(doc(db, 'active_sessions', sessionToKick.uid), {
-          kicked: true,
-          kickedAt: Date.now(),
-          kickedBy: currentUserProfile.email
-        }, { merge: true });
-        setToastMsg(`เตะผู้ใช้ ${sessionToKick.email} ออกจากระบบเรียบร้อยแล้ว`);
-        setTimeout(() => setToastMsg(''), 4000);
-      } catch (err) {
-        alert('เกิดข้อผิดพลาดในการเตะผู้ใช้ออกจากระบบ: ' + (err as Error).message);
-      }
+      alert('เกิดข้อผิดพลาดในการเตะผู้ใช้ออกจากระบบ: ' + (e as Error).message);
     } finally {
       setKickingUid(null);
       setConfirmKickSession(null);

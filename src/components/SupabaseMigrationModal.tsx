@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL } from '../lib/supabase';
-import { dbMigrateUsersToSupabase } from '../lib/dbAdapter';
+import { dbMigrateUsersToSupabase, dbMigrateSystemStatsToSupabase, dbMigrateDownloadLogsToSupabase } from '../lib/dbAdapter';
 
 interface SupabaseMigrationModalProps {
   isOpen: boolean;
@@ -461,6 +461,17 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
         } else if (uErr.code === '42P01' || uErr.message?.includes('does not exist')) {
           throw new Error(`ไม่พบตาราง "users" บน Supabase (กรุณารัน SQL ในขั้นตอนที่ 2 ก่อน)`);
         }
+      }
+
+      setMigrationProgress(92);
+
+      // 6. Sync System Stats & Download Logs
+      setMigrationStatus(`กำลังย้ายข้อมูลสถิติผู้เข้าชม (System Stats) และประวัติการดาวน์โหลดเอกสาร (Download Logs)...`);
+      try {
+        await dbMigrateSystemStatsToSupabase(activeClient);
+        await dbMigrateDownloadLogsToSupabase(activeClient);
+      } catch (stErr) {
+        console.warn('Stats/Logs migration warning:', stErr);
       }
 
       setMigrationProgress(100);

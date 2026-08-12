@@ -12,7 +12,7 @@ import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
-import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus } from '../lib/dbAdapter';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs } from '../lib/dbAdapter';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -1437,13 +1437,12 @@ export default function AdminPanel({
     }
   }, [systemConfig]);
 
-  // โหลดข้อมูลนโยบายสิทธิ์การรับสมัครจาก Firestore (เฉพาะ Super Admin)
+  // โหลดข้อมูลนโยบายสิทธิ์การรับสมัครจาก DB (Supabase/Firestore)
   const loadSystemSettings = async () => {
     if (!isSuperAdmin) return;
     try {
-      const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
-      if (configSnap.exists()) {
-        const data = configSnap.data() as SystemConfig;
+      const data = await dbFetchSystemConfig();
+      if (data) {
         if (data.contactEnabled !== undefined) setContactEnabled(data.contactEnabled);
         if (data.restrictOneAdminPerSchool !== undefined) setRestrictOneAdminPerSchool(data.restrictOneAdminPerSchool);
         if (data.allowSchoolAdminRegistration !== undefined) setAllowSchoolAdminRegistration(data.allowSchoolAdminRegistration);
@@ -1658,13 +1657,8 @@ export default function AdminPanel({
   const loadDownloadLogs = async () => {
     if (!isSuperAdmin) return;
     try {
-      const q = query(collection(db, 'download_logs'), orderBy('timestamp', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const list: any[] = [];
-      querySnapshot.forEach(doc => {
-        list.push({ ...doc.data(), id: doc.id });
-      });
-      setDownloadLogs(list);
+      const logs = await dbFetchDownloadLogs();
+      setDownloadLogs(logs);
     } catch (e) {
       console.error(e);
     }

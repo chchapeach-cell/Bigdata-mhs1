@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Eye, Users, Calendar, TrendingUp, BarChart3, RefreshCw, X, Clock } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from 'firebase/firestore';
-import { dbSaveSystemStats } from '../lib/dbAdapter';
+import { dbSaveSystemStats, dbFetchSystemStats } from '../lib/dbAdapter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 
 interface VisitorData {
@@ -39,10 +39,10 @@ export default function VisitorCounter() {
       const docRef = doc(db, 'system_stats', 'visitor_count');
 
       try {
-        // Fetch visitor statistics once from Firestore instead of continuous onSnapshot to save quota
-        const docSnap = await getDoc(docRef).catch(() => null);
-        if (docSnap && docSnap.exists()) {
-          const data = docSnap.data() as VisitorData;
+        // Fetch visitor statistics via adapter (checks Supabase first, falls back to Firestore)
+        const stats = await dbFetchSystemStats().catch(() => null);
+        if (stats) {
+          const data = stats as VisitorData;
           setVisitorData(data);
           setTotalVisits(data.totalVisits || 0);
           if (data.dailyVisits && data.dailyVisits[todayStr]) {
@@ -57,9 +57,9 @@ export default function VisitorCounter() {
         // Increment visit count once per browser session
         if (!sessionStorage.getItem(sessionKey)) {
           sessionStorage.setItem(sessionKey, 'true');
-          const snap = await getDoc(docRef).catch(() => null);
+          const latestStats = await dbFetchSystemStats().catch(() => null);
 
-          if (!snap || !snap.exists()) {
+          if (!latestStats) {
             // Initialize fresh counter at 1 for the first visit
             const initData: VisitorData = {
               totalVisits: 1,
@@ -74,7 +74,7 @@ export default function VisitorCounter() {
             setTotalVisits(1);
             setTodayVisits(1);
           } else {
-            const data = snap.data() as VisitorData;
+            const data = latestStats as VisitorData;
             const currentDaily = data.dailyVisits || {};
             const currentMonthly = data.monthlyVisits || {};
             const currentYearly = data.yearlyVisits || {};

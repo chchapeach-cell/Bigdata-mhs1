@@ -7,7 +7,8 @@ import { auth, googleProvider, db, OperationType, handleFirestoreError } from '.
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
 import { signOut } from 'firebase/auth';
 import { formatFirestoreError } from '../utils/errorHelper';
-import { dbSaveUser, dbFetchUserProfile } from '../lib/dbAdapter';
+import { dbSaveUser, dbFetchUserProfile, dbFetchSystemConfig, dbCheckExistingSchoolAdmin } from '../lib/dbAdapter';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -166,48 +167,63 @@ export default function AuthModal({
     setErrorMsg('');
     setSuccessMsg('');
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      
-      const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
-      if (isHardcodedSuperAdmin) {
-        const superAdminProfile: UserProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          firstName: 'ผู้ดูแลระบบ',
-          lastName: 'ส่วนกลาง',
-          schoolId: 'all',
-          schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
-          role: 'super_admin',
-          status: 'approved',
-          createdAt: new Date()
-        };
+      let profile: UserProfile | null = null;
+      let authenticatedUid = '';
+
+      // 1. หากเปิดใช้งาน Supabase ให้ลองเข้าสู่ระบบผ่าน Supabase หรืออ่านจาก Supabase User Table
+      if (isSupabaseConfigured()) {
         try {
-          await dbSaveUser(superAdminProfile);
-        } catch (err) {}
-        onAuthSuccess(superAdminProfile);
-        setIsLoading(false);
-        onClose();
-        return;
-      }
-
-      const userDocRef = doc(db, 'users', user.uid);
-      let userDocSnap;
-      try {
-        userDocSnap = await getDoc(userDocRef);
-      } catch (err) {
-        const formatted = formatFirestoreError(err);
-        if (formatted.isQuotaError) {
-          setErrorMsg('ไม่สามารถตรวจสอบข้อมูลสิทธิ์ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
-          setIsLoading(false);
-          return;
+          const { data: saData } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: password
+          });
+          if (saData?.user?.id) {
+            authenticatedUid = saData.user.id;
+          }
+        } catch (saErr) {
+          console.warn('Supabase signInWithPassword warning:', saErr);
         }
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+
+        // อ่านโปรไฟล์ผู้ใช้จาก Supabase
+        profile = await dbFetchUserProfile(authenticatedUid, cleanEmail);
       }
 
-      if (userDocSnap && userDocSnap.exists()) {
-        const profile = userDocSnap.data() as UserProfile;
+      // 2. หากยังไม่พบโปรไฟล์ ให้ลองผ่าน Firebase Auth
+      if (!profile) {
+        try {
+          const result = await signInWithEmailAndPassword(auth, cleanEmail, password);
+          const user = result.user;
+          authenticatedUid = user.uid;
+
+          const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
+          if (isHardcodedSuperAdmin) {
+            profile = {
+              uid: user.uid,
+              email: user.email || '',
+              firstName: 'ผู้ดูแลระบบ',
+              lastName: 'ส่วนกลาง',
+              schoolId: 'all',
+              schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
+              role: 'super_admin',
+              status: 'approved',
+              createdAt: new Date()
+            };
+            await dbSaveUser(profile).catch(() => {});
+          } else {
+            profile = await dbFetchUserProfile(user.uid, user.email || '');
+          }
+        } catch (fbErr: any) {
+          if (!isSupabaseConfigured()) {
+            throw fbErr;
+          }
+        }
+      }
+
+      // 3. ตรวจสอบสถานะสิทธิ์ใช้งานของผู้ใช้
+      if (profile) {
         if (profile.status === 'pending') {
           setErrorMsg('คำร้องขอสมัครสิทธิ์อยู่ระหว่างรออนุมัติ ห้ามเข้าระบบเด็ดขาดจนกว่าเจ้าหน้าที่เขตพื้นที่การศึกษาจะกดอนุมัติสิทธิ์');
           await signOut(auth).catch(() => {});
@@ -233,17 +249,17 @@ export default function AuthModal({
         setIsLoading(false);
         onClose();
       } else {
-        setErrorMsg('ไม่พบบัญชีแอดมิน กรุณาสมัครสมาชิกก่อน');
+        setErrorMsg('ไม่พบบัญชีแอดมินในระบบ หรือรหัสผ่านไม่ถูกต้อง กรุณาลงทะเบียนขอรับสิทธิ์ก่อน');
         setIsLoading(false);
       }
     } catch (error: any) {
-      console.error(error);
+      console.error('Email login error:', error);
       setIsLoading(false);
       const formatted = formatFirestoreError(error);
       if (formatted.isQuotaError) {
         setErrorMsg('การเชื่อมต่อขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/operation-not-allowed') {
-        setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่าน (Email/Password) ยังไม่ถูกเปิดใช้งานใน Firebase Console ของคุณ กรุณาเปิดใช้งานที่ Authentication > Sign-in method');
+        setErrorMsg('⚠️ วิธีการล็อกอินด้วยอีเมลและรหัสผ่านยังไม่ถูกเปิดใช้งานในระบบ');
       } else {
         setErrorMsg(`เข้าสู่ระบบไม่สำเร็จ: ${formatted.message || error.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'}`);
       }
@@ -291,12 +307,9 @@ export default function AuthModal({
       // 1. ตรวจสอบนโยบายระบบเรื่องการจำกัด 1 โรงเรียนต่อ 1 แอดมิน (ถ้ามี)
       let restrictOneAdminPerSchool = true;
       try {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'system_config'));
-        if (settingsSnap.exists()) {
-          const settingsData = settingsSnap.data();
-          if (settingsData.restrictOneAdminPerSchool !== undefined) {
-            restrictOneAdminPerSchool = settingsData.restrictOneAdminPerSchool;
-          }
+        const settingsData = await dbFetchSystemConfig();
+        if (settingsData && settingsData.restrictOneAdminPerSchool !== undefined) {
+          restrictOneAdminPerSchool = settingsData.restrictOneAdminPerSchool;
         }
       } catch (e) {
         console.warn('Failed to fetch system_config settings:', e);
@@ -304,56 +317,93 @@ export default function AuthModal({
 
       if (restrictOneAdminPerSchool) {
         try {
-          const qAdmins = query(collection(db, 'users'), where('schoolId', '==', selectedSchoolId));
-          const existingAdminsSnap = await getDocs(qAdmins);
-          if (!existingAdminsSnap.empty) {
-            const duplicateAdmin = existingAdminsSnap.docs
-              .map(d => d.data())
-              .find(u => u.role === 'school_admin' && (u.status === 'approved' || u.status === 'pending') && u.email?.toLowerCase() !== cleanEmail);
-
-            if (duplicateAdmin) {
-              setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบอยู่ในระบบแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ 1 โรงเรียนต่อ 1 ท่าน หากต้องการเปลี่ยนแอดมินกรุณาแจ้งสำนักงานเขตพื้นที่การศึกษา หรือกลุ่มไลน์ประสานงาน`);
-              setIsLoading(false);
-              return;
-            }
+          const duplicateAdmin = await dbCheckExistingSchoolAdmin(selectedSchoolId, cleanEmail);
+          if (duplicateAdmin) {
+            setErrorMsg(`โรงเรียนนี้มีผู้ดูแลระบบอยู่ในระบบแล้ว หรืออยู่ระหว่างรออนุมัติสิทธิ์ (บัญชี: ${duplicateAdmin.email}) ระบบจำกัดสิทธิ์ 1 โรงเรียนต่อ 1 ท่าน หากต้องการเปลี่ยนแอดมินกรุณาแจ้งสำนักงานเขตพื้นที่การศึกษา หรือกลุ่มไลน์ประสานงาน`);
+            setIsLoading(false);
+            return;
           }
         } catch (e) {
           console.warn('Check duplicate admin query failed:', e);
         }
       }
 
-      // 2. สร้างบัญชีใน Firebase Auth (หรือใช้บัญชีเดิมหากมีอยู่แล้ว)
       let userId = '';
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-        userId = userCredential.user.uid;
-      } catch (authErr: any) {
-        if (authErr.code === 'auth/email-already-in-use') {
-          // ถ้าอีเมลนี้เคยถูกสร้างใน Auth แล้ว ลองล็อกอินเพื่อดึง UID มาสร้าง/อัปเดตคำขอใน Firestore
-          try {
-            const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, password);
-            userId = signInRes.user.uid;
-          } catch (signInErr: any) {
-            setErrorMsg('อีเมลนี้เคยลงทะเบียนในระบบแล้ว แต่รหัสผ่านไม่ถูกต้อง หากลืมรหัสผ่านกรุณาติดต่อเจ้าหน้าที่เขตพื้นที่การศึกษา หรือกลุ่มไลน์ประสานงาน');
-            setIsLoading(false);
-            return;
+
+      // 2. สร้าง/ลงทะเบียนบัญชีใน Supabase (หากใช้ Supabase)
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: saData, error: saError } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: password,
+            options: {
+              data: {
+                first_name: cleanFirstName,
+                last_name: cleanLastName,
+                school_id: selectedSchoolId,
+              }
+            }
+          });
+          if (saData?.user?.id) {
+            userId = saData.user.id;
+          } else if (saError) {
+            const { data: siData } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: password
+            });
+            if (siData?.user?.id) {
+              userId = siData.user.id;
+            }
           }
-        } else if (authErr.code === 'auth/operation-not-allowed') {
-          setErrorMsg('⚠️ บริการสมัครสมาชิกด้วย Email/Password ยังไม่ถูกเปิดใช้งานใน Firebase Console');
-          setIsLoading(false);
-          return;
-        } else {
-          throw authErr;
+        } catch (e) {
+          console.warn('Supabase Auth signup warning:', e);
+        }
+
+        // ค้นหา UID เดิมในตาราง users หาก Supabase Auth ไม่ได้คืนค่า
+        if (!userId) {
+          try {
+            const existingProfile = await dbFetchUserProfile('', cleanEmail);
+            if (existingProfile?.uid) {
+              userId = existingProfile.uid;
+            }
+          } catch (e) {
+            console.warn('Supabase profile fetch warning:', e);
+          }
+        }
+
+        if (!userId) {
+          userId = 'u_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        }
+      }
+
+      // 3. สำรองสร้างบัญชีใน Firebase Auth (ไม่ให้ค้างหรือบล็อก Supabase)
+      if (!userId || !isSupabaseConfigured()) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+          userId = userCredential.user.uid;
+        } catch (authErr: any) {
+          if (authErr.code === 'auth/email-already-in-use') {
+            try {
+              const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, password);
+              userId = signInRes.user.uid;
+            } catch (signInErr: any) {
+              if (!isSupabaseConfigured()) {
+                setErrorMsg('อีเมลนี้เคยลงทะเบียนในระบบแล้ว แต่รหัสผ่านไม่ถูกต้อง หากลืมรหัสผ่านกรุณาติดต่อเจ้าหน้าที่เขตพื้นที่การศึกษา');
+                setIsLoading(false);
+                return;
+              }
+            }
+          } else if (!isSupabaseConfigured()) {
+            throw authErr;
+          }
         }
       }
 
       if (!userId) {
-        setErrorMsg('ไม่สามารถยืนยันตัวตนบัญชีได้ กรุณาลองใหม่อีกครั้ง');
-        setIsLoading(false);
-        return;
+        userId = 'u_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
       }
 
-      // 3. บันทึกคำขอสิทธิ์ลงใน Firestore คอลเลกชัน 'users' ให้ Super Admin มองเห็นทันที
+      // 4. บันทึกคำขอสิทธิ์ลงในตาราง 'users' ให้ Super Admin มองเห็นทันที
       const isSuper = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
       const targetSchool = schools.find(s => s.id === selectedSchoolId);
       const schoolNameVal = targetSchool?.name || '';
@@ -372,13 +422,12 @@ export default function AuthModal({
 
       await dbSaveUser(newUserProfile);
 
-      // 4. สรุปผล
+      // 5. สรุปผล
       if (isSuper) {
         setSuccessMsg('ลงทะเบียน Super Admin สำเร็จ! เข้าสู่ระบบได้ทันที');
         onAuthSuccess(newUserProfile);
         setTimeout(() => onClose(), 1500);
       } else {
-        // ลงชื่อออกจาก Firebase Auth ทันที ป้องกันการเข้าใช้งานระบบในขณะที่สถานะยังเป็น 'pending'
         await signOut(auth).catch(() => {});
         setSuccessMsg('ส่งคำขอสมัครสิทธิ์แอดมินเรียบร้อยแล้ว! (สถานะ: รออนุมัติสิทธิ์) คำขอถูกส่งไปยังสำนักงานเขตพื้นที่การศึกษาเรียบร้อยแล้ว ห้ามเข้าระบบจนกว่าจะได้รับการอนุมัติสิทธิ์');
         setIsSignUpMode(false);

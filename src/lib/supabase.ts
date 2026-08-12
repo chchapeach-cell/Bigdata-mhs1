@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS public.students_g (
 
 CREATE TABLE IF NOT EXISTS public.users (
     uid TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
     first_name TEXT,
     last_name TEXT,
     school_id TEXT,
@@ -165,6 +165,21 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.active_sessions (
+    uid TEXT PRIMARY KEY,
+    email TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    school_name TEXT,
+    role TEXT,
+    login_time BIGINT,
+    last_active_time BIGINT,
+    kicked BOOLEAN DEFAULT false,
+    kicked_at BIGINT,
+    kicked_by TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2. ปิดใช้งาน RLS บนทุกตารางก่อน
 ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
@@ -173,6 +188,7 @@ ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
 
 -- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัด
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
@@ -182,6 +198,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
@@ -211,13 +228,20 @@ DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
 CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
+DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
+CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
+
 -- 4. ให้สิทธิ์การใช้งาน DB แก่ anon และ authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
 
--- 5. สั่งรีโหลด PostgREST Schema Cache ทันที
+-- 5. ปลดล็อกข้อจำกัด Email ซ้ำสะสม (Email Key constraint) ในตาราง users หากมีอยู่
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key;
+
+-- 6. สั่งรีโหลด PostgREST Schema Cache ทันที
 NOTIFY pgrst, 'reload schema';
 `;
 
@@ -287,7 +311,7 @@ CREATE TABLE IF NOT EXISTS public.students_g (
 -- 4. สร้างตาราง users (ข้อมูลผู้ใช้งานและผู้ดูแลระบบ)
 CREATE TABLE IF NOT EXISTS public.users (
     uid TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
     first_name TEXT,
     last_name TEXT,
     school_id TEXT,
@@ -296,6 +320,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key;
 
 -- 5. สร้างตาราง settings (ค่าตั้งค่าระบบ)
 CREATE TABLE IF NOT EXISTS public.settings (
@@ -325,7 +350,23 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
+-- 8. สร้างตาราง active_sessions (การเข้าใช้งานปัจจุบัน)
+CREATE TABLE IF NOT EXISTS public.active_sessions (
+    uid TEXT PRIMARY KEY,
+    email TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    school_name TEXT,
+    role TEXT,
+    login_time BIGINT,
+    last_active_time BIGINT,
+    kicked BOOLEAN DEFAULT false,
+    kicked_at BIGINT,
+    kicked_by TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
 ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
@@ -333,6 +374,7 @@ ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
@@ -341,6 +383,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;

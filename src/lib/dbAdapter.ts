@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, addDoc, query, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, addDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog } from '../types';
@@ -473,6 +473,31 @@ export async function dbCleanCorruptStudentsG(): Promise<number> {
 // -------------------------------------------------------------
 // 4. SETTINGS / CONFIG
 // -------------------------------------------------------------
+export async function dbFetchSystemConfig(): Promise<SystemConfig | null> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
+      if (!error && data && data.config) {
+        return data.config as SystemConfig;
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchSystemConfig warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
+    if (configSnap.exists()) {
+      return configSnap.data() as SystemConfig;
+    }
+  } catch (err) {
+    console.warn('Firestore dbFetchSystemConfig warning:', err);
+  }
+
+  return null;
+}
+
 export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise<void> {
   const now = new Date().toISOString();
 
@@ -585,7 +610,19 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
 
       const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid' });
       if (error) {
-        console.error('Supabase dbSaveUser error:', error);
+        if (error.code === '23505' && userProfile.email) {
+          const { error: updateErr } = await supabase
+            .from('users')
+            .update(payload)
+            .eq('email', userProfile.email);
+          if (updateErr) {
+            console.error('Supabase dbSaveUser update by email error:', updateErr);
+          } else {
+            console.log(`✅ Updated user ${userProfile.email} in Supabase users table by email fallback`);
+          }
+        } else {
+          console.error('Supabase dbSaveUser error:', error);
+        }
       } else {
         console.log(`✅ Saved user ${userProfile.email} to Supabase users table`);
       }
@@ -745,11 +782,11 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
     const snap = await getDocs(collection(db, 'users'));
     if (snap.empty) return 0;
 
-    const usersToUpsert = snap.docs.map(docSnap => {
+    const rawUsers = snap.docs.map(docSnap => {
       const u = docSnap.data() as any;
       return {
         uid: String(docSnap.id),
-        email: u.email || '',
+        email: u.email ? String(u.email).trim() : '',
         first_name: u.firstName || '',
         last_name: u.lastName || '',
         school_id: u.schoolId || null,
@@ -760,13 +797,63 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
       };
     });
 
-    const { error } = await activeClient.from('users').upsert(usersToUpsert, { onConflict: 'uid' });
-    if (error) {
-      console.error('Error migrating users to Supabase:', error);
-      throw error;
+    // Deduplicate in memory by email (case-insensitive) to avoid internal duplicate conflicts
+    const userMapByEmail = new Map<string, any>();
+    const usersWithoutEmail: any[] = [];
+
+    for (const u of rawUsers) {
+      if (!u.email) {
+        usersWithoutEmail.push(u);
+      } else {
+        const lowerEmail = u.email.toLowerCase();
+        if (!userMapByEmail.has(lowerEmail)) {
+          userMapByEmail.set(lowerEmail, u);
+        } else {
+          const existing = userMapByEmail.get(lowerEmail);
+          if (u.status === 'approved' && existing.status !== 'approved') {
+            userMapByEmail.set(lowerEmail, u);
+          }
+        }
+      }
     }
-    console.log(`✅ Migrated ${usersToUpsert.length} users to Supabase`);
-    return usersToUpsert.length;
+
+    const usersToUpsert = [...Array.from(userMapByEmail.values()), ...usersWithoutEmail];
+
+    // Try batch upsert first
+    const { error } = await activeClient.from('users').upsert(usersToUpsert, { onConflict: 'uid' });
+    if (!error) {
+      console.log(`✅ Migrated ${usersToUpsert.length} users to Supabase`);
+      return usersToUpsert.length;
+    }
+
+    console.warn('Batch upsert users failed, processing individually:', error.message || error);
+
+    // Fallback: process user by user to handle duplicate email or constraint conflicts gracefully
+    let successCount = 0;
+    for (const u of usersToUpsert) {
+      const { error: singleErr } = await activeClient.from('users').upsert(u, { onConflict: 'uid' });
+      if (!singleErr) {
+        successCount++;
+      } else {
+        if (singleErr.code === '23505' && u.email) {
+          // If duplicate key error on email constraint, update existing user row by email
+          const { error: updateErr } = await activeClient
+            .from('users')
+            .update(u)
+            .eq('email', u.email);
+          if (!updateErr) {
+            successCount++;
+          } else {
+            console.warn(`Could not update user by email (${u.email}):`, updateErr);
+          }
+        } else {
+          console.warn(`Could not migrate user (${u.email || u.uid}):`, singleErr);
+        }
+      }
+    }
+
+    console.log(`✅ Migrated ${successCount} users to Supabase (individual processing)`);
+    return successCount;
   } catch (err) {
     console.error('dbMigrateUsersToSupabase exception:', err);
     throw err;
@@ -776,6 +863,38 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
 // -------------------------------------------------------------
 // 6. SYSTEM STATS / VISITOR COUNTER
 // -------------------------------------------------------------
+export async function dbFetchSystemStats(): Promise<any | null> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('system_stats').select('*').eq('id', 'visitor_count').maybeSingle();
+      if (!error && data) {
+        return {
+          totalVisits: Number(data.total_visits) || 0,
+          todayVisits: Number(data.today_visits) || 0,
+          todayDate: data.today_date || '',
+          dailyVisits: data.daily_visits || {},
+          updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+        };
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchSystemStats warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    const docRef = doc(db, 'system_stats', 'visitor_count');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.warn('Firestore dbFetchSystemStats warning:', err);
+  }
+
+  return null;
+}
+
 export async function dbSaveSystemStats(statsData: any): Promise<void> {
   const now = new Date().toISOString();
 
@@ -804,9 +923,81 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
   }
 }
 
+export async function dbMigrateSystemStatsToSupabase(client?: any): Promise<boolean> {
+  const activeClient = client || supabase;
+  if (!activeClient) return false;
+
+  try {
+    const docRef = doc(db, 'system_stats', 'visitor_count');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return false;
+
+    const data = docSnap.data();
+    const payload = {
+      id: 'visitor_count',
+      total_visits: Number(data.totalVisits) || 0,
+      today_visits: Number(data.todayVisits) || 0,
+      today_date: data.todayDate || new Date().toISOString().split('T')[0],
+      daily_visits: data.dailyVisits || {},
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await activeClient.from('system_stats').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('dbMigrateSystemStatsToSupabase exception:', err);
+    return false;
+  }
+}
+
 // -------------------------------------------------------------
 // 7. DOWNLOAD LOGS
 // -------------------------------------------------------------
+export async function dbFetchDownloadLogs(): Promise<DownloadLog[]> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('download_logs').select('*').order('timestamp', { ascending: false }).limit(200);
+      if (!error && data) {
+        return data.map((d: any) => ({
+          id: d.id,
+          name: d.name || '',
+          email: d.email || '',
+          schoolId: d.school_id || '',
+          schoolName: d.school_name || '',
+          purpose: d.purpose || '',
+          timestamp: d.timestamp ? new Date(d.timestamp) : new Date(),
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchDownloadLogs warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    const q = query(collection(db, 'download_logs'), orderBy('timestamp', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const logs: DownloadLog[] = [];
+    querySnapshot.forEach(docSnap => {
+      const data = docSnap.data() as Record<string, any>;
+      logs.push({
+        id: docSnap.id,
+        name: data.name || '',
+        email: data.email || '',
+        schoolId: data.schoolId || '',
+        schoolName: data.schoolName || '',
+        purpose: data.purpose || '',
+        timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
+      });
+    });
+    return logs;
+  } catch (err) {
+    console.warn('Firestore dbFetchDownloadLogs warning:', err);
+    return [];
+  }
+}
+
 export async function dbAddDownloadLog(logData: DownloadLog): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
     try {
@@ -831,4 +1022,88 @@ export async function dbAddDownloadLog(logData: DownloadLog): Promise<void> {
   } catch (err) {
     console.warn('Firestore dbAddDownloadLog warning:', err);
   }
+}
+
+export async function dbMigrateDownloadLogsToSupabase(client?: any): Promise<number> {
+  const activeClient = client || supabase;
+  if (!activeClient) return 0;
+
+  try {
+    const q = query(collection(db, 'download_logs'));
+    const snap = await getDocs(q);
+    if (snap.empty) return 0;
+
+    const logsToInsert = snap.docs.map(docSnap => {
+      const data = docSnap.data() as Record<string, any>;
+      return {
+        name: data.name || '',
+        email: data.email || '',
+        school_id: data.schoolId || '',
+        school_name: data.schoolName || '',
+        purpose: data.purpose || '',
+        timestamp: safeToISOString(data.timestamp),
+      };
+    });
+
+    const { error } = await activeClient.from('download_logs').insert(logsToInsert);
+    if (error) throw error;
+    return logsToInsert.length;
+  } catch (err) {
+    console.error('dbMigrateDownloadLogsToSupabase exception:', err);
+    return 0;
+  }
+}
+
+// -------------------------------------------------------------
+// 8. CHECK EXISTING SCHOOL ADMIN (DUPLICATE CHECK)
+// -------------------------------------------------------------
+export async function dbCheckExistingSchoolAdmin(schoolId: string, excludeEmail: string): Promise<UserProfile | null> {
+  const cleanEmail = excludeEmail.trim().toLowerCase();
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('users').select('*').eq('school_id', schoolId);
+      if (!error && data && data.length > 0) {
+        const dup = data.find((u: any) => 
+          u.role === 'school_admin' && 
+          (u.status === 'approved' || u.status === 'pending') && 
+          u.email?.toLowerCase() !== cleanEmail
+        );
+        if (dup) {
+          return {
+            uid: dup.uid,
+            email: dup.email,
+            firstName: dup.first_name || '',
+            lastName: dup.last_name || '',
+            schoolId: dup.school_id || '',
+            schoolName: dup.school_name || '',
+            role: dup.role || 'school_admin',
+            status: dup.status || 'pending',
+            createdAt: safeToDate(dup.created_at)
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase dbCheckExistingSchoolAdmin warning:', err);
+    }
+  }
+
+  // Firestore Fallback
+  try {
+    const qAdmins = query(collection(db, 'users'), where('schoolId', '==', schoolId));
+    const existingAdminsSnap = await getDocs(qAdmins);
+    if (!existingAdminsSnap.empty) {
+      const duplicateAdmin = existingAdminsSnap.docs
+        .map(d => ({ ...d.data(), uid: d.id } as UserProfile))
+        .find(u => u.role === 'school_admin' && (u.status === 'approved' || u.status === 'pending') && u.email?.toLowerCase() !== cleanEmail);
+
+      if (duplicateAdmin) {
+        return duplicateAdmin;
+      }
+    }
+  } catch (err) {
+    console.warn('Firestore dbCheckExistingSchoolAdmin warning:', err);
+  }
+
+  return null;
 }
