@@ -515,6 +515,57 @@ export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise
 // -------------------------------------------------------------
 // 5. USERS
 // -------------------------------------------------------------
+function safeToISOString(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? new Date().toISOString() : val.toISOString();
+  }
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try {
+        const d = val.toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString();
+      } catch (e) {}
+    }
+    if (typeof val.seconds === 'number') {
+      const d = new Date(val.seconds * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    if (typeof val.seconds === 'string' && !isNaN(Number(val.seconds))) {
+      const d = new Date(Number(val.seconds) * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
+function safeToDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try {
+        const d = val.toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d;
+      } catch (e) {}
+    }
+    if (typeof val.seconds === 'number') {
+      const d = new Date(val.seconds * 1000);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
   const now = new Date().toISOString();
 
@@ -529,7 +580,7 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
         school_name: userProfile.schoolName || null,
         role: userProfile.role || 'public',
         status: userProfile.status || 'pending',
-        created_at: userProfile.createdAt ? new Date(userProfile.createdAt).toISOString() : now,
+        created_at: safeToISOString(userProfile.createdAt),
       };
 
       const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid' });
@@ -610,7 +661,7 @@ export async function dbFetchUserProfile(uid: string, email?: string): Promise<U
           schoolName: suUser.school_name || '',
           role: suUser.role || 'public',
           status: suUser.status || 'pending',
-          createdAt: suUser.created_at ? new Date(suUser.created_at) : new Date(),
+          createdAt: safeToDate(suUser.created_at),
         };
       }
     } catch (err) {
@@ -657,7 +708,7 @@ export async function dbFetchUsersByStatus(status: 'pending' | 'approved' | 'all
           schoolName: u.school_name || '',
           role: u.role || 'public',
           status: u.status || 'pending',
-          createdAt: u.created_at ? new Date(u.created_at) : new Date(),
+          createdAt: safeToDate(u.created_at),
         }));
       }
     } catch (err) {
@@ -695,7 +746,7 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
     if (snap.empty) return 0;
 
     const usersToUpsert = snap.docs.map(docSnap => {
-      const u = docSnap.data() as UserProfile;
+      const u = docSnap.data() as any;
       return {
         uid: String(docSnap.id),
         email: u.email || '',
@@ -705,7 +756,7 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
         school_name: u.schoolName || null,
         role: u.role || 'public',
         status: u.status || 'pending',
-        created_at: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString()
+        created_at: safeToISOString(u.createdAt)
       };
     });
 
