@@ -1,21 +1,66 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Read Supabase environment variables or localStorage overrides
+// Read Supabase environment variables or localStorage overrides dynamically
 const env = (import.meta as any).env || {};
-let rawSupabaseUrl = env.VITE_SUPABASE_URL || localStorage.getItem('override_supabase_url') || '';
-if (rawSupabaseUrl && !rawSupabaseUrl.startsWith('http')) {
-  rawSupabaseUrl = 'https://' + rawSupabaseUrl;
-}
-const supabaseUrl = rawSupabaseUrl;
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('override_supabase_anon_key') || '';
 
-export const isSupabaseConfigured = (): boolean => {
-  return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
+export const getSupabaseUrl = (): string => {
+  let url = localStorage.getItem('override_supabase_url') || env.VITE_SUPABASE_URL || '';
+  url = url.trim();
+  if (url && !url.startsWith('http')) {
+    url = 'https://' + url;
+  }
+  return url;
 };
 
-export const supabase: SupabaseClient | null = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export const getSupabaseKey = (): string => {
+  return (localStorage.getItem('override_supabase_anon_key') || env.VITE_SUPABASE_ANON_KEY || '').trim();
+};
+
+export const isSupabaseConfigured = (): boolean => {
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
+  return Boolean(url && key && url.startsWith('http'));
+};
+
+let cachedClient: SupabaseClient | null = null;
+let cachedUrl = '';
+let cachedKey = '';
+
+export const getSupabaseClient = (): SupabaseClient | null => {
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
+
+  if (!url || !key || !url.startsWith('http')) {
+    return null;
+  }
+
+  if (cachedClient && cachedUrl === url && cachedKey === key) {
+    return cachedClient;
+  }
+
+  try {
+    cachedClient = createClient(url, key);
+    cachedUrl = url;
+    cachedKey = key;
+    return cachedClient;
+  } catch (err) {
+    console.error('Failed to initialize Supabase client:', err);
+    return null;
+  }
+};
+
+// Export Proxy for 'supabase' export so calls dynamically use the active client
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    if (!client) return undefined;
+    const value = (client as any)[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  }
+});
 
 export const SUPABASE_FIX_RLS_SQL = `-- =============================================================
 -- คำสั่งปลดล็อกสิทธิ์ RLS (Row Level Security) สำหรับ Supabase SQL Editor

@@ -4,6 +4,7 @@ import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTr
 import * as XLSX from 'xlsx';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
+import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
 import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 
@@ -342,7 +343,7 @@ export default function SchoolListView({
       };
 
       try {
-        await addDoc(collection(db, 'download_logs'), logData);
+        await dbAddDownloadLog(logData);
       } catch (e) {
         handleFirestoreError(e, OperationType.CREATE, 'download_logs');
       }

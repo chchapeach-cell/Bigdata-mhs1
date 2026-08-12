@@ -12,6 +12,7 @@ import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser } from '../lib/dbAdapter';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -531,13 +532,13 @@ export default function AdminPanel({
     setIsSavingStudentEdit(true);
     try {
       const docId = editingStudentDataRecord.id || `${editingStudentDataRecord.schoolId}_${editingStudentDataRecord.academicYear}`;
-      const studentDocRef = doc(db, 'students', docId);
-      await setDoc(studentDocRef, {
+      await dbSaveStudent({
+        ...editingStudentDataRecord,
+        id: docId,
         totalMale: Number(editStudentMale),
         totalFemale: Number(editStudentFemale),
         totalStudents: Number(editStudentTotal),
-        updatedAt: new Date()
-      }, { merge: true });
+      });
 
       setEditingStudentDataRecord(null);
       await onRefreshData();
@@ -555,8 +556,7 @@ export default function AdminPanel({
       return;
     }
     try {
-      const studentDocRef = doc(db, 'students', docId);
-      await deleteDoc(studentDocRef);
+      await dbDeleteStudent(docId, String(record.schoolId), String(record.academicYear));
       await onRefreshData();
     } catch (err: any) {
       console.error('Failed to delete student record:', err);
@@ -579,14 +579,14 @@ export default function AdminPanel({
     setIsSavingGEdit(true);
     try {
       const docId = editingGRecord.id || `${editingGRecord.schoolId}_${editingGRecord.academicYear}`;
-      const gDocRef = doc(db, 'students_g', docId);
-      await setDoc(gDocRef, {
+      await dbSaveStudentG({
+        ...editingGRecord,
+        id: docId,
         maleGCount: Number(editGMale),
         femaleGCount: Number(editGFemale),
         totalGStudents: Number(editGTotal),
-        notes: editGNotes.trim(),
-        updatedAt: new Date()
-      }, { merge: true });
+        notes: editGNotes.trim()
+      });
 
       setEditingGRecord(null);
       await onRefreshData();
@@ -986,16 +986,16 @@ export default function AdminPanel({
         setGUploadStatusText(`กำลังบันทึก: ${item.schoolName} (ปี ${yr}) [${i + 1}/${total}]`);
 
         const docId = `${item.schoolId}_${yr}`;
-        await setDoc(doc(db, 'students_g', docId), {
+        await dbSaveStudentG({
+          id: docId,
           schoolId: item.schoolId,
           schoolName: item.schoolName,
           academicYear: yr,
           totalGStudents: item.totalGStudents || 0,
           maleGCount: item.maleGCount || 0,
           femaleGCount: item.femaleGCount || 0,
-          notes: item.notes || '',
-          updatedAt: new Date()
-        }, { merge: true });
+          notes: item.notes || ''
+        });
 
         count++;
         setGProcessedRowsCount(count);
@@ -1045,20 +1045,7 @@ export default function AdminPanel({
     setDeleteGSuccess('');
 
     try {
-      const querySnapshot = await getDocs(collection(db, 'students_g'));
-
-      let deletedCount = 0;
-      for (const docSnap of querySnapshot.docs) {
-        const dData = docSnap.data();
-        const dYear = String(dData.academicYear || '').trim();
-        const docId = docSnap.id;
-
-        // ลบถ้าตรงกับปีการศึกษา หรือ docId ลงท้ายด้วย _year หรือ docId เท่ากับ year
-        if (dYear === year || docId.endsWith(`_${year}`) || docId === year) {
-          await deleteDoc(doc(db, 'students_g', docId));
-          deletedCount++;
-        }
-      }
+      const deletedCount = await dbDeleteStudentsGByYear(year);
 
       if (deletedCount === 0) {
         setDeleteGError(`ไม่พบข้อมูลนักเรียนตัว G ของปีการศึกษา ${year} ในฐานข้อมูล`);
@@ -1087,20 +1074,7 @@ export default function AdminPanel({
     setDeleteGSuccess('');
 
     try {
-      const querySnapshot = await getDocs(collection(db, 'students_g'));
-      let deletedCount = 0;
-
-      for (const docSnap of querySnapshot.docs) {
-        const dData = docSnap.data();
-        const dYear = String(dData.academicYear || '').trim();
-
-        // ถ้าปีการศึกษาไม่ได้มี 4 หลัก (เช่น เป็นรหัสโรงเรียน 8 หลัก)
-        if (!dYear || !/^\d{4}$/.test(dYear)) {
-          await deleteDoc(doc(db, 'students_g', docSnap.id));
-          deletedCount++;
-        }
-      }
-
+      const deletedCount = await dbCleanCorruptStudentsG();
       setDeleteGSuccess(`ล้างข้อมูลปีการศึกษาที่ไม่ถูกต้องสำเร็จแล้ว ทั้งหมด ${deletedCount} รายการ`);
       await onRefreshData();
     } catch (err: any) {
@@ -1122,8 +1096,10 @@ export default function AdminPanel({
       return;
     }
     try {
-      const docId = `${schoolId}_${academicYear}`;
-      await deleteDoc(doc(db, 'students_g', docId));
+      const docId1 = `${schoolId}_g_${academicYear}`;
+      const docId2 = `${schoolId}_${academicYear}`;
+      await dbDeleteStudentG(docId1, schoolId, academicYear);
+      await dbDeleteStudentG(docId2, schoolId, academicYear);
       setGSuccess(`ลบข้อมูลนักเรียนตัว G ของ "${schoolName}" เรียบร้อยแล้ว`);
       await onRefreshData();
     } catch (e: any) {
@@ -1190,10 +1166,10 @@ export default function AdminPanel({
         return;
       }
 
-      // อัปเดตข้อมูลทุกโรงเรียนใน Firestore
+      // อัปเดตข้อมูลทุกโรงเรียนใน Supabase และ Firestore
       for (const school of affectedSchools) {
-        const schoolRef = doc(db, 'schools', school.id);
-        await updateDoc(schoolRef, {
+        await dbSaveSchool({
+          ...school,
           networkGroup: cleanNewName
         });
       }
@@ -1242,11 +1218,8 @@ export default function AdminPanel({
     try {
       let updatedCount = 0;
       for (const school of schools) {
-        const schoolRef = doc(db, 'schools', school.id);
-        await updateDoc(schoolRef, {
-          director: "-",
-          phone: "-",
-          managerPhone: "-",
+        await dbSaveSchool({
+          ...school,
           directorPhone: "-",
           schoolPhone: "-",
           imageUrl: "",
@@ -1311,7 +1284,7 @@ export default function AdminPanel({
         classrooms: []
       };
 
-      await setDoc(schoolRef, newSchoolObj, { merge: true });
+      await dbSaveSchool(newSchoolObj);
 
       setAddSchoolSuccess(`เพิ่มโรงเรียน "${newSchoolName}" (รหัส ${cleanId}) เข้าสู่ระบบเรียบร้อยแล้ว!`);
       setNewSchoolId('');
@@ -1336,7 +1309,7 @@ export default function AdminPanel({
       return;
     }
     try {
-      await deleteDoc(doc(db, 'schools', schoolId));
+      await dbDeleteSchool(schoolId);
       alert(`ลบโรงเรียน "${schoolName}" เรียบร้อยแล้ว`);
       await onRefreshData();
     } catch (e: any) {
@@ -1514,7 +1487,7 @@ export default function AdminPanel({
         headerBannerEnabled: headerBannerEnabled ?? true,
         updatedAt: new Date()
       });
-      await setDoc(doc(db, 'settings', 'system_config'), configData, { merge: true });
+      await dbSaveSystemConfig(configData);
       setSettingsSuccess('บันทึกนโยบายระบบ โครงสร้างพื้นฐาน และแบนเนอร์หัวเว็บสำเร็จ!');
       await onRefreshData();
       setTimeout(() => setSettingsSuccess(''), 4000);
@@ -1540,7 +1513,7 @@ export default function AdminPanel({
       if (key === 'headerBannerEnabled') setHeaderBannerEnabled(value);
 
       if (key && value !== undefined) {
-        await setDoc(doc(db, 'settings', 'system_config'), { [key]: value }, { merge: true });
+        await dbSaveSystemConfig({ [key]: value });
       }
       setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
       setTimeout(() => setSettingsSuccess(''), 3000);
@@ -1639,22 +1612,15 @@ export default function AdminPanel({
     setDeleteSuccess('');
 
     try {
-      const q = query(collection(db, 'students'), where('academicYear', '==', year));
-      const querySnapshot = await getDocs(q);
+      const deletedCount = await dbDeleteStudentsByYear(year);
       
-      if (querySnapshot.empty) {
+      if (deletedCount === 0) {
         setDeleteError(`ไม่พบข้อมูลสถิตินักเรียนของปีการศึกษา ${year} ในฐานข้อมูล`);
         setIsDeletingYear(false);
         return;
       }
 
-      let deletedCount = 0;
-      for (const docSnap of querySnapshot.docs) {
-        await deleteDoc(doc(db, 'students', docSnap.id));
-        deletedCount++;
-      }
-
-      setDeleteSuccess(`ลบข้อมูลปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} โรงเรียน)`);
+      setDeleteSuccess(`ลบข้อมูลปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
       setDeleteYear('');
       await onRefreshData(); // รีเฟรชข้อมูลในแอป
     } catch (err: any) {
@@ -1732,8 +1698,7 @@ export default function AdminPanel({
   // ฟังก์ชันอนุมัติสิทธิ์ / ปฏิเสธสิทธิ์ผู้สมัครแอดมินโรงเรียน
   const handleUserStatusUpdate = async (uid: string, status: 'approved' | 'rejected') => {
     try {
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { status });
+      await dbUpdateUserStatus(uid, status);
       setPendingUsers(prev => prev.filter(u => u.uid !== uid));
       if (status === 'approved') {
         loadApprovedUsers();
@@ -1748,7 +1713,7 @@ export default function AdminPanel({
   const handleDeleteUser = async (uid: string) => {
     if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้งานนี้?')) return;
     try {
-      await deleteDoc(doc(db, 'users', uid));
+      await dbDeleteUser(uid);
       setApprovedUsers(prev => prev.filter(u => u.uid !== uid));
       setPendingUsers(prev => prev.filter(u => u.uid !== uid));
       alert('ลบผู้ใช้งานเรียบร้อยแล้ว');
@@ -1804,8 +1769,34 @@ export default function AdminPanel({
         updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'ผู้ดูแลระบบ')
       };
 
+      const currentSchool = schools.find(s => s.id === targetId);
+      const defaultSchool: School = {
+        id: targetId,
+        name: editSchoolName || 'โรงเรียน',
+        district: 'สพป.แม่ฮ่องสอน เขต 1',
+        amphoe: editAmphoe || 'เมืองแม่ฮ่องสอน',
+        networkGroup: editNetworkGroup || 'เครือข่าย',
+        internetType: editInternet || 'fiber',
+        electricity: editElectricity ?? true,
+        staffCount: Number(editStaffCount) || 0,
+        majorSubjects: [],
+        directorPhone: editDirectorPhone || '-',
+        schoolPhone: editSchoolPhone || '-',
+        imageUrl: editImageUrl || '',
+        latitude: 19.3,
+        longitude: 97.9,
+        size: 'small',
+        isExpansion: false,
+        classrooms: []
+      };
+      const updatedSchoolObj: School = {
+        ...(currentSchool || defaultSchool),
+        ...updatedFields,
+        id: targetId
+      };
+
       try {
-        await updateDoc(schoolRef, updatedFields);
+        await dbSaveSchool(updatedSchoolObj, userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'ผู้ดูแลระบบ'));
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `schools/${targetId}`);
         throw e;
@@ -2003,10 +1994,10 @@ export default function AdminPanel({
 
             const isExpansion = (m1_total + m2_total + m3_total) > 0;
 
-            // บันทึก / อัปเดตข้อมูลสถิตินักเรียนรายโรงเรียนลง Firestore
-            const studentDocRef = doc(db, 'students', `${schoolId}_${uploadYear}`);
+            // บันทึก / อัปเดตข้อมูลสถิตินักเรียนรายโรงเรียนลง Supabase และ Firestore
             try {
-              await setDoc(studentDocRef, {
+              await dbSaveStudent({
+                id: `${schoolId}_${uploadYear}`,
                 schoolId,
                 schoolName: cleanSchoolName,
                 academicYear: uploadYear,
@@ -2033,30 +2024,31 @@ export default function AdminPanel({
               throw e;
             }
 
-            // ตรวจสอบข้อมูลโรงเรียนพื้นฐาน ถ้ายังไม่มีให้สร้างขึ้นใหม่
-            const schoolDocRef = doc(db, 'schools', schoolId);
+            // ตรวจสอบข้อมูลโรงเรียนพื้นฐาน ถ้ายังไม่มีหรือมีการเปลี่ยนแปลงอัปเดตใหม่
             const size: School['size'] = getSchoolSize(totalStudents);
+            const existingSchool = schools.find(s => String(s.id) === String(schoolId));
 
-            // บันทึกเฉพาะข้อมูลพื้นฐานโครงสร้างแบบเบื้องต้น
             try {
-              await setDoc(schoolDocRef, {
+              await dbSaveSchool({
                 id: schoolId,
                 name: cleanSchoolName,
-                district: "สพป.แม่ฮ่องสอน เขต 1",
+                district: existingSchool?.district || "สพป.แม่ฮ่องสอน เขต 1",
+                amphoe: existingSchool?.amphoe || getAmphoeAndNetwork(schoolId, cleanSchoolName).amphoe,
+                networkGroup: existingSchool?.networkGroup || getAmphoeAndNetwork(schoolId, cleanSchoolName).networkGroup,
                 size,
                 isExpansion,
-                latitude: 19.3021 + (Math.random() - 0.5) * 0.4,
-                longitude: 97.9654 + (Math.random() - 0.5) * 0.4,
-                internetType: 'fiber',
-                electricity: true,
-                staffCount: Math.max(3, Math.round(totalStudents / 15)),
-                directorPhone: "081-2345678",
-                schoolPhone: "053-611000",
-                imageUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
-                majorSubjects: ["คอมพิวเตอร์/เทคโนโลยี", "คณิตศาสตร์", "ภาษาไทย", "ภาษาอังกฤษ"],
+                latitude: existingSchool?.latitude || (19.3021 + (Math.random() - 0.5) * 0.4),
+                longitude: existingSchool?.longitude || (97.9654 + (Math.random() - 0.5) * 0.4),
+                internetType: existingSchool?.internetType || 'fiber',
+                electricity: existingSchool?.electricity ?? true,
+                staffCount: existingSchool?.staffCount || Math.max(3, Math.round(totalStudents / 15)),
+                directorPhone: existingSchool?.directorPhone || "081-2345678",
+                schoolPhone: existingSchool?.schoolPhone || "053-611000",
+                imageUrl: existingSchool?.imageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60",
+                majorSubjects: existingSchool?.majorSubjects || ["คอมพิวเตอร์/เทคโนโลยี", "คณิตศาสตร์", "ภาษาไทย", "ภาษาอังกฤษ"],
                 updatedAt: new Date().toISOString(),
                 updatedBy: 'ระบบนำเข้าข้อมูล Excel'
-              }, { merge: true });
+              }, 'ระบบนำเข้าข้อมูล Excel');
             } catch (e) {
               handleFirestoreError(e, OperationType.WRITE, `schools/${schoolId}`);
               throw e;

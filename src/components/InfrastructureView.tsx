@@ -6,6 +6,7 @@ import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { dbAddDownloadLog } from '../lib/dbAdapter';
 
 interface InfrastructureViewProps {
   schools: School[];
@@ -620,7 +621,7 @@ export default function InfrastructureView({
       };
 
       try {
-        await addDoc(collection(db, 'download_logs'), logData);
+        await dbAddDownloadLog(logData);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'download_logs');
       }

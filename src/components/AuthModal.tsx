@@ -7,6 +7,7 @@ import { auth, googleProvider, db, OperationType, handleFirestoreError } from '.
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
 import { signOut } from 'firebase/auth';
 import { formatFirestoreError } from '../utils/errorHelper';
+import { dbSaveUser } from '../lib/dbAdapter';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export default function AuthModal({
           createdAt: new Date()
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), superAdminProfile, { merge: true });
+          await dbSaveUser(superAdminProfile);
         } catch (e) {
           console.warn('Super Admin setDoc warning:', e);
         }
@@ -134,7 +135,7 @@ export default function AuthModal({
           profile = { ...matchedDoc.data(), uid: matchedDoc.id } as UserProfile;
           
           try {
-            await setDoc(doc(db, 'users', user.uid), { ...profile, uid: user.uid }, { merge: true });
+            await dbSaveUser({ ...profile, uid: user.uid });
           } catch (err) {
             console.warn('Set doc error:', err);
           }
@@ -218,7 +219,7 @@ export default function AuthModal({
           createdAt: new Date()
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), superAdminProfile, { merge: true });
+          await dbSaveUser(superAdminProfile);
         } catch (err) {}
         onAuthSuccess(superAdminProfile);
         setIsLoading(false);
@@ -404,8 +405,7 @@ export default function AuthModal({
         createdAt: new Date()
       };
 
-      const userDocRef = doc(db, 'users', userId);
-      await setDoc(userDocRef, newUserProfile, { merge: true });
+      await dbSaveUser(newUserProfile);
 
       // 4. สรุปผล
       if (isSuper) {

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { dbSaveSchool, dbDeleteSchool } from '../lib/dbAdapter';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
@@ -231,7 +232,7 @@ export default function SchoolDetailView({
       return;
     }
     try {
-      await deleteDoc(doc(db, 'schools', school.id));
+      await dbDeleteSchool(school.id);
       alert(`ลบโรงเรียน "${school.name}" เรียบร้อยแล้ว`);
       await onRefreshData();
       onBack();
@@ -346,12 +347,13 @@ export default function SchoolDetailView({
       }
 
       const cleanClassrooms = JSON.parse(JSON.stringify(updatedList));
-      const schoolRef = doc(db, 'schools', school.id);
-      await setDoc(schoolRef, { 
+      const updaterName = userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน');
+      await dbSaveSchool({
+        ...school,
         classrooms: cleanClassrooms,
         updatedAt: new Date().toISOString(),
-        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน')
-      }, { merge: true });
+        updatedBy: updaterName
+      }, updaterName);
       
       setClassrooms(updatedList);
       setIsClassroomModalOpen(false);
@@ -372,12 +374,13 @@ export default function SchoolDetailView({
 
     try {
       const updatedList = (school.classrooms || []).filter(c => c.id !== classroomId);
-      const schoolRef = doc(db, 'schools', school.id);
-      await setDoc(schoolRef, { 
+      const updaterName = userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน');
+      await dbSaveSchool({
+        ...school,
         classrooms: updatedList,
         updatedAt: new Date().toISOString(),
-        updatedBy: userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน')
-      }, { merge: true });
+        updatedBy: updaterName
+      }, updaterName);
       
       setClassrooms(updatedList);
       setSuccessMsg('ลบรายการเรียบร้อยแล้ว!');
@@ -539,9 +542,14 @@ export default function SchoolDetailView({
       };
 
       const cleanData = JSON.parse(JSON.stringify(updatedData));
+      const updaterName = userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอนมินประจำโรงเรียน');
 
       try {
-        await setDoc(schoolRef, cleanData, { merge: true });
+        await dbSaveSchool({
+          ...school,
+          ...cleanData,
+          id: school.id,
+        }, updaterName);
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `schools/${school.id}`);
       }

@@ -120,6 +120,10 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       return;
     }
 
+    // Auto-persist credentials so user doesn't lose them
+    localStorage.setItem('override_supabase_url', cleanUrl);
+    localStorage.setItem('override_supabase_anon_key', cleanKey);
+
     try {
       const testClient = createClient(cleanUrl, cleanKey);
       const { data, error } = await testClient.from('schools').select('id').limit(1);
@@ -293,9 +297,13 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     const cleanKey = supabaseKey.trim();
 
     if (!cleanUrl || !cleanKey) {
-      setMigrationError('ยังไม่ได้ตั้งค่า Supabase Credentials กรุณากรอก URL และ Key ในขั้นตอนที่ 3 แล้วกดบันทึกก่อน');
+      setMigrationError('ยังไม่ได้ตั้งค่า Supabase Credentials กรุณากรอก URL และ Key ในขั้นตอนที่ 3 ก่อน');
       return;
     }
+
+    // Auto-save credentials to localStorage so the app remembers them automatically
+    localStorage.setItem('override_supabase_url', cleanUrl);
+    localStorage.setItem('override_supabase_anon_key', cleanKey);
 
     let activeClient: any = null;
     try {
@@ -360,6 +368,8 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
           if (error.message?.includes('row-level security') || error.code === '42501') {
             setIsRlsError(true);
             throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง schools: ${error.message}`);
+          } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            throw new Error(`ไม่พบตาราง "schools" บน Supabase (กรุณาคัดลอก SQL ในขั้นตอนที่ 2 ไปวางใน SQL Editor บน Supabase แล้วกด Run เพื่อสร้างตารางก่อน)`);
           }
           throw new Error(`ล้มเหลวในการบันทึก Schools: ${error.message}`);
         }
@@ -387,6 +397,8 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
           if (error.message?.includes('row-level security') || error.code === '42501') {
             setIsRlsError(true);
             throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง students: ${error.message}`);
+          } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            throw new Error(`ไม่พบตาราง "students" บน Supabase (กรุณารัน SQL ในขั้นตอนที่ 2 ก่อน)`);
           }
           throw new Error(`ล้มเหลวในการบันทึก Students: ${error.message}`);
         }
@@ -415,6 +427,8 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
             if (error.message?.includes('row-level security') || error.code === '42501') {
               setIsRlsError(true);
               throw new Error(`ติดขัดเรื่องสิทธิ์ Row-Level Security (RLS) บนตาราง students_g: ${error.message}`);
+            } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+              throw new Error(`ไม่พบตาราง "students_g" บน Supabase (กรุณารัน SQL ในขั้นตอนที่ 2 ก่อน)`);
             }
             throw new Error(`ล้มเหลวในการบันทึก Students G: ${error.message}`);
           }
@@ -657,9 +671,20 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
             )}
 
             {migrationSuccess && (
-              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-emerald-600" />
-                {migrationStatus}
+              <div className="p-4 bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold mb-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{migrationStatus}</span>
+                </div>
+                <div className="pt-1">
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    รีโหลดหน้าเว็บเพื่อเริ่มใช้งาน Supabase ทันที
+                  </button>
+                </div>
               </div>
             )}
 

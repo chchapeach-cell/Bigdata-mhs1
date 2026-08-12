@@ -498,6 +498,15 @@ export default function App() {
               notes: sg.notes
             }));
 
+            try {
+              const { data: suSettings } = await supabase.from('settings').select('config').eq('id', 'system_config').single();
+              if (suSettings && suSettings.config) {
+                setSystemConfig(prev => ({ ...prev, ...suSettings.config }));
+              }
+            } catch (err) {
+              console.warn('Notice reading settings from Supabase:', err);
+            }
+
             setSchools(mappedSchools);
             setStudentData(mappedStudents);
             setStudentGData(mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools));

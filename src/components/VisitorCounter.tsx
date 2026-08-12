@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Eye, Users, Calendar, TrendingUp, BarChart3, RefreshCw, X, Clock } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from 'firebase/firestore';
+import { dbSaveSystemStats } from '../lib/dbAdapter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 
 interface VisitorData {
@@ -69,7 +70,7 @@ export default function VisitorCounter() {
               yearlyVisits: { [yearStr]: 1 },
               hourlyVisits: { [hourlyKey]: 1 }
             };
-            await setDoc(docRef, { ...initData, updatedAt: new Date() }).catch(() => {});
+            await dbSaveSystemStats({ ...initData, updatedAt: new Date() }).catch(() => {});
             setTotalVisits(1);
             setTodayVisits(1);
           } else {
@@ -85,16 +86,18 @@ export default function VisitorCounter() {
             const newYearCount = (currentYearly[yearStr] || 0) + 1;
             const newHourCount = (currentHourly[hourlyKey] || 0) + 1;
 
-            await updateDoc(docRef, {
-              totalVisits: increment(1),
+            const updatedStats = {
+              ...data,
+              totalVisits: (data.totalVisits || 0) + 1,
               todayVisits: newTodayCount,
               todayDate: todayStr,
-              [`dailyVisits.${todayStr}`]: newDailyCount,
-              [`monthlyVisits.${monthStr}`]: newMonthCount,
-              [`yearlyVisits.${yearStr}`]: newYearCount,
-              [`hourlyVisits.${hourlyKey}`]: newHourCount,
+              dailyVisits: { ...currentDaily, [todayStr]: newDailyCount },
+              monthlyVisits: { ...currentMonthly, [monthStr]: newMonthCount },
+              yearlyVisits: { ...currentYearly, [yearStr]: newYearCount },
+              hourlyVisits: { ...currentHourly, [hourlyKey]: newHourCount },
               updatedAt: new Date()
-            }).catch(() => {});
+            };
+            await dbSaveSystemStats(updatedStats).catch(() => {});
           }
         }
       } catch (_err) {
@@ -137,7 +140,7 @@ export default function VisitorCounter() {
         yearlyVisits: {},
         hourlyVisits: {}
       };
-      await setDoc(docRef, { ...resetData, updatedAt: new Date() });
+      await dbSaveSystemStats({ ...resetData, updatedAt: new Date() });
       setTotalVisits(0);
       setTodayVisits(0);
       setVisitorData(resetData);

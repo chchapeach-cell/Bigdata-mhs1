@@ -3,6 +3,7 @@ import { ContactChannel, SystemConfig, UserProfile } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { removeUndefinedFields } from '../utils/errorHelper';
 import { doc, setDoc } from 'firebase/firestore';
+import { dbSaveSystemConfig } from '../lib/dbAdapter';
 import { 
   Phone, Mail, MessageCircle, Globe, MapPin, QrCode, Share2, Plus, Trash2, Edit3, 
   Eye, EyeOff, Save, CheckCircle2, Upload, AlertCircle, ExternalLink, X, Shield, Video, Sparkles
@@ -135,7 +136,7 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
         contactChannels: sanitizedList,
         updatedAt: new Date()
       });
-      await setDoc(doc(db, 'settings', 'system_config'), cleanData, { merge: true });
+      await dbSaveSystemConfig(cleanData);
 
       setSuccessMsg('บันทึกข้อมูลช่องทางติดต่อสำเร็จแล้ว!');
       await onRefreshData();
@@ -234,10 +235,10 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
     setSuccessMsg('');
     setErrorMsg('');
     try {
-      await setDoc(doc(db, 'settings', 'system_config'), {
+      await dbSaveSystemConfig({
         contactEnabled: nextEnabled,
         updatedAt: new Date()
-      }, { merge: true });
+      });
 
       setSuccessMsg(nextEnabled ? 'เปิดแสดงผลเมนู "ติดต่อ" ให้ทุกคนเห็นเรียบร้อยแล้ว!' : 'ซ่อนเมนู "ติดต่อ" จากทุกคนแล้ว (เห็นเฉพาะ Super Admin)!');
       setTimeout(() => setSuccessMsg(''), 3000);
