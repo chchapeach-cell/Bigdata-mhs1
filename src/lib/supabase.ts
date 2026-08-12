@@ -281,6 +281,14 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
 );
 
 -- 8. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
+ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g ENABLE ROW LEVEL SECURITY;
@@ -289,31 +297,40 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
-CREATE POLICY "Public All Schools" ON public.schools FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.schools FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.students;
 DROP POLICY IF EXISTS "Public All Students" ON public.students;
-CREATE POLICY "Public All Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.students_g;
 DROP POLICY IF EXISTS "Public All StudentsG" ON public.students_g;
-CREATE POLICY "Public All StudentsG" ON public.students_g FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.students_g FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.users;
 DROP POLICY IF EXISTS "Public All Users" ON public.users;
-CREATE POLICY "Public All Users" ON public.users FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.users FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.settings;
 DROP POLICY IF EXISTS "Public All Settings" ON public.settings;
-CREATE POLICY "Public All Settings" ON public.settings FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.system_stats;
 DROP POLICY IF EXISTS "Public All SystemStats" ON public.system_stats;
-CREATE POLICY "Public All SystemStats" ON public.system_stats FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.system_stats FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
-CREATE POLICY "Public All DownloadLogs" ON public.download_logs FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะ
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
+
+NOTIFY pgrst, 'reload schema';
 `;
 
