@@ -103,12 +103,12 @@ export default function AdminPanel({
     setSelfSuccess('');
     setSelfError('');
     try {
-      // 1. อัปเดตข้อมูลใน Firestore
-      const userRef = doc(db, 'users', userProfile.uid);
-      await updateDoc(userRef, {
+      const updatedProfile: UserProfile = {
+        ...userProfile,
         firstName: selfFirstName.trim(),
         lastName: selfLastName.trim()
-      });
+      };
+      await dbSaveUser(updatedProfile);
 
       // 2. อัปเดตรหัสผ่าน (หากกรอกข้อมูล)
       if (selfPassword.trim()) {
@@ -168,17 +168,17 @@ export default function AdminPanel({
     setUserEditError('');
     setUserEditSuccess('');
     try {
-      const userRef = doc(db, 'users', editingUser.uid);
       const matchedSchool = schools.find(s => s.id === editUserSchoolId);
-      const updatedData = {
+      const updatedProfile: UserProfile = {
+        ...editingUser,
         firstName: editUserFirstName.trim(),
         lastName: editUserLastName.trim(),
         email: editUserEmail.trim(),
         schoolId: editUserSchoolId,
         schoolName: editUserSchoolId === 'all' ? 'สพป.แม่ฮ่องสอน เขต 1' : (matchedSchool ? matchedSchool.name : ''),
-        role: editUserRole,
+        role: editUserRole as any,
       };
-      await updateDoc(userRef, updatedData);
+      await dbSaveUser(updatedProfile);
       setUserEditSuccess('อัปเดตข้อมูลผู้ใช้งานเรียบร้อยแล้ว!');
       
       await loadApprovedUsers();
@@ -657,18 +657,16 @@ export default function AdminPanel({
     try {
       const sch = schools.find(s => s.id === targetId);
       const docId = `${targetId}_${gYear}`;
-      const docRef = doc(db, 'students_g', docId);
-
-      await setDoc(docRef, {
+      await dbSaveStudentG({
+        id: docId,
         schoolId: targetId,
         schoolName: sch?.name || 'ไม่ระบุ',
         academicYear: gYear,
         totalGStudents: Number(gTotalCount) || 0,
         maleGCount: Number(gMaleCount) || 0,
         femaleGCount: Number(gFemaleCount) || 0,
-        notes: gNotes.trim(),
-        updatedAt: new Date()
-      }, { merge: true });
+        notes: gNotes.trim()
+      });
 
       setGSuccess(`บันทึกข้อมูลนักเรียนรหัส G ของโรงเรียน "${sch?.name || targetId}" ปีการศึกษา ${gYear} สำเร็จแล้ว!`);
       await onRefreshData();
@@ -1255,7 +1253,6 @@ export default function AdminPanel({
 
     try {
       const cleanId = newSchoolId.trim();
-      const schoolRef = doc(db, 'schools', cleanId);
       
       const newSchoolObj: School = {
         id: cleanId,
@@ -1674,10 +1671,10 @@ export default function AdminPanel({
   }, [isSuperAdmin]);
 
   // ฟังก์ชันอนุมัติสิทธิ์ / ปฏิเสธสิทธิ์ผู้สมัครแอดมินโรงเรียน
-  const handleUserStatusUpdate = async (uid: string, status: 'approved' | 'rejected') => {
+  const handleUserStatusUpdate = async (uid: string, status: 'approved' | 'rejected', email?: string) => {
     try {
-      await dbUpdateUserStatus(uid, status);
-      setPendingUsers(prev => prev.filter(u => u.uid !== uid));
+      await dbUpdateUserStatus(uid, status, email);
+      setPendingUsers(prev => prev.filter(u => u.uid !== uid && u.email !== email));
       if (status === 'approved') {
         loadApprovedUsers();
       }
@@ -1688,12 +1685,12 @@ export default function AdminPanel({
     }
   };
 
-  const handleDeleteUser = async (uid: string) => {
+  const handleDeleteUser = async (uid: string, email?: string) => {
     if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้งานนี้?')) return;
     try {
-      await dbDeleteUser(uid);
-      setApprovedUsers(prev => prev.filter(u => u.uid !== uid));
-      setPendingUsers(prev => prev.filter(u => u.uid !== uid));
+      await dbDeleteUser(uid, email);
+      setApprovedUsers(prev => prev.filter(u => u.uid !== uid && u.email !== email));
+      setPendingUsers(prev => prev.filter(u => u.uid !== uid && u.email !== email));
       alert('ลบผู้ใช้งานเรียบร้อยแล้ว');
     } catch (error) {
       console.error(error);
@@ -1715,8 +1712,6 @@ export default function AdminPanel({
     setEditError('');
 
     try {
-      const schoolRef = doc(db, 'schools', targetId);
-      
       // ดึงรายชื่อวิชาเอกจากลิสต์วิชาเอกพร้อมจำนวนครู
       const combinedMajors = editMajorsWithStaff.map(m => m.name);
       const updatedMajorsWithStaff = editMajorsWithStaff;
@@ -3052,13 +3047,13 @@ export default function AdminPanel({
                           </div>
                           <div className="flex gap-1.5 pt-1.5 justify-end">
                             <button
-                              onClick={() => handleUserStatusUpdate(user.uid, 'rejected')}
+                              onClick={() => handleUserStatusUpdate(user.uid, 'rejected', user.email)}
                               className="rounded-lg bg-rose-50 hover:bg-rose-100 text-[#33272A] border border-[#33272A] px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-colors"
                             >
                               ปฏิเสธ
                             </button>
                             <button
-                              onClick={() => handleUserStatusUpdate(user.uid, 'approved')}
+                              onClick={() => handleUserStatusUpdate(user.uid, 'approved', user.email)}
                               className="btn-cute bg-[#A0E7E5] text-[#33272A] px-2.5 py-1 text-[10px] font-black cursor-pointer shadow-[2px_2px_0px_#33272A]"
                             >
                               อนุมัติสิทธิ์
@@ -3121,7 +3116,7 @@ export default function AdminPanel({
                                 
                                 {u.role !== 'super_admin' && (
                                   <button
-                                    onClick={() => handleDeleteUser(u.uid)}
+                                    onClick={() => handleDeleteUser(u.uid, u.email)}
                                     className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                                     title="ลบผู้ใช้งาน"
                                   >

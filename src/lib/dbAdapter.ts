@@ -24,7 +24,7 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
   const schoolId = String(school.id);
   const now = new Date().toISOString();
 
-  // A. Save to Supabase
+  // A. Save to Supabase (Priority)
   if (supabase && isSupabaseConfigured()) {
     try {
       const supabasePayload = {
@@ -72,9 +72,10 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
     } catch (err) {
       console.error('Supabase dbSaveSchool exception:', err);
     }
+    return; // Don't write to Firestore if Supabase is configured
   }
 
-  // B. Backup/Sync to Firestore
+  // B. Fallback to Firestore when Supabase is NOT configured
   try {
     const schoolRef = doc(db, 'schools', schoolId);
     const cleanData = cleanForFirestore({
@@ -98,6 +99,7 @@ export async function dbDeleteSchool(schoolId: string): Promise<void> {
     } catch (err) {
       console.error('Supabase dbDeleteSchool error:', err);
     }
+    return;
   }
 
   try {
@@ -137,6 +139,7 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
     } catch (err) {
       console.error('Supabase dbSaveStudent exception:', err);
     }
+    return;
   }
 
   try {
@@ -179,6 +182,7 @@ export async function dbBatchSaveStudents(students: StudentData[]): Promise<void
     } catch (err) {
       console.error('Supabase dbBatchSaveStudents error:', err);
     }
+    return;
   }
 
   // Backup to Firestore
@@ -209,6 +213,7 @@ export async function dbDeleteStudent(docId: string, schoolId?: string, academic
     } catch (err) {
       console.error('Supabase dbDeleteStudent error:', err);
     }
+    return;
   }
 
   try {
@@ -244,6 +249,7 @@ export async function dbDeleteStudentsByYear(year: string): Promise<number> {
     } catch (err) {
       console.error('Supabase dbDeleteStudentsByYear error:', err);
     }
+    return deletedCount;
   }
 
   // 2. Delete from Firestore
@@ -297,6 +303,7 @@ export async function dbSaveStudentG(studentG: StudentGData): Promise<void> {
     } catch (err) {
       console.error('Supabase dbSaveStudentG exception:', err);
     }
+    return;
   }
 
   try {
@@ -339,6 +346,7 @@ export async function dbBatchSaveStudentsG(studentsG: StudentGData[]): Promise<v
     } catch (err) {
       console.error('Supabase dbBatchSaveStudentsG error:', err);
     }
+    return;
   }
 
   for (const sg of studentsG) {
@@ -368,6 +376,7 @@ export async function dbDeleteStudentG(docId: string, schoolId?: string, academi
     } catch (err) {
       console.error('Supabase dbDeleteStudentG error:', err);
     }
+    return;
   }
 
   try {
@@ -403,6 +412,7 @@ export async function dbDeleteStudentsGByYear(year: string): Promise<number> {
     } catch (err) {
       console.error('Supabase dbDeleteStudentsGByYear error:', err);
     }
+    return deletedCount;
   }
 
   // 2. Delete from Firestore
@@ -448,6 +458,7 @@ export async function dbCleanCorruptStudentsG(): Promise<number> {
     } catch (err) {
       console.error('Supabase dbCleanCorruptStudentsG error:', err);
     }
+    return deletedCount;
   }
 
   // 2. Firestore
@@ -527,6 +538,7 @@ export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise
     } catch (err) {
       console.error('Supabase dbSaveSystemConfig exception:', err);
     }
+    return;
   }
 
   try {
@@ -629,6 +641,7 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
     } catch (err) {
       console.error('Supabase dbSaveUser exception:', err);
     }
+    return;
   }
 
   try {
@@ -639,36 +652,68 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
   }
 }
 
-export async function dbUpdateUserStatus(uid: string, status: string): Promise<void> {
+export async function dbUpdateUserStatus(uid: string, status: string, email?: string): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
     try {
-      await supabase.from('users').update({ status }).eq('uid', uid);
-      console.log(`✅ Updated user ${uid} status to ${status} on Supabase`);
+      const { data, error } = await supabase.from('users').update({ status }).eq('uid', uid).select();
+      if (error) {
+        console.error('Supabase dbUpdateUserStatus error by uid:', error);
+      }
+      if (email) {
+        const { error: errEmail } = await supabase.from('users').update({ status }).eq('email', email);
+        if (errEmail) {
+          console.error('Supabase dbUpdateUserStatus error by email:', errEmail);
+        }
+      }
+      console.log(`✅ Updated user status to ${status} on Supabase (uid: ${uid}, email: ${email || 'n/a'})`);
     } catch (err) {
       console.error('Supabase dbUpdateUserStatus error:', err);
     }
+    return;
   }
 
   try {
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, { status });
+    if (email) {
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', email));
+        const qSnap = await getDocs(q);
+        qSnap.forEach(async (docSnap) => {
+          await updateDoc(docSnap.ref, { status });
+        });
+      } catch (e) {}
+    }
   } catch (err) {
     console.warn('Firestore dbUpdateUserStatus warning:', err);
   }
 }
 
-export async function dbDeleteUser(uid: string): Promise<void> {
+export async function dbDeleteUser(uid: string, email?: string): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
     try {
       await supabase.from('users').delete().eq('uid', uid);
-      console.log(`✅ Deleted user ${uid} from Supabase`);
+      if (email) {
+        await supabase.from('users').delete().eq('email', email);
+      }
+      console.log(`✅ Deleted user ${uid} / ${email || ''} from Supabase`);
     } catch (err) {
       console.error('Supabase dbDeleteUser error:', err);
     }
+    return;
   }
 
   try {
     await deleteDoc(doc(db, 'users', uid));
+    if (email) {
+      try {
+        const q = query(collection(db, 'users'), where('email', '==', email));
+        const qSnap = await getDocs(q);
+        qSnap.forEach(async (docSnap) => {
+          await deleteDoc(docSnap.ref);
+        });
+      } catch (e) {}
+    }
   } catch (err) {
     console.warn('Firestore dbDeleteUser warning:', err);
   }
@@ -913,6 +958,7 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
     } catch (err) {
       console.error('Supabase dbSaveSystemStats error:', err);
     }
+    return;
   }
 
   try {
@@ -1015,6 +1061,7 @@ export async function dbAddDownloadLog(logData: DownloadLog): Promise<void> {
     } catch (err) {
       console.error('Supabase dbAddDownloadLog error:', err);
     }
+    return;
   }
 
   try {
@@ -1086,6 +1133,7 @@ export async function dbCheckExistingSchoolAdmin(schoolId: string, excludeEmail:
     } catch (err) {
       console.warn('Supabase dbCheckExistingSchoolAdmin warning:', err);
     }
+    return null;
   }
 
   // Firestore Fallback

@@ -504,8 +504,6 @@ export default function SchoolDetailView({
     setSuccessMsg('');
 
     try {
-      const schoolRef = doc(db, 'schools', school.id);
-      
       const combinedMajors = editMajorsWithStaff.map(m => m.name.trim()).filter(Boolean);
       const updatedMajorsWithStaff = editMajorsWithStaff;
 
