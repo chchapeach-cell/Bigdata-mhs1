@@ -40,6 +40,9 @@ export default function DashboardView({
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
   
+  // ตัวกรองอำเภอสำหรับแผนที่
+  const [mapAmphoeFilter, setMapAmphoeFilter] = useState<string>('all');
+  
   // ตัวกรองแผนที่สำหรับโครงสร้างพื้นฐาน (ไฟฟ้า, อินเทอร์เน็ต & ระบบน้ำประปา)
   const [mapInfraFilter, setMapInfraFilter] = useState<'all' | 'electricity' | 'fiber' | 'satellite' | 'sim' | 'none' | 'water_gov' | 'water_mountain' | 'water_none' | 'water_other'>('all');
   
@@ -284,14 +287,50 @@ export default function DashboardView({
   const handleSelectMapSchool = (id: string) => {
     setSelectedMapSchoolId(id);
     if (!id) {
-      setMapCenter([19.3021, 97.9654]);
-      setMapZoom(10);
+      if (mapAmphoeFilter === 'เมืองแม่ฮ่องสอน') {
+        setMapCenter([19.3021, 97.9654]);
+        setMapZoom(11);
+      } else if (mapAmphoeFilter === 'ขุนยวม') {
+        setMapCenter([18.8412, 97.9431]);
+        setMapZoom(11);
+      } else if (mapAmphoeFilter === 'ปาย') {
+        setMapCenter([19.3589, 98.4418]);
+        setMapZoom(11);
+      } else if (mapAmphoeFilter === 'ปางมะผ้า') {
+        setMapCenter([19.5243, 98.2467]);
+        setMapZoom(11);
+      } else {
+        setMapCenter([19.3021, 97.9654]);
+        setMapZoom(10);
+      }
     } else {
       const target = schools.find(s => s.id === id);
       if (target) {
         setMapCenter([Number(target.latitude) || 19.3021, Number(target.longitude) || 97.9654]);
         setMapZoom(13);
       }
+    }
+  };
+
+  // ตัวจัดการการเลือกอำเภอจาก Dropdown
+  const handleSelectMapAmphoe = (amphoe: string) => {
+    setMapAmphoeFilter(amphoe);
+    setSelectedMapSchoolId('');
+    if (amphoe === 'all' || !amphoe) {
+      setMapCenter([19.3021, 97.9654]);
+      setMapZoom(10);
+    } else if (amphoe === 'เมืองแม่ฮ่องสอน') {
+      setMapCenter([19.3021, 97.9654]);
+      setMapZoom(11);
+    } else if (amphoe === 'ขุนยวม') {
+      setMapCenter([18.8412, 97.9431]);
+      setMapZoom(11);
+    } else if (amphoe === 'ปาย') {
+      setMapCenter([19.3589, 98.4418]);
+      setMapZoom(11);
+    } else if (amphoe === 'ปางมะผ้า') {
+      setMapCenter([19.5243, 98.2467]);
+      setMapZoom(11);
     }
   };
 
@@ -640,39 +679,49 @@ export default function DashboardView({
     };
   }, [schools]);
 
-  // โรงเรียนที่กรองตามตัวกรองแผนที่ (ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา)
+  // โรงเรียนที่กรองตามตัวกรองแผนที่ (อำเภอ, ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา)
   const filteredMapSchools = useMemo(() => {
-    if (mapInfraFilter === 'all') return schools;
-    if (mapInfraFilter === 'electricity') return schools.filter(s => s.electricity);
+    let result = schools;
+
+    // กรองตามอำเภอที่เลือก
+    if (mapAmphoeFilter && mapAmphoeFilter !== 'all') {
+      result = result.filter(s => {
+        const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe;
+        return amp === mapAmphoeFilter;
+      });
+    }
+
+    if (mapInfraFilter === 'all') return result;
+    if (mapInfraFilter === 'electricity') return result.filter(s => s.electricity);
     if (mapInfraFilter === 'fiber' || mapInfraFilter === 'satellite' || mapInfraFilter === 'sim' || mapInfraFilter === 'none') {
-      return schools.filter(s => s.internetType === mapInfraFilter);
+      return result.filter(s => s.internetType === mapInfraFilter);
     }
     if (mapInfraFilter === 'water_mountain') {
-      return schools.filter(s => {
+      return result.filter(s => {
         const w = String(s.waterSystem || '').toLowerCase();
         return w.includes('mountain') || w.includes('ภูเขา');
       });
     }
     if (mapInfraFilter === 'water_none') {
-      return schools.filter(s => {
+      return result.filter(s => {
         const w = String(s.waterSystem || '').toLowerCase();
         return w.includes('none') || w.includes('ไม่มี');
       });
     }
     if (mapInfraFilter === 'water_other') {
-      return schools.filter(s => {
+      return result.filter(s => {
         const w = String(s.waterSystem || '').toLowerCase();
         return w.includes('other') || w.includes('อื่นๆ');
       });
     }
     if (mapInfraFilter === 'water_gov') {
-      return schools.filter(s => {
+      return result.filter(s => {
         const w = String(s.waterSystem || '').toLowerCase();
         return w.includes('government') || w.includes('รัฐ') || (!w.includes('mountain') && !w.includes('ภูเขา') && !w.includes('none') && !w.includes('ไม่มี') && !w.includes('other') && !w.includes('อื่นๆ'));
       });
     }
-    return schools;
-  }, [schools, mapInfraFilter]);
+    return result;
+  }, [schools, mapInfraFilter, mapAmphoeFilter]);
 
   // สถิตินักเรียนตัว G แยกรายปีการศึกษา
   const yearlyGStudentsData = useMemo(() => {
@@ -1596,7 +1645,7 @@ export default function DashboardView({
                 <select
                   value={selectedMapSchoolId}
                   onChange={(e) => handleSelectMapSchool(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-md"
+                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-md cursor-pointer"
                 >
                   <option value="">-- แสดงทั้งหมด ({filteredMapSchools.length} แห่ง) --</option>
                   {filteredMapSchools.map(s => (
@@ -1604,6 +1653,32 @@ export default function DashboardView({
                       {s.name} ({s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe})
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* ตัวกรองเลือกอำเภอ */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase flex items-center justify-between">
+                  <span>📍 เลือกอำเภอ (พื้นที่)</span>
+                  {mapAmphoeFilter !== 'all' && (
+                    <button
+                      onClick={() => handleSelectMapAmphoe('all')}
+                      className="text-rose-500 text-[9px] font-bold hover:underline cursor-pointer"
+                    >
+                      แสดงทุกอำเภอ
+                    </button>
+                  )}
+                </label>
+                <select
+                  value={mapAmphoeFilter}
+                  onChange={(e) => handleSelectMapAmphoe(e.target.value)}
+                  className="w-full rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-3 py-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none shadow-md cursor-pointer"
+                >
+                  <option value="all">-- ทุกอำเภอ (4 อำเภอ) --</option>
+                  <option value="เมืองแม่ฮ่องสอน">อำเภอเมืองแม่ฮ่องสอน</option>
+                  <option value="ขุนยวม">อำเภอขุนยวม</option>
+                  <option value="ปาย">อำเภอปาย</option>
+                  <option value="ปางมะผ้า">อำเภอปางมะผ้า</option>
                 </select>
               </div>
 
@@ -1786,11 +1861,14 @@ export default function DashboardView({
 
             <div className="flex justify-between items-center mt-1.5 px-1">
               <span className="text-[10px] text-gray-400 font-bold">💡 ใช้ปุ่มกลิ้งเม้าส์เพื่อซูมแผนที่ และลากเมาส์เพื่อเลื่อนตำแหน่งดูภาพรวมเขต สพป.มส.1</span>
-              {(selectedMapSchoolId || mapInfraFilter !== 'all') && (
+              {(selectedMapSchoolId || mapInfraFilter !== 'all' || mapAmphoeFilter !== 'all') && (
                 <button
                   onClick={() => {
                     handleSelectMapSchool('');
                     setMapInfraFilter('all');
+                    setMapAmphoeFilter('all');
+                    setMapCenter([19.3021, 97.9654]);
+                    setMapZoom(10);
                   }}
                   className="text-[10px] text-[#FF8BA7] hover:underline font-black cursor-pointer"
                 >

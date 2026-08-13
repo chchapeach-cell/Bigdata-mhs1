@@ -17,12 +17,25 @@ function cleanForFirestore(obj: any): any {
   return cleaned;
 }
 
+/**
+ * ล้างแคชในเครื่องเมื่อมีการบันทึก/แก้ไข/ลบข้อมูล
+ */
+export function clearAppCache(): void {
+  try {
+    localStorage.removeItem('mhs_app_data_cache_v3');
+    sessionStorage.removeItem('mhs_app_data_cache_v3');
+  } catch (e) {
+    // ignore
+  }
+}
+
 // -------------------------------------------------------------
 // 1. SCHOOLS
 // -------------------------------------------------------------
 export async function dbSaveSchool(school: School, updatedBy?: string): Promise<void> {
   const schoolId = String(school.id);
   const now = new Date().toISOString();
+  clearAppCache();
 
   // A. Save to Supabase (Priority)
   if (supabase && isSupabaseConfigured()) {
@@ -90,6 +103,7 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
 }
 
 export async function dbDeleteSchool(schoolId: string): Promise<void> {
+  clearAppCache();
   const cleanId = String(schoolId);
 
   if (supabase && isSupabaseConfigured()) {
@@ -113,6 +127,7 @@ export async function dbDeleteSchool(schoolId: string): Promise<void> {
 // 2. STUDENTS (General Grade-by-Grade)
 // -------------------------------------------------------------
 export async function dbSaveStudent(student: StudentData): Promise<void> {
+  clearAppCache();
   const docId = student.id || `${student.schoolId}_${student.academicYear}`;
   const now = new Date().toISOString();
 
@@ -157,6 +172,7 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
 
 export async function dbBatchSaveStudents(students: StudentData[]): Promise<void> {
   if (students.length === 0) return;
+  clearAppCache();
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
@@ -277,6 +293,7 @@ export async function dbDeleteStudentsByYear(year: string): Promise<number> {
 // 3. STUDENTS G
 // -------------------------------------------------------------
 export async function dbSaveStudentG(studentG: StudentGData): Promise<void> {
+  clearAppCache();
   const docId = studentG.id || `${studentG.schoolId}_g_${studentG.academicYear}`;
   const now = new Date().toISOString();
 

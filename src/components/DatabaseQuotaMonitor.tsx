@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Database, HardDrive, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Server, ArrowUpRight, ShieldAlert, BarChart2, Activity, Wifi, Zap, Gauge } from 'lucide-react';
+import { Database, HardDrive, Cpu, AlertTriangle, CheckCircle2, RefreshCw, Server, ArrowUpRight, ShieldAlert, BarChart2, Activity, Wifi, Zap, Gauge, Check } from 'lucide-react';
 import { School, StudentData, StudentGData, UserProfile } from '../types';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface DatabaseQuotaMonitorProps {
   schools: School[];
@@ -53,12 +54,14 @@ export default function DatabaseQuotaMonitor({
 
   const estimatedStorageMB = parseFloat((estimatedStorageKB / 1024).toFixed(3));
 
-  // โควตาแผนฟรีของ Firebase Firestore (Spark Plan)
-  const MAX_STORAGE_MB = 1024; // 1 GB = 1024 MB
-  const MAX_DAILY_READS = 50000; // 50,000 Reads/วัน
-  const MAX_DAILY_WRITES = 20000; // 20,000 Writes/วัน
-  const MAX_DAILY_DELETES = 20000; // 20,000 Deletes/วัน
-  const MAX_DOCUMENTS_CAPACITY = 100000; // 100,000 Docs
+  const isSupabaseActive = isSupabaseConfigured();
+
+  // โควตาและการคำนวณแยกตามฐานข้อมูลที่เปิดใช้งานจริง
+  const MAX_STORAGE_MB = isSupabaseActive ? 500 : 1024; // 500 MB (Supabase Free Tier) หรือ 1024 MB (Firebase Spark)
+  const MAX_DAILY_READS = isSupabaseActive ? 1000000 : 50000; // Supabase REST API High capacity vs Firebase Spark
+  const MAX_DAILY_WRITES = isSupabaseActive ? 500000 : 20000;
+  const MAX_DAILY_DELETES = isSupabaseActive ? 500000 : 20000;
+  const MAX_DOCUMENTS_CAPACITY = isSupabaseActive ? 500000 : 100000;
 
   // คำนวณเปอร์เซ็นต์ฐานข้อมูล
   const storageUsagePercent = Math.min(100, parseFloat(((estimatedStorageMB / MAX_STORAGE_MB) * 100).toFixed(2)));
@@ -297,7 +300,7 @@ export default function DatabaseQuotaMonitor({
         </div>
       </div>
 
-      {/* 2. การตรวจสอบโควตาฐานข้อมูล Firebase Firestore (Database Quota & Usage Monitor) */}
+      {/* 2. การตรวจสอบโควตาฐานข้อมูล (Database Quota & Usage Monitor) */}
       <div className="card p-5 space-y-5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6]">
         {/* ส่วนหัวการตรวจสอบฐานข้อมูล */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-3">
@@ -309,8 +312,17 @@ export default function DatabaseQuotaMonitor({
               <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
                 <span>ระบบตรวจสอบขีดจำกัดการใช้งานฐานข้อมูล (Database Quota & Usage Monitor)</span>
               </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                ประเมินปริมาณข้อมูลและโควตาการใช้งาน Firebase Firestore แบบ % ความจุ
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1.5 mt-0.5">
+                <span>โหมดการทำงานปัจจุบัน:</span>
+                {isSupabaseActive ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800 inline-flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Supabase Cloud Database (PostgreSQL) — ทำงานหลัก 100%
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-black bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-800">
+                    Firebase Firestore (Spark Plan)
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -336,7 +348,7 @@ export default function DatabaseQuotaMonitor({
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
               <span>ใช้ไป: {estimatedStorageMB} MB</span>
-              <span>จำกัด: {MAX_STORAGE_MB} MB (1GB)</span>
+              <span>จำกัด: {MAX_STORAGE_MB} MB ({isSupabaseActive ? '500MB Free' : '1GB Spark'})</span>
             </div>
           </div>
 
@@ -344,7 +356,7 @@ export default function DatabaseQuotaMonitor({
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <Cpu className="h-4 w-4 text-sky-500" /> คำสั่งอ่าน (Reads/วัน)
+                <Cpu className="h-4 w-4 text-sky-500" /> คำสั่งอ่าน ({isSupabaseActive ? 'API Queries' : 'Reads/วัน'})
               </span>
               <span className="font-mono text-sky-600 dark:text-sky-400">{readQuotaPercent}%</span>
             </div>
@@ -358,7 +370,7 @@ export default function DatabaseQuotaMonitor({
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
               <span>สะสม: {estimatedDailyReads.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {MAX_DAILY_READS.toLocaleString()}/วัน</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_READS.toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
@@ -366,7 +378,7 @@ export default function DatabaseQuotaMonitor({
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <BarChart2 className="h-4 w-4 text-amber-500" /> คำสั่งเขียน (Writes/วัน)
+                <BarChart2 className="h-4 w-4 text-amber-500" /> คำสั่งเขียน ({isSupabaseActive ? 'API Inserts' : 'Writes/วัน'})
               </span>
               <span className="font-mono text-amber-600 dark:text-amber-400">{writeQuotaPercent}%</span>
             </div>
@@ -380,7 +392,7 @@ export default function DatabaseQuotaMonitor({
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
               <span>สะสม: {estimatedDailyWrites.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {MAX_DAILY_WRITES.toLocaleString()}/วัน</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_WRITES.toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
@@ -388,7 +400,7 @@ export default function DatabaseQuotaMonitor({
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <ShieldAlert className="h-4 w-4 text-indigo-500" /> คำสั่งลบ (Deletes/วัน)
+                <ShieldAlert className="h-4 w-4 text-indigo-500" /> คำสั่งลบ (Deletes)
               </span>
               <span className="font-mono text-indigo-600 dark:text-indigo-400">{deleteQuotaPercent}%</span>
             </div>
@@ -402,15 +414,15 @@ export default function DatabaseQuotaMonitor({
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
               <span>สะสม: {estimatedDailyDeletes.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {MAX_DAILY_DELETES.toLocaleString()}/วัน</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_DELETES.toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
-          {/* 2.5 โควตาจำนวนเอกสาร Document Limit % */}
+          {/* 2.5 โควตาจำนวนแถว/เอกสาร Document/Row Limit % */}
           <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-2">
             <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
               <span className="flex items-center gap-1">
-                <Server className="h-4 w-4 text-purple-500" /> เอกสารรวมทั้งหมด
+                <Server className="h-4 w-4 text-purple-500" /> {isSupabaseActive ? 'จำนวนแถวในระเบียบ DB' : 'เอกสารรวมทั้งหมด'}
               </span>
               <span className="font-mono text-purple-600 dark:text-purple-400">{documentQuotaPercent}%</span>
             </div>
@@ -424,20 +436,24 @@ export default function DatabaseQuotaMonitor({
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
               <span>รวม: {totalDocuments.toLocaleString()} รายการ</span>
-              <span>เป้าหมาย: {MAX_DOCUMENTS_CAPACITY.toLocaleString()}</span>
+              <span>ความจุ: {MAX_DOCUMENTS_CAPACITY.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        {/* ตารางแสดงข้อมูลรายละเอียดขีดจำกัด Firebase สำหรับ Super Admin */}
+        {/* ตารางแสดงข้อมูลรายละเอียดขีดจำกัดสำหรับ Super Admin */}
         <div className="p-4 rounded-2xl bg-[#FFF9F5] dark:bg-[#261b1f] border-2 border-[#33272A] dark:border-[#FFD3B6]/50 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-2">
             <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
               <ShieldAlert className="h-4 w-4 text-amber-500" />
-              <span>ตารางสรุปขีดจำกัดโควตา Firebase Spark Plan (สำหรับ Super Admin)</span>
+              <span>
+                {isSupabaseActive 
+                  ? 'ตารางสรุปขีดจำกัดโควตา Supabase Cloud Database (PostgreSQL - ระบบหลัก)'
+                  : 'ตารางสรุปขีดจำกัดโควตา Firebase Spark Plan (สำหรับ Super Admin)'}
+              </span>
             </h4>
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-              ⚡ Reset ประจำวันเวลา 14:00 น. (00:00 UTC)
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+              {isSupabaseActive ? '⚡ Supabase Active Mode (High Availability)' : '⚡ Reset ประจำวันเวลา 14:00 น. (00:00 UTC)'}
             </span>
           </div>
 
@@ -449,84 +465,80 @@ export default function DatabaseQuotaMonitor({
                   <th className="py-2 px-2">ขีดจำกัดสูงสุด (Limit)</th>
                   <th className="py-2 px-2">ใช้งานปัจจุบัน (Current)</th>
                   <th className="py-2 px-2">สถานะ (% Usage)</th>
-                  <th className="py-2 px-2">รอบเวลาการรีเซ็ต (Reset Cycle)</th>
+                  <th className="py-2 px-2">รายละเอียดโหมด (Engine Mode)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold text-slate-700 dark:text-slate-300">
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-sky-700 dark:text-sky-300">
-                    <Cpu className="h-3.5 w-3.5 shrink-0" /> คำสั่งอ่านข้อมูล (Stored Reads)
+                    <Cpu className="h-3.5 w-3.5 shrink-0" /> คำสั่งอ่านข้อมูล (Stored Reads / Queries)
                   </td>
-                  <td className="py-2 px-2 font-mono">50,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '50,000 ครั้ง/วัน'}</td>
                   <td className="py-2 px-2 font-mono">{estimatedDailyReads.toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
-                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-black ${
-                      readQuotaPercent >= 90 ? 'bg-rose-100 text-rose-800' : readQuotaPercent >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {readQuotaPercent}%
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                  <td className="py-2 px-2 text-[11px]">{isSupabaseActive ? 'Supabase REST & Realtime API' : 'Firebase Daily Cap'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
-                    <BarChart2 className="h-3.5 w-3.5 shrink-0" /> คำสั่งเขียนข้อมูล (Stored Writes)
+                    <BarChart2 className="h-3.5 w-3.5 shrink-0" /> คำสั่งเขียนข้อมูล (Inserts & Updates)
                   </td>
-                  <td className="py-2 px-2 font-mono">20,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '20,000 ครั้ง/วัน'}</td>
                   <td className="py-2 px-2 font-mono">{estimatedDailyWrites.toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
-                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-black ${
-                      writeQuotaPercent >= 90 ? 'bg-rose-100 text-rose-800' : writeQuotaPercent >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {writeQuotaPercent}%
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                  <td className="py-2 px-2 text-[11px]">{isSupabaseActive ? 'PostgreSQL High Throughput' : 'Firebase Daily Cap'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-indigo-700 dark:text-indigo-300">
-                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> คำสั่งลบข้อมูล (Stored Deletes)
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> คำสั่งลบข้อมูล (Deletes)
                   </td>
-                  <td className="py-2 px-2 font-mono">20,000 ครั้ง/วัน</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '20,000 ครั้ง/วัน'}</td>
                   <td className="py-2 px-2 font-mono">{estimatedDailyDeletes.toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {deleteQuotaPercent}%
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-[11px]">ทุกวัน เวลา 14:00 น.</td>
+                  <td className="py-2 px-2 text-[11px]">{isSupabaseActive ? 'PostgreSQL SQL Operations' : 'Firebase Daily Cap'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-rose-700 dark:text-rose-300">
-                    <HardDrive className="h-3.5 w-3.5 shrink-0" /> พื้นที่ความจุจัดเก็บ (Total Storage)
+                    <HardDrive className="h-3.5 w-3.5 shrink-0" /> พื้นที่ความจุจัดเก็บ (Total Database Storage)
                   </td>
-                  <td className="py-2 px-2 font-mono">1 GiB (1,024 MB)</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? '500 MB (Free Tier Storage)' : '1 GiB (1,024 MB)'}</td>
                   <td className="py-2 px-2 font-mono">{estimatedStorageMB} MB</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {storageUsagePercent}%
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-[11px]">ต่อเนื่อง (ไม่รีเซ็ต)</td>
+                  <td className="py-2 px-2 text-[11px]">จัดเก็บถาวรต่อเนื่อง</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-teal-700 dark:text-teal-300">
                     <Wifi className="h-3.5 w-3.5 shrink-0" /> แบนด์วิธส่งออกข้อมูล (Network Egress)
                   </td>
-                  <td className="py-2 px-2 font-mono">10 GiB/เดือน</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? '2 GB / เดือน' : '10 GiB / เดือน'}</td>
                   <td className="py-2 px-2 font-mono">{estimatedMonthlyBandwidthGB} GB</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {bandwidthUsagePercent}%
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-[11px]">รีเซ็ตทุกสิ้นเดือน</td>
+                  <td className="py-2 px-2 text-[11px]">รีเซ็ตตามรอบเดือน</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-2 flex items-center gap-1.5 font-black text-purple-700 dark:text-purple-300">
-                    <Activity className="h-3.5 w-3.5 shrink-0" /> การเชื่อมต่อพร้อมกัน (Connections)
+                    <Activity className="h-3.5 w-3.5 shrink-0" /> การเชื่อมต่อพร้อมกัน (Connections Pool)
                   </td>
-                  <td className="py-2 px-2 font-mono">100 Connections</td>
+                  <td className="py-2 px-2 font-mono">{isSupabaseActive ? '200 Direct / Pool Connections' : '100 Connections'}</td>
                   <td className="py-2 px-2 font-mono">{concurrentConnections} Connections</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
@@ -540,37 +552,49 @@ export default function DatabaseQuotaMonitor({
           </div>
         </div>
 
-        {/* ตารางแสดงการกระจายข้อมูลตาม Collection */}
+        {/* ตารางแสดงการกระจายข้อมูลตาม Table / Collection */}
         <div className="space-y-2">
           <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center justify-between">
-            <span>สถิติจำนวนข้อมูลจำแนกตามคอลเลกชัน (Collection Breakdown):</span>
+            <span>
+              {isSupabaseActive 
+                ? 'สถิติจำนวนข้อมูลในตาราง Supabase (Table Breakdown):' 
+                : 'สถิติจำนวนข้อมูลจำแนกตามคอลเลกชัน (Collection Breakdown):'}
+            </span>
             <span className="text-[10px] text-slate-400 font-bold font-mono">อัปเดตล่าสุด: {lastCheckedTime}</span>
           </h4>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-[10px] font-bold text-slate-500">🏫 คอลเลกชัน `schools`</div>
+              <div className="text-[10px] font-bold text-slate-500">
+                🏫 {isSupabaseActive ? 'ตาราง `schools`' : 'คอลเลกชัน `schools`'}
+              </div>
               <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] font-mono mt-0.5">
                 {schoolsCount} สถานศึกษา
               </div>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-[10px] font-bold text-slate-500">👨‍🎓 คอลเลกชัน `studentData`</div>
+              <div className="text-[10px] font-bold text-slate-500">
+                👨‍🎓 {isSupabaseActive ? 'ตาราง `students`' : 'คอลเลกชัน `studentData`'}
+              </div>
               <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] font-mono mt-0.5">
                 {studentRecordsCount} ประวัติรายปี
               </div>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-[10px] font-bold text-slate-500">🆔 คอลเลกชัน `studentGData`</div>
+              <div className="text-[10px] font-bold text-slate-500">
+                🆔 {isSupabaseActive ? 'ตาราง `students_g`' : 'คอลเลกชัน `studentGData`'}
+              </div>
               <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] font-mono mt-0.5">
                 {studentGCount} นักเรียนตัว G
               </div>
             </div>
 
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <div className="text-[10px] font-bold text-slate-500">👤 คอลเลกชัน `users`</div>
+              <div className="text-[10px] font-bold text-slate-500">
+                👤 {isSupabaseActive ? 'ตาราง `users`' : 'คอลเลกชัน `users`'}
+              </div>
               <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] font-mono mt-0.5">
                 {usersCount} บัญชีผู้ใช้
               </div>

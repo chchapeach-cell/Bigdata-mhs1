@@ -373,43 +373,52 @@ export default function App() {
     }
   }, [serverStatus, systemConfig.highTrafficAlertEnabled]);
 
-  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Firestore
-  const fetchAllData = async () => {
+  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Firestore / Supabase
+  const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
     const CACHE_KEY = 'mhs_app_data_cache_v3';
-    // ตั้งเวลาแคช 10 นาที (600,000 ms) เพื่อประหยัดโควตาการอ่านฐานข้อมูลของ Firebase
-    const CACHE_TTL = 10 * 60 * 1000; 
+    // ตั้งเวลาแคช 30 นาที (1,800,000 ms) เพื่อลด Network Egress และความซ้ำซ้อน
+    const CACHE_TTL = 30 * 60 * 1000; 
 
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < CACHE_TTL && parsed.schools && parsed.schools.length > 0) {
-          setSchools(parsed.schools);
-          setStudentData(parsed.students);
-          setStudentGData(parsed.studentsG);
-          
-          if (parsed.systemConfig) {
-            setSystemConfig(parsed.systemConfig);
-          }
-
-          const years = Array.from(new Set((parsed.students as StudentData[]).map(s => s.academicYear)));
-          if (years.length > 0) {
-            years.sort((a, b) => b.localeCompare(a));
-            setAvailableYears(years);
-            if (years.includes(currentBEYear)) {
-              setAcademicYear(currentBEYear);
-            } else {
-              setAcademicYear(years[0]);
-            }
-          }
-          setIsLoading(false);
-          return; // ใช้ข้อมูลจากแคชโดยไม่ต้องดึงจาก Firebase ใหม่
-        }
+    if (forceRefresh) {
+      try {
+        localStorage.removeItem(CACHE_KEY);
+        sessionStorage.removeItem(CACHE_KEY);
+      } catch (e) {
+        // ignore
       }
-    } catch(e) {
-      // ignore cache read errors
+    } else {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.timestamp < CACHE_TTL && parsed.schools && parsed.schools.length > 0) {
+            setSchools(parsed.schools);
+            setStudentData(parsed.students);
+            setStudentGData(parsed.studentsG);
+            
+            if (parsed.systemConfig) {
+              setSystemConfig(parsed.systemConfig);
+            }
+
+            const years = Array.from(new Set((parsed.students as StudentData[]).map(s => s.academicYear)));
+            if (years.length > 0) {
+              years.sort((a, b) => b.localeCompare(a));
+              setAvailableYears(years);
+              if (years.includes(currentBEYear)) {
+                setAcademicYear(currentBEYear);
+              } else {
+                setAcademicYear(years[0]);
+              }
+            }
+            setIsLoading(false);
+            return; // ใช้ข้อมูลจากแคชโดยไม่ต้องดึงจากฐานข้อมูลใหม่
+          }
+        }
+      } catch(e) {
+        // ignore cache read errors
+      }
     }
 
     try {
@@ -487,7 +496,8 @@ export default function App() {
 
             setSchools(mappedSchools);
             setStudentData(mappedStudents);
-            setStudentGData(mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools));
+            const finalStudentsG = mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools);
+            setStudentGData(finalStudentsG);
 
             const years = Array.from(new Set(mappedStudents.map(s => s.academicYear)));
             if (years.length > 0) {
@@ -499,6 +509,19 @@ export default function App() {
                 setAcademicYear(years[0]);
               }
             }
+
+            // บันทึกข้อมูลแคชเพื่อประหยัด Network Egress ในการโหลดถัดไป
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                schools: mappedSchools,
+                students: mappedStudents,
+                studentsG: finalStudentsG,
+              }));
+            } catch (cacheErr) {
+              console.warn('Cache write warning:', cacheErr);
+            }
+
             setIsLoading(false);
             return;
           }
@@ -829,7 +852,7 @@ export default function App() {
                   setActiveTab('contact');
                 }}
                 userProfile={userProfile}
-                onRefreshData={fetchAllData}
+                onRefreshData={() => fetchAllData(true)}
                 isDarkMode={isDarkMode}
                 systemConfig={systemConfig}
                 academicYear={academicYear}
@@ -886,7 +909,7 @@ export default function App() {
                     <ContactView
                       systemConfig={systemConfig}
                       userProfile={userProfile}
-                      onRefreshData={fetchAllData}
+                      onRefreshData={() => fetchAllData(true)}
                     />
                   ) : (
                     <div className="card p-8 text-center bg-white dark:bg-[#1e1518] space-y-4 max-w-xl mx-auto border-2 border-[#33272A] shadow-[4px_4px_0px_#33272A] rounded-2xl">
@@ -912,7 +935,7 @@ export default function App() {
                       schools={schools}
                       studentData={studentData}
                       studentGData={studentGData}
-                      onRefreshData={fetchAllData}
+                      onRefreshData={() => fetchAllData(true)}
                       systemConfig={systemConfig}
                       serverStatus={serverStatus}
                       themeStyle={themeStyle}

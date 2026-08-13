@@ -857,6 +857,8 @@ export default function SchoolDetailView({
           <img
             src={isEditing ? (editImageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80") : (school.imageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80")}
             alt={isEditing ? editName : school.name}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover brightness-90 filter transition-all duration-500"
           />
 
