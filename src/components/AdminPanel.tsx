@@ -271,17 +271,17 @@ export default function AdminPanel({
     }
   }, [selectedSchoolId, schools]);
 
-  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติ (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ครูอัตราจ้างทั่วไป + ธุรการ + ภารโรง + อื่นๆ)
+  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติ (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ธุรการ + ภารโรง + อื่นๆ)
   useEffect(() => {
     const sumMajorTeachers = editMajorsWithStaff.reduce((sum, item) => {
       const civ = item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0;
       const con = Number(item.contractTeachersCount) || 0;
       return sum + (civ + con);
     }, 0);
-    const extraStaff = (Number(editContractTeachersCount) || 0) + (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
+    const extraStaff = (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
     const calculatedTotal = sumMajorTeachers + extraStaff;
     setEditStaffCount(calculatedTotal);
-  }, [editMajorsWithStaff, editContractTeachersCount, editAdminStaffCount, editJanitorCount, editOtherStaffCount]);
+  }, [editMajorsWithStaff, editAdminStaffCount, editJanitorCount, editOtherStaffCount]);
 
   // เอฟเฟ็กต์สำหรับกรณีที่โรงเรียนโหลดมาทีหลัง และเลือกโรงเรียนแรกเริ่มต้น (สำหรับ Super Admin)
   useEffect(() => {

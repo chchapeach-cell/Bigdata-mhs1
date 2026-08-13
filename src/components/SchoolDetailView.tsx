@@ -189,7 +189,7 @@ export default function SchoolDetailView({
     setClassrooms(school.classrooms || []);
   }, [school]);
 
-  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติในโหมดแก้ไข (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ครูอัตราจ้างทั่วไป + ธุรการ + ภารโรง + อื่นๆ)
+  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติในโหมดแก้ไข (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ธุรการ + ภารโรง + อื่นๆ)
   useEffect(() => {
     if (!isEditing) return;
     const sumMajorTeachers = editMajorsWithStaff.reduce((sum, item) => {
@@ -197,10 +197,10 @@ export default function SchoolDetailView({
       const con = Number(item.contractTeachersCount) || 0;
       return sum + (civ + con);
     }, 0);
-    const extraStaff = (Number(editContractTeachersCount) || 0) + (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
+    const extraStaff = (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
     const calculatedTotal = sumMajorTeachers + extraStaff;
     setEditStaffCount(calculatedTotal);
-  }, [editMajorsWithStaff, editContractTeachersCount, editAdminStaffCount, editJanitorCount, editOtherStaffCount, isEditing]);
+  }, [editMajorsWithStaff, editAdminStaffCount, editJanitorCount, editOtherStaffCount, isEditing]);
 
   // สถานะข้อมูลห้องเรียน / ชั้นเรียน / โรงเรียนสาขาห่างไกล
   const [classrooms, setClassrooms] = useState<ClassroomItem[]>(school.classrooms || []);
@@ -653,10 +653,8 @@ export default function SchoolDetailView({
   }, [displayMajors]);
 
   const totalContractTeachers = useMemo(() => {
-    const fromMajors = displayMajors.reduce((sum, m) => sum + (Number(m.contractTeachersCount) || 0), 0);
-    const extraContract = Number(school.contractTeachersCount) || 0;
-    return fromMajors + extraContract;
-  }, [displayMajors, school.contractTeachersCount]);
+    return displayMajors.reduce((sum, m) => sum + (Number(m.contractTeachersCount) || 0), 0);
+  }, [displayMajors]);
 
   // สร้างลิงก์แผนที่ Google Maps แบบ Embed Iframe ดึงจากละติจูดและลองจิจูดจริงของโรงเรียน
   const mapIframeUrl = useMemo(() => {
@@ -1884,22 +1882,7 @@ export default function SchoolDetailView({
                   <span className="text-[10px] font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">
                     📌 ระบุประเภทบุคลากรเพิ่มเติม (ถ้าไม่มีใส่ 0 หรือเว้นว่างได้):
                   </span>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
-                      <span className="text-gray-600 dark:text-gray-300">📝 ครูอัตราจ้าง</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          value={editContractTeachersCount || ''}
-                          onChange={(e) => setEditContractTeachersCount(Number(e.target.value))}
-                          placeholder="0"
-                          className="w-12 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900 p-0.5 text-center font-bold text-xs outline-none"
-                        />
-                        <span className="text-[10px]">คน</span>
-                      </div>
-                    </div>
-
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                     <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
                       <span className="text-gray-600 dark:text-gray-300">💼 ธุรการ</span>
                       <div className="flex items-center gap-1">
