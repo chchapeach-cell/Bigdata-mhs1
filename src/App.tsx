@@ -440,11 +440,23 @@ export default function App() {
               solarKw: s.solar_kw,
               hasSolarBattery: s.has_solar_battery,
               solarBatteryCapacity: s.solar_battery_capacity,
-              staffCount: s.staff_count,
+              staffCount: s.staff_count ?? 0,
+              contractTeachersCount: s.contract_teachers_count ?? s.contractTeachersCount ?? 0,
+              adminStaffCount: s.admin_staff_count ?? s.adminStaffCount ?? 0,
+              janitorCount: s.janitor_count ?? s.janitorCount ?? 0,
+              otherStaffCount: s.other_staff_count ?? s.otherStaffCount ?? 0,
               majorSubjects: s.major_subjects || [],
               majorSubjectsWithStaff: s.major_subjects_with_staff || [],
               classrooms: s.classrooms || [],
-              directorPhone: s.director_phone,
+              directorName: s.director_name || s.directorName,
+              directorPhone: s.director_phone || s.directorPhone,
+              viceDirectorName: s.vice_director_name || s.viceDirectorName,
+              viceDirectorPhone: s.vice_director_phone || s.viceDirectorPhone,
+              viceDirectors: (s.vice_directors && Array.isArray(s.vice_directors) && s.vice_directors.length > 0)
+                ? s.vice_directors
+                : ((s.viceDirectorName || s.vice_director_name)
+                  ? [{ id: 'vd-1', name: s.viceDirectorName || s.vice_director_name || '', phone: s.viceDirectorPhone || s.vice_director_phone || '' }]
+                  : []),
               schoolPhone: s.school_phone,
               email: s.email,
               facebook: s.facebook,
@@ -458,7 +470,9 @@ export default function App() {
               longitude: s.longitude,
               size: s.size,
               isExpansion: s.is_expansion,
-              specialHighlights: s.special_highlights
+              specialHighlights: s.special_highlights,
+              updatedAt: s.updated_at,
+              updatedBy: s.updated_by
             }));
 
             const { data: suStudents } = await supabase.from('students').select('*');

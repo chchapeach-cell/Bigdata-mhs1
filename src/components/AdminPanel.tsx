@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle } from '../types';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject } from '../types';
 import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
 import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs } from '../lib/dbAdapter';
+import { compressImage } from '../utils/imageCompressor';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -63,7 +64,15 @@ export default function AdminPanel({
   const [editWaterSystem, setEditWaterSystem] = useState<string>('government');
   const [editWaterSystemDetail, setEditWaterSystemDetail] = useState<string>('');
   const [editStaffCount, setEditStaffCount] = useState(5);
+  const [editContractTeachersCount, setEditContractTeachersCount] = useState<number>(0);
+  const [editAdminStaffCount, setEditAdminStaffCount] = useState<number>(0);
+  const [editJanitorCount, setEditJanitorCount] = useState<number>(0);
+  const [editOtherStaffCount, setEditOtherStaffCount] = useState<number>(0);
+  const [editDirectorName, setEditDirectorName] = useState('');
   const [editDirectorPhone, setEditDirectorPhone] = useState('');
+  const [editViceDirectorName, setEditViceDirectorName] = useState('');
+  const [editViceDirectorPhone, setEditViceDirectorPhone] = useState('');
+  const [editViceDirectors, setEditViceDirectors] = useState<ViceDirectorItem[]>([]);
   const [editSchoolPhone, setEditSchoolPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editFacebook, setEditFacebook] = useState('');
@@ -75,9 +84,10 @@ export default function AdminPanel({
   const [editDirectorImageUrl, setEditDirectorImageUrl] = useState('');
   const [editSpecialHighlights, setEditSpecialHighlights] = useState('');
   const [editMajorsStr, setEditMajorsStr] = useState('');
-  const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
+  const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<MajorSubject[]>([]);
   const [newMajorName, setNewMajorName] = useState('');
-  const [newMajorCount, setNewMajorCount] = useState<number>(1);
+  const [newMajorCivilServants, setNewMajorCivilServants] = useState<number>(1);
+  const [newMajorContractTeachers, setNewMajorContractTeachers] = useState<number>(0);
   const [editSuccess, setEditSuccess] = useState('');
   const [editError, setEditError] = useState('');
   const [isSavingSchool, setIsSavingSchool] = useState(false);
@@ -223,7 +233,21 @@ export default function AdminPanel({
       setEditWaterSystem(targetSchool.waterSystem || 'government');
       setEditWaterSystemDetail(targetSchool.waterSystemDetail || '');
       setEditStaffCount(targetSchool.staffCount !== undefined ? targetSchool.staffCount : 5);
+      setEditContractTeachersCount(targetSchool.contractTeachersCount || 0);
+      setEditAdminStaffCount(targetSchool.adminStaffCount || 0);
+      setEditJanitorCount(targetSchool.janitorCount || 0);
+      setEditOtherStaffCount(targetSchool.otherStaffCount || 0);
+      setEditDirectorName(targetSchool.directorName || '');
       setEditDirectorPhone(targetSchool.directorPhone || '');
+      setEditViceDirectorName(targetSchool.viceDirectorName || '');
+      setEditViceDirectorPhone(targetSchool.viceDirectorPhone || '');
+      if (targetSchool.viceDirectors && targetSchool.viceDirectors.length > 0) {
+        setEditViceDirectors(targetSchool.viceDirectors);
+      } else if (targetSchool.viceDirectorName || targetSchool.viceDirectorPhone) {
+        setEditViceDirectors([{ id: 'vd-1', name: targetSchool.viceDirectorName || '', phone: targetSchool.viceDirectorPhone || '', imageUrl: '' }]);
+      } else {
+        setEditViceDirectors([]);
+      }
       setEditSchoolPhone(targetSchool.schoolPhone || '');
       setEditEmail(targetSchool.email || '');
       setEditFacebook(targetSchool.facebook || '');
@@ -240,12 +264,24 @@ export default function AdminPanel({
       if (targetSchool.majorSubjectsWithStaff && targetSchool.majorSubjectsWithStaff.length > 0) {
         setEditMajorsWithStaff(targetSchool.majorSubjectsWithStaff);
       } else if (targetSchool.majorSubjects && targetSchool.majorSubjects.length > 0) {
-        setEditMajorsWithStaff(targetSchool.majorSubjects.map(m => ({ name: m, teachersCount: 1 })));
+        setEditMajorsWithStaff(targetSchool.majorSubjects.map(m => ({ name: m, teachersCount: 1, civilServantsCount: 1, contractTeachersCount: 0 })));
       } else {
         setEditMajorsWithStaff([]);
       }
     }
   }, [selectedSchoolId, schools]);
+
+  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติ (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ครูอัตราจ้างทั่วไป + ธุรการ + ภารโรง + อื่นๆ)
+  useEffect(() => {
+    const sumMajorTeachers = editMajorsWithStaff.reduce((sum, item) => {
+      const civ = item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0;
+      const con = Number(item.contractTeachersCount) || 0;
+      return sum + (civ + con);
+    }, 0);
+    const extraStaff = (Number(editContractTeachersCount) || 0) + (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
+    const calculatedTotal = sumMajorTeachers + extraStaff;
+    setEditStaffCount(calculatedTotal);
+  }, [editMajorsWithStaff, editContractTeachersCount, editAdminStaffCount, editJanitorCount, editOtherStaffCount]);
 
   // เอฟเฟ็กต์สำหรับกรณีที่โรงเรียนโหลดมาทีหลัง และเลือกโรงเรียนแรกเริ่มต้น (สำหรับ Super Admin)
   useEffect(() => {
@@ -1713,8 +1749,17 @@ export default function AdminPanel({
 
     try {
       // ดึงรายชื่อวิชาเอกจากลิสต์วิชาเอกพร้อมจำนวนครู
-      const combinedMajors = editMajorsWithStaff.map(m => m.name);
-      const updatedMajorsWithStaff = editMajorsWithStaff;
+      const combinedMajors = editMajorsWithStaff.map(m => m.name.trim()).filter(Boolean);
+      const updatedMajorsWithStaff: MajorSubject[] = editMajorsWithStaff.map(m => {
+        const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
+        const con = Number(m.contractTeachersCount) || 0;
+        return {
+          name: m.name.trim(),
+          civilServantsCount: civ,
+          contractTeachersCount: con,
+          teachersCount: civ + con
+        };
+      });
 
       const updatedFields = {
         name: editSchoolName,
@@ -1725,7 +1770,15 @@ export default function AdminPanel({
         waterSystem: editWaterSystem,
         waterSystemDetail: editWaterSystemDetail.trim(),
         staffCount: Number(editStaffCount),
+        contractTeachersCount: Number(editContractTeachersCount) || 0,
+        adminStaffCount: Number(editAdminStaffCount) || 0,
+        janitorCount: Number(editJanitorCount) || 0,
+        otherStaffCount: Number(editOtherStaffCount) || 0,
+        directorName: editDirectorName.trim(),
         directorPhone: editDirectorPhone,
+        viceDirectorName: editViceDirectors[0]?.name || editViceDirectorName.trim(),
+        viceDirectorPhone: editViceDirectors[0]?.phone || editViceDirectorPhone,
+        viceDirectors: editViceDirectors,
         schoolPhone: editSchoolPhone,
         email: editEmail.trim(),
         facebook: editFacebook.trim(),
@@ -2752,262 +2805,45 @@ export default function AdminPanel({
                     </div>
 
                     {gError && (
-                      <div className="rounded-2xl bg-rose-50 text-rose-800 border-2 border-[#33272A] p-3 text-xs font-bold flex items-center gap-1.5">
-                        <AlertCircle className="h-4.5 w-4.5 text-rose-600 shrink-0" />
-                        <span>{gError}</span>
-                      </div>
-                    )}
-                    {gSuccess && (
-                      <div className="rounded-2xl bg-emerald-50 text-emerald-800 border-2 border-[#33272A] p-3 text-xs font-bold">
-                        {gSuccess}
+                      <div className="rounded-2xl bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200 p-3 text-xs font-bold border-2 border-rose-300">
+                        {gError}
                       </div>
                     )}
 
-                    {/* แถบอัปโหลด Progress Bar */}
-                    {(isUploadingGFile || gUploadProgress > 0) && (
-                      <div className="space-y-2.5 rounded-2xl border-2 border-[#33272A] p-4 bg-[#FFF9F5] dark:bg-[#1e1518] shadow-[3px_3px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[3px_3px_0px_#FFD3B6] animate-fade-in">
-                        <div className="flex items-center justify-between text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
-                          <div className="flex items-center gap-2">
-                            <RefreshCw className={`h-4 w-4 text-blue-500 ${isUploadingGFile ? 'animate-spin' : ''}`} />
-                            <span className="truncate max-w-[280px] sm:max-w-md">{gUploadStatusText || 'กำลังประมวลผลข้อมูล...'}</span>
-                          </div>
-                          <span className="text-xs font-black text-[#33272A] bg-[#A0E7E5] px-2.5 py-0.5 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6]">
-                            {gUploadProgress}%
-                          </span>
-                        </div>
-
-                        {/* แถบ Progress Bar */}
-                        <div className="w-full h-5 rounded-xl border-2 border-[#33272A] bg-white dark:bg-[#150e10] overflow-hidden p-0.5 shadow-inner dark:border-[#FFD3B6]">
-                          <div
-                            className="h-full rounded-lg bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 transition-all duration-300 ease-out flex items-center justify-end pr-1"
-                            style={{ width: `${Math.max(3, gUploadProgress)}%` }}
-                          >
-                            {gUploadProgress > 15 && (
-                              <span className="text-[9px] font-black text-[#33272A] drop-shadow-sm select-none">
-                                {gUploadProgress}%
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center text-[10px] font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 pt-0.5">
-                          <span>รายการที่ประมวลผลแล้ว: {gProcessedRowsCount} / {gTotalRowsCount} โรงเรียน</span>
-                          <span>ข้อมูลนักเรียนตัว G ปีการศึกษา {gUploadYear}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* แสดงตัวอย่างข้อมูล (Preview Table) */}
-                    {gPreviewData.length > 0 && (
-                      <div className="space-y-2 rounded-2xl border-2 border-[#33272A] p-3 bg-[#FFF9F5] dark:bg-slate-800 text-[10px]">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-black text-blue-600 dark:text-blue-400">
-                            ตัวอย่างข้อมูลที่จะนำเข้า (พบบันทึกทั้งหมด {gPreviewData.length} โรงเรียน):
-                          </h4>
-                          <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded font-black">
-                            {gPreviewData.length} แถว
-                          </span>
-                        </div>
-                        <div className="overflow-x-auto max-h-[220px]">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="border-b-2 border-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black bg-blue-50/50 dark:bg-slate-700">
-                                <th className="p-1.5">รหัสโรงเรียน</th>
-                                <th className="p-1.5">ชื่อสถานศึกษา</th>
-                                <th className="p-1.5 text-center">ปีการศึกษา</th>
-                                <th className="p-1.5 text-center">รวม (คน)</th>
-                                <th className="p-1.5 text-center">ชาย</th>
-                                <th className="p-1.5 text-center">หญิง</th>
-                                <th className="p-1.5">หมายเหตุ</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#33272A]/10 font-bold">
-                              {gPreviewData.slice(0, 10).map((row: any, i: number) => (
-                                <tr key={i} className="hover:bg-slate-100 dark:hover:bg-slate-700/50">
-                                  <td className="p-1 font-mono text-blue-600 font-bold">{row.schoolId}</td>
-                                  <td className="p-1 font-bold">{row.schoolName}</td>
-                                  <td className="p-1 text-center font-bold text-amber-600 dark:text-amber-400">{row.academicYear}</td>
-                                  <td className="p-1 text-center font-black text-blue-600">{row.totalGStudents}</td>
-                                  <td className="p-1 text-center">{row.maleGCount}</td>
-                                  <td className="p-1 text-center">{row.femaleGCount}</td>
-                                  <td className="p-1 text-slate-500">{row.notes || '-'}</td>
-                                </tr>
-                              ))}
-                              {gPreviewData.length > 10 && (
-                                <tr>
-                                  <td colSpan={7} className="p-1.5 text-center text-slate-500 font-semibold italic bg-slate-50 dark:bg-slate-800">
-                                    ... และอีก {gPreviewData.length - 10} รายการ ...
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end pt-2">
+                    <div className="flex justify-end gap-2 pt-2">
                       <button
                         type="submit"
-                        disabled={isUploadingGFile || gPreviewData.length === 0}
-                        className="btn-cute bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        disabled={isUploadingGFile}
+                        className="btn-cute bg-[#FF8BA7] hover:bg-[#ff7597] text-[#33272A] font-black text-xs px-5 py-2.5 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        <Upload className="h-4.5 w-4.5" />
-                        {isUploadingGFile ? 'กำลังบันทึกลงระบบ...' : 'ยืนยันนำเข้าข้อมูลนักเรียนตัว G ลงฐานข้อมูล'}
+                        {isUploadingGFile ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" /> กำลังบันทึกข้อมูล...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" /> นำเข้าข้อมูลเด็กไม่มีสัญชาติ
+                          </>
+                        )}
                       </button>
                     </div>
                   </form>
                 </div>
               </div>
-
-              {/* ตารางแสดงรายการข้อมูลนักเรียนรหัส G ที่อยู่ในระบบ */}
-              <div className="card p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                  <div>
-                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                      <Users className="h-4.5 w-4.5 text-blue-500" />
-                      ตารางข้อมูลนักเรียนตัว G ({studentGData.filter(g => g.academicYear === gYear).length} โรงเรียนในปี {gYear})
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                      สถิตินักเรียนไม่มีหลักฐานทางทะเบียนราษฎร (แยกส่วนจาก DMC)
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <div className="flex items-center gap-1 shrink-0">
-                      <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ปีการศึกษา:</label>
-                      <select
-                        value={gYear}
-                        onChange={(e) => setGYear(e.target.value)}
-                        className="rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] px-2 py-1.5 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]"
-                      >
-                        {gAvailableYears.map(yr => (
-                          <option key={yr} value={yr}>{yr}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="ค้นหาชื่อโรงเรียน หรือรหัส..."
-                        value={gSearchQuery}
-                        onChange={(e) => setGSearchQuery(e.target.value)}
-                        className="w-full input-cute pl-8 p-1.5 text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto max-h-[500px]">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#FFF9F5] dark:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] sticky top-0">
-                        <tr>
-                          <th className="p-2">รหัส</th>
-                          <th className="p-2">ชื่อสถานศึกษา</th>
-                          <th className="p-2 text-center">ชาย</th>
-                          <th className="p-2 text-center">หญิง</th>
-                          <th className="p-2 text-center">รวม (คน)</th>
-                          <th className="p-2">หมายเหตุ</th>
-                          <th className="p-2 text-center">การจัดการ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700 font-bold">
-                        {studentGData
-                          .filter(g => g.academicYear === gYear)
-                          .filter(g => !gSearchQuery || (g.schoolName || '').includes(gSearchQuery) || (g.schoolId || '').includes(gSearchQuery))
-                          .map((g) => (
-                            <tr key={`${g.schoolId}_${g.academicYear}`} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                              <td className="p-2 font-mono text-[11px]">{g.schoolId}</td>
-                              <td className="p-2 font-black text-[#33272A] dark:text-[#FFF9F5]">{g.schoolName}</td>
-                              <td className="p-2 text-center text-blue-600 dark:text-blue-400">{g.maleGCount || 0}</td>
-                              <td className="p-2 text-center text-pink-600 dark:text-pink-400">{g.femaleGCount || 0}</td>
-                              <td className="p-2 text-center font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                {g.totalGStudents || 0}
-                              </td>
-                              <td className="p-2 text-[10px] text-slate-500">{g.notes || '-'}</td>
-                              <td className="p-2 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditGRecord(g)}
-                                    className="p-1 text-teal-600 hover:text-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 rounded transition-colors cursor-pointer"
-                                    title="แก้ไขจำนวนนักเรียนตัว G"
-                                  >
-                                    <Edit3 className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSingleGRecord(g.schoolId, g.schoolName, g.academicYear)}
-                                    className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
-                                    title="ลบรายการโรงเรียนนี้"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        {studentGData.filter(g => g.academicYear === gYear).length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
-                              ยังไม่มีข้อมูลนักเรียนตัว G ในปีการศึกษา {gYear}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="card p-6 bg-rose-50 dark:bg-rose-950/30 border-2 border-rose-300 text-rose-900 dark:text-rose-200 space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-rose-500 shrink-0" />
-              <h3 className="font-black text-sm">จำกัดสิทธิ์การเข้าถึง</h3>
-            </div>
-            <p className="text-xs font-bold">
-              เมนูศูนย์ข้อมูลนักเรียน (Student Data Center) อนุญาตให้เฉพาะผู้ใช้งานระดับ Super Admin จัดการและเข้าถึงได้เท่านั้น
-            </p>
-          </div>
-        )
-      )}
-
-          {adminTab === 'system_status' && (
-            <div className="space-y-6 animate-fade-in">
-              {/* 1. ผู้ใช้งานออนไลน์ขณะนี้ (Active Online Users - Live) */}
-              <ActiveUserSessionMonitor currentUserProfile={userProfile} />
-
-              {/* 2. สถานะทรัพยากรและโควตาฐานข้อมูล (Database Quota & Storage) */}
-              <DatabaseQuotaMonitor 
-                studentData={studentData} 
-                studentGData={studentGData} 
-                userProfiles={approvedUsers} 
-                schools={schools} 
-              />
-
-              {/* 3. สถานะ Server และโครงสร้างพื้นฐานสถานศึกษา (Server & School Infrastructure Status) */}
-              <InfrastructureView 
-                schools={schools} 
-                onSelectSchool={(schoolId) => {
-                  setAdminTab('schools');
-                }}
-                systemConfig={{
-                  allowDataDownload,
-                  electricityOptions,
-                  internetOptions
-                }}
-                userProfile={userProfile}
-              />
             </div>
           )}
+        </div>
+      ) : (
+        <div className="card p-6 text-center text-rose-600 font-bold bg-white dark:bg-[#1e1518] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+          ⚠️ เฉพาะ Super Admin เท่านั้นที่สามารถเข้าถึงศูนย์ข้อมูลนักเรียนได้
+        </div>
+      )
+    )}
 
+          {/* TAB: User Management */}
           {adminTab === 'users' && (
-            <div className="space-y-6 animate-fade-in">
-              {/* แถบค้นหาข้อมูลผู้ใช้งาน */}
+            <div className="space-y-6">
+              {/* ค้นหาข้อมูลผู้ใช้งาน */}
               <div className="card p-4">
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -3140,117 +2976,37 @@ export default function AdminPanel({
             </div>
           )}
 
+          {/* TAB: Audit Logs */}
           {adminTab === 'logs' && (
             <div className="space-y-6">
-              {/* สรุปสถิติภาพรวมการดาวน์โหลด */}
+              {/* Top Statistics Cards for Logs */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
-                  <div className="p-3 rounded-2xl bg-[#FF8BA7]/20 text-[#33272A] dark:text-[#FF8BA7] border border-[#FF8BA7]/50">
-                    <Download className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">การดาวน์โหลดสะสมทั้งหมด</span>
-                    <span className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">{downloadLogs.length} <span className="text-xs font-bold">ครั้ง</span></span>
+                <div className="card p-4 bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <div className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">การดาวน์โหลดทั้งหมด</div>
+                  <div className="text-2xl font-black text-[#FF8BA7] mt-1">{downloadLogs.length} ครั้ง</div>
+                </div>
+                <div className="card p-4 bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <div className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">ผู้ใช้งานดาวน์โหลด</div>
+                  <div className="text-2xl font-black text-[#A0E7E5] mt-1">
+                    {new Set(downloadLogs.map(l => l.userName || l.userEmail)).size} ราย
                   </div>
                 </div>
-
-                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
-                  <div className="p-3 rounded-2xl bg-[#A0E7E5]/20 text-[#33272A] dark:text-[#A0E7E5] border border-[#A0E7E5]/50">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">หัวข้อ/รายงานที่ถูกขอเข้าถึง</span>
-                    <span className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">{topDownloadedItems.length} <span className="text-xs font-bold">รายการ</span></span>
-                  </div>
-                </div>
-
-                <div className="card p-4 flex items-center gap-3.5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6]">
-                  <div className="p-3 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                    <Award className="h-6 w-6" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">อันดับ 1 ที่ดาวน์โหลดมากที่สุด</span>
-                    <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] truncate block">
-                      {topDownloadedItems.length > 0 ? topDownloadedItems[0].name : '-'}
-                    </span>
-                    {topDownloadedItems.length > 0 && (
-                      <span className="text-[10px] font-black text-[#FF8BA7] block">
-                        ดาวน์โหลดไปแล้ว {topDownloadedItems[0].count} ครั้ง
-                      </span>
-                    )}
+                <div className="card p-4 bg-[#FFF9F5] dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <div className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">โรงเรียนที่ถูกดาวน์โหลด</div>
+                  <div className="text-2xl font-black text-[#FFD3B6] mt-1">
+                    {new Set(downloadLogs.map(l => l.schoolName)).size} โรงเรียน
                   </div>
                 </div>
               </div>
 
-              {/* 📊 กราฟแท่ง 10 อันดับแรกข้อมูลที่มีการดาวน์โหลดสูงสุด */}
-              <div className="card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6]">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#33272A] dark:border-[#FFD3B6] pb-3 mb-5">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-[#FF8BA7]" />
-                    <span>10 อันดับแรก ข้อมูลที่มีการดาวน์โหลดมากที่สุด (Top 10 Most Downloaded Data)</span>
+              {/* Top Downloaded Items */}
+              {topDownloadedItems.length > 0 && (
+                <div className="card p-5 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-3">
+                    <Download className="h-4 w-4 text-[#FF8BA7]" /> 5 อันดับหัวข้อข้อมูลที่ถูกดาวน์โหลดมากที่สุด
                   </h3>
-                  <span className="text-xs font-black px-3 py-1 rounded-full bg-[#FFD3B6]/40 text-[#33272A] dark:text-[#FFF9F5] border border-[#33272A] dark:border-[#FFD3B6] flex items-center gap-1">
-                    <TrendingUp className="h-3.5 w-3.5 text-[#FF8BA7]" /> อัปเดตล่าสุดเรียลไทม์
-                  </span>
-                </div>
-
-                {topDownloadedItems.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-bold text-[#33272A]/50 dark:text-[#FFF9F5]/50 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
-                    ยังไม่มีข้อมูลประวัติการดาวน์โหลดสำหรับประมวลผลกราฟ
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    {/* กราฟ Recharts แท่งแนวนอน */}
-                    <div className="lg:col-span-7 h-[340px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          layout="vertical"
-                          data={topDownloadedItems}
-                          margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
-                        >
-                          <XAxis type="number" allowDecimals={false} stroke="#888888" fontSize={11} tickLine={false} />
-                          <YAxis
-                            type="category"
-                            dataKey="name"
-                            width={160}
-                            tick={{ fontSize: 11, fontWeight: 700 }}
-                            stroke="#888888"
-                            tickLine={false}
-                            tickFormatter={(val) => (val.length > 20 ? val.substring(0, 20) + '...' : val)}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="bg-white dark:bg-[#1e1518] p-3 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-md text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                                    <p className="font-black text-sm text-[#FF8BA7]">{data.name}</p>
-                                    <p className="mt-1">จำนวนการดาวน์โหลด: <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{data.count}</span> ครั้ง</p>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={22}>
-                            {topDownloadedItems.map((entry, index) => {
-                              const colors = [
-                                '#FF8BA7', '#A0E7E5', '#FFD3B6', '#93C5FD', '#FDE047',
-                                '#C084FC', '#4ADE80', '#F97316', '#38BDF8', '#F472B6'
-                              ];
-                              return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} stroke="#33272A" strokeWidth={1.5} />;
-                            })}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* ตารางการจัดอันดับ 10 อันดับแรกพร้อม Badge */}
-                    <div className="lg:col-span-5 space-y-2 bg-[#FFF9F5] dark:bg-slate-900/80 p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] max-h-[340px] overflow-y-auto">
-                      <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block mb-2 underline decoration-[#FF8BA7] decoration-2">
-                        🏆 ตารางสรุป 10 อันดับการดาวน์โหลดสูงสุด
-                      </span>
-                      {topDownloadedItems.map((item, idx) => {
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                    {topDownloadedItems.map((item, idx) => {
                         const maxCount = topDownloadedItems[0]?.count || 1;
                         const percent = Math.round((item.count / maxCount) * 100);
                         const badgeColors = [
@@ -3289,7 +3045,6 @@ export default function AdminPanel({
                     </div>
                   </div>
                 )}
-              </div>
 
               {/* ตารางบันทึกประวัติการดาวน์โหลดแบบละเอียด */}
               <div className="card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6]">
@@ -3479,21 +3234,20 @@ export default function AdminPanel({
                         </div>
                       </div>
 
-                      {/* จำนวนครูและบุคลากรทั้งหมด */}
+                      {/* จำนวนครูและบุคลากรทั้งหมด (แสดงผลการคำนวณอัตโนมัติ ไม่เปิดให้แก้ไขโดยตรง) */}
                       <div className="space-y-1">
                         <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1">
                           <Users className="h-3.5 w-3.5 text-[#FF8BA7]" />
-                          จำนวนครูและบุคลากรทั้งหมดในโรงเรียน (คน)
+                          จำนวนครูและบุคลากรทั้งหมดในโรงเรียน (คำนวณให้อัตโนมัติ)
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          required
-                          value={editStaffCount}
-                          onChange={(e) => setEditStaffCount(Math.max(0, parseInt(e.target.value) || 0))}
-                          placeholder="ระบุจำนวนครูและบุคลากรทั้งหมด เช่น 12"
-                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                        />
+                        <div className="w-full rounded-xl border-2 border-[#33272A] bg-[#FFF9F5] dark:bg-slate-900 dark:border-[#FFD3B6] p-2.5 flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            ⚡ ระบบคำนวณยอดรวมให้อัตโนมัติจากทุกสายงาน
+                          </span>
+                          <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] px-3 py-1 bg-white dark:bg-[#1e1518] rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-xs">
+                            {editStaffCount} คน
+                          </span>
+                        </div>
                       </div>
 
                       {/* ข้อมูลวิชาเอกและจำนวนครูประจำแต่ละสาขาวิชาเอก */}
@@ -3501,10 +3255,14 @@ export default function AdminPanel({
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#33272A]/20 pb-2">
                           <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
                             <GraduationCap className="h-4 w-4 text-[#FF8BA7]" />
-                            🎓 วิชาเอกของครูในโรงเรียน (จำแนกตามสาขาวิชาเอกและจำนวนครู)
+                            🎓 วิชาเอกของครูในโรงเรียน (จำแนกตามข้าราชการและครูอัตราจ้าง)
                           </label>
                           <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-[#FF8BA7]/20 text-[#33272A] dark:text-[#FFF9F5] border border-[#FF8BA7]">
-                            รวมครูผู้เชี่ยวชาญวิชาเอก: {editMajorsWithStaff.reduce((sum, item) => sum + (Number(item.teachersCount) || 0), 0)} คน
+                            รวมครูผู้เชี่ยวชาญวิชาเอก: {editMajorsWithStaff.reduce((sum, item) => {
+                              const civ = item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0;
+                              const con = Number(item.contractTeachersCount) || 0;
+                              return sum + (civ + con);
+                            }, 0)} คน
                           </span>
                         </div>
 
@@ -3514,46 +3272,88 @@ export default function AdminPanel({
                             ยังไม่ได้ระบุข้อมูลวิชาเอก คุณสามารถเลือกหรือพิมพ์เพิ่มวิชาเอกและจำนวนครูด้านล่างได้ทันที
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                            {editMajorsWithStaff.map((major, idx) => (
-                              <div
-                                key={`${major.name}-${idx}`}
-                                className="flex items-center justify-between bg-white dark:bg-[#1e1518] p-2.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-sm gap-2"
-                              >
-                                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] truncate min-w-0 flex-1">
-                                  เอก{major.name}
-                                </span>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={major.teachersCount}
-                                    onChange={(e) => {
-                                      const val = Math.max(0, parseInt(e.target.value) || 0);
-                                      setEditMajorsWithStaff(prev => prev.map((m, i) => i === idx ? { ...m, teachersCount: val } : m));
-                                    }}
-                                    className="w-14 text-center rounded-lg border border-[#33272A] dark:border-[#FFD3B6] bg-slate-50 dark:bg-slate-900 p-1 text-xs font-black text-[#33272A] dark:text-[#FFF9F5]"
-                                    title="จำนวนครูในวิชาเอกนี้ (คน)"
-                                  />
-                                  <span className="text-[10px] font-bold text-slate-500">คน</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx))}
-                                    className="p-1 rounded-lg hover:bg-rose-100 text-rose-500 transition-colors cursor-pointer"
-                                    title="ลบวิชาเอกนี้"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {editMajorsWithStaff.map((major, idx) => {
+                              const civ = major.civilServantsCount !== undefined ? Number(major.civilServantsCount) : Number(major.teachersCount) || 0;
+                              const con = Number(major.contractTeachersCount) || 0;
+                              const total = civ + con;
+                              return (
+                                <div
+                                  key={`${major.name}-${idx}`}
+                                  className="bg-white dark:bg-[#1e1518] p-3 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-xs space-y-2"
+                                >
+                                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-1.5">
+                                    <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] truncate min-w-0 flex-1">
+                                      เอก{major.name}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                                        รวม: {total} คน
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx))}
+                                        className="p-1 rounded-lg hover:bg-rose-100 text-rose-500 transition-colors cursor-pointer"
+                                        title="ลบวิชาเอกนี้"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                    <div className="space-y-0.5 bg-amber-50/60 dark:bg-amber-950/30 p-1.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                                      <span className="text-amber-900 dark:text-amber-200 font-bold block">🏛️ ข้าราชการ</span>
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={civ}
+                                          onChange={(e) => {
+                                            const newCiv = Math.max(0, parseInt(e.target.value) || 0);
+                                            setEditMajorsWithStaff(prev => prev.map((m, i) => i === idx ? {
+                                              ...m,
+                                              civilServantsCount: newCiv,
+                                              teachersCount: newCiv + (Number(m.contractTeachersCount) || 0)
+                                            } : m));
+                                          }}
+                                          className="w-full text-center rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-1 text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                        />
+                                        <span className="text-[10px]">คน</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-0.5 bg-blue-50/60 dark:bg-blue-950/30 p-1.5 rounded-lg border border-blue-200 dark:border-blue-800">
+                                      <span className="text-blue-900 dark:text-blue-200 font-bold block">📝 ครูอัตราจ้าง</span>
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={con}
+                                          onChange={(e) => {
+                                            const newCon = Math.max(0, parseInt(e.target.value) || 0);
+                                            setEditMajorsWithStaff(prev => prev.map((m, i) => i === idx ? {
+                                              ...m,
+                                              contractTeachersCount: newCon,
+                                              teachersCount: (m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0) + newCon
+                                            } : m));
+                                          }}
+                                          className="w-full text-center rounded border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 p-1 text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                        />
+                                        <span className="text-[10px]">คน</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
                         {/* ฟอร์มเพิ่มวิชาเอกใหม่ */}
-                        <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2">
+                        <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-2.5">
                           <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
-                            ➕ เพิ่มวิชาเอกและจำนวนครู
+                            ➕ เพิ่มวิชาเอกและระบุประเภทครู
                           </span>
                           
                           {/* ปุ่มคลิกเลือกวิชาเอกยอดนิยม */}
@@ -3567,7 +3367,7 @@ export default function AdminPanel({
                                   type="button"
                                   disabled={exists}
                                   onClick={() => {
-                                    setEditMajorsWithStaff(prev => [...prev, { name: preset, teachersCount: 1 }]);
+                                    setEditMajorsWithStaff(prev => [...prev, { name: preset, civilServantsCount: 1, contractTeachersCount: 0, teachersCount: 1 }]);
                                   }}
                                   className={`text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                                     exists
@@ -3581,24 +3381,46 @@ export default function AdminPanel({
                             })}
                           </div>
 
-                          <div className="flex flex-col sm:flex-row gap-2 items-center">
-                            <input
-                              type="text"
-                              value={newMajorName}
-                              onChange={(e) => setNewMajorName(e.target.value)}
-                              placeholder="พิมพ์ชื่อวิชาเอกเพิ่มเติม (เช่น เกษตรกรรม, ภาษาจีน...)"
-                              className="flex-1 w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
-                            />
-                            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
-                              <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">จำนวน:</span>
+                          <div className="space-y-2 bg-[#FFF9F5] dark:bg-slate-900 p-2.5 rounded-xl border border-[#33272A]/20">
+                            <div className="w-full space-y-1">
+                              <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 block">ชื่อวิชาเอกเพิ่มเติม:</span>
                               <input
-                                type="number"
-                                min="1"
-                                value={newMajorCount}
-                                onChange={(e) => setNewMajorCount(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="w-16 rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-black text-center text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                                type="text"
+                                value={newMajorName}
+                                onChange={(e) => setNewMajorName(e.target.value)}
+                                placeholder="พิมพ์ชื่อวิชาเอก (เช่น เกษตรกรรม, ภาษาจีน...)"
+                                className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                               />
-                              <span className="text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">คน</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div className="space-y-0.5 bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800">
+                                <span className="text-amber-900 dark:text-amber-300 font-bold block">🏛️ ข้าราชการครู (คน)</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={newMajorCivilServants}
+                                  onChange={(e) => setNewMajorCivilServants(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-1.5 text-xs font-black text-center outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5 bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <span className="text-blue-900 dark:text-blue-300 font-bold block">📝 ครูอัตราจ้าง (คน)</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={newMajorContractTeachers}
+                                  onChange={(e) => setNewMajorContractTeachers(Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="w-full rounded border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 p-1.5 text-xs font-black text-center outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-800">
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                ⚡ รวมวิชาเอกนี้: {(Number(newMajorCivilServants) || 0) + (Number(newMajorContractTeachers) || 0)} คน (คำนวณให้อัตโนมัติ)
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -3607,16 +3429,29 @@ export default function AdminPanel({
                                     alert('กรุณากรอกชื่อวิชาเอก');
                                     return;
                                   }
+                                  const civ = Number(newMajorCivilServants) || 0;
+                                  const con = Number(newMajorContractTeachers) || 0;
                                   const existingIdx = editMajorsWithStaff.findIndex(m => m.name.trim().toLowerCase() === trimmed.toLowerCase());
                                   if (existingIdx >= 0) {
-                                    setEditMajorsWithStaff(prev => prev.map((m, idx) => idx === existingIdx ? { ...m, teachersCount: m.teachersCount + newMajorCount } : m));
+                                    setEditMajorsWithStaff(prev => prev.map((m, idx) => idx === existingIdx ? {
+                                      ...m,
+                                      civilServantsCount: (m.civilServantsCount || 0) + civ,
+                                      contractTeachersCount: (m.contractTeachersCount || 0) + con,
+                                      teachersCount: m.teachersCount + civ + con
+                                    } : m));
                                   } else {
-                                    setEditMajorsWithStaff(prev => [...prev, { name: trimmed, teachersCount: newMajorCount }]);
+                                    setEditMajorsWithStaff(prev => [...prev, {
+                                      name: trimmed,
+                                      civilServantsCount: civ,
+                                      contractTeachersCount: con,
+                                      teachersCount: civ + con
+                                    }]);
                                   }
                                   setNewMajorName('');
-                                  setNewMajorCount(1);
+                                  setNewMajorCivilServants(1);
+                                  setNewMajorContractTeachers(0);
                                 }}
-                                className="btn-cute bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] px-3.5 py-2 text-xs font-black border-2 border-[#33272A] cursor-pointer flex items-center gap-1 shrink-0"
+                                className="btn-cute bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] px-3.5 py-1.5 text-xs font-black border-2 border-[#33272A] cursor-pointer flex items-center gap-1 shrink-0"
                               >
                                 <Plus className="h-4 w-4" /> เพิ่มวิชาเอก
                               </button>
@@ -3643,7 +3478,17 @@ export default function AdminPanel({
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">เบอร์โทรศัพท์ผู้บริหาร</label>
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">ชื่อ-นามสกุล ผู้อำนวยการ</label>
+                            <input
+                              type="text"
+                              value={editDirectorName}
+                              onChange={(e) => setEditDirectorName(e.target.value)}
+                              placeholder="เช่น นายสมชาย ใจดี"
+                              className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">เบอร์โทรศัพท์ผู้อำนวยการ</label>
                             <input
                               type="text"
                               value={editDirectorPhone}
@@ -3651,6 +3496,153 @@ export default function AdminPanel({
                               placeholder="เช่น 081-9998888"
                               className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
                             />
+                          </div>
+                          {/* จัดการข้อมูลรองผู้อำนวยการ (กรณีมีหลายคน) */}
+                          <div className="col-span-1 md:col-span-2 p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border-2 border-dashed border-rose-300 dark:border-rose-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                                <Users className="h-4 w-4 text-rose-500" />
+                                <span>ข้อมูลรองผู้อำนวยการ ({editViceDirectors.length} ท่าน)</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setEditViceDirectors(prev => [...prev, { id: 'vd-' + Date.now(), name: '', phone: '', imageUrl: '' }])}
+                                className="px-3 py-1 text-xs font-black bg-pink-200 hover:bg-pink-300 text-pink-950 dark:bg-pink-900 dark:text-pink-100 rounded-xl border border-pink-400 flex items-center gap-1 transition-transform active:scale-95 cursor-pointer shadow-xs"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> เพิ่มรองผู้อำนวยการ
+                              </button>
+                            </div>
+
+                            {editViceDirectors.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic py-1 text-center">ไม่มีข้อมูลรองผู้อำนวยการ (กดปุ่มเพิ่มเพื่อเพิ่มข้อมูล)</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {editViceDirectors.map((vd, idx) => (
+                                  <div key={vd.id || idx} className="p-3 rounded-xl bg-white dark:bg-[#1e1518] border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2.5 relative">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-black text-rose-600 dark:text-rose-300">
+                                        รองผู้อำนวยการ ท่านที่ {idx + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditViceDirectors(prev => prev.filter((_, i) => i !== idx))}
+                                        className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/50 cursor-pointer"
+                                        title="ลบรายการนี้"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">ชื่อ-นามสกุล</label>
+                                        <input
+                                          type="text"
+                                          value={vd.name}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEditViceDirectors(prev => {
+                                              const copy = [...prev];
+                                              copy[idx] = { ...copy[idx], name: val };
+                                              return copy;
+                                            });
+                                          }}
+                                          placeholder="เช่น นายสมศักดิ์ มั่นคง"
+                                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">เบอร์โทรศัพท์</label>
+                                        <input
+                                          type="text"
+                                          value={vd.phone || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEditViceDirectors(prev => {
+                                              const copy = [...prev];
+                                              copy[idx] = { ...copy[idx], phone: val };
+                                              return copy;
+                                            });
+                                          }}
+                                          placeholder="เช่น 082-1112222"
+                                          className="w-full rounded-xl border-2 border-[#33272A] bg-white p-1.5 px-2 text-xs font-bold text-[#33272A] outline-none focus:ring-2 focus:ring-[#FF8BA7] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* รูปถ่ายรอง ผอ. */}
+                                    <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                      {vd.imageUrl ? (
+                                        <div className="relative shrink-0">
+                                          <img
+                                            src={vd.imageUrl}
+                                            alt={vd.name}
+                                            className="w-10 h-10 rounded-lg object-cover border border-[#33272A]"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditViceDirectors(prev => {
+                                                const copy = [...prev];
+                                                copy[idx] = { ...copy[idx], imageUrl: '' };
+                                                return copy;
+                                              });
+                                            }}
+                                            className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 text-[9px] cursor-pointer"
+                                            title="ลบรูปภาพ"
+                                          >
+                                            <X className="h-2.5 w-2.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-pink-100 dark:bg-pink-900/40 border border-dashed border-pink-300 flex items-center justify-center text-pink-500 shrink-0">
+                                          <UserCheck className="h-5 w-5" />
+                                        </div>
+                                      )}
+                                      <div className="flex-grow flex items-center gap-2">
+                                        <label className="cursor-pointer px-2.5 py-1 text-[11px] font-black bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] rounded-xl border border-[#33272A] flex items-center gap-1 shadow-xs shrink-0">
+                                          <Upload className="h-3 w-3" />
+                                          <span>แนบรูป</span>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                              const file = e.target.files?.[0];
+                                              if (!file) return;
+                                              try {
+                                                const compressed = await compressImage(file, 600, 0.75, 10);
+                                                setEditViceDirectors(prev => {
+                                                  const copy = [...prev];
+                                                  copy[idx] = { ...copy[idx], imageUrl: compressed };
+                                                  return copy;
+                                                });
+                                              } catch (err: any) {
+                                                alert(err?.message || 'ไม่สามารถประมวลผลรูปภาพได้');
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={vd.imageUrl || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEditViceDirectors(prev => {
+                                              const copy = [...prev];
+                                              copy[idx] = { ...copy[idx], imageUrl: val };
+                                              return copy;
+                                            });
+                                          }}
+                                          placeholder="หรือวาง URL รูปภาพ"
+                                          className="flex-grow rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1e1518] p-1 px-2 text-[11px] text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-1">
                             <label className="text-[11px] font-extrabold text-[#33272A]/80 dark:text-[#FFF9F5]/80">อีเมลสถานศึกษา (Email)</label>
@@ -3706,37 +3698,55 @@ export default function AdminPanel({
                       </div>
 
                       <div className="space-y-1 sm:col-span-2">
-                        <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block mb-1">
-                          🖼️ รูปภาพและโลโก้สถานศึกษา (School Branding & Media)
-                        </label>
+                        <div className="space-y-2 mb-3">
+                          <label className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            🖼️ รูปภาพและโลโก้สถานศึกษา (School Branding & Media)
+                          </label>
+                          
+                          {/* Banner คำแนะนำการอัปโหลดรูปภาพ */}
+                          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border-2 border-amber-300 dark:border-amber-700/60 text-xs font-bold text-amber-900 dark:text-amber-200 space-y-1">
+                            <div className="font-black text-amber-950 dark:text-amber-100 flex items-center gap-1.5 text-[11px]">
+                              <span className="px-2 py-0.5 rounded-md bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 text-[10px] font-black">📌 ข้อแนะนำการอัปโหลด</span>
+                              <span>ประเภทไฟล์: <strong>.JPG / .JPEG</strong> • ขนาดไฟล์ต้นฉบับ: <strong>ไม่เกิน 10 MB</strong> (ระบบจะบีบอัดภาพให้อัตโนมัติ)</span>
+                            </div>
+                          </div>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* 1. ตราโรงเรียน (Logo) */}
-                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
-                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
-                              🏫 ตราสัญลักษณ์โรงเรียน (Logo)
-                            </span>
+                          <div className="p-3.5 bg-white dark:bg-[#1e1518] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2.5 shadow-xs">
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                                🏫 ตราสัญลักษณ์โรงเรียน (Logo)
+                              </span>
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                              </p>
+                            </div>
                             <div className="flex flex-col items-center gap-2">
                               {editLogoUrl ? (
-                                <img src={editLogoUrl} alt="Logo" className="w-20 h-20 object-contain rounded-lg border border-slate-300 bg-slate-50 p-1" />
+                                <img src={editLogoUrl} alt="Logo" className="w-20 h-20 object-contain rounded-xl border-2 border-slate-300 bg-slate-50 p-1 shadow-xs" />
                               ) : (
-                                <div className="w-20 h-20 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
-                                  ไม่มีรูปตรา
+                                <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                                  <span>ไม่มีรูปตรา</span>
+                                  <span className="text-[9px] text-slate-400/80">(แนะนำ 500x500 .JPG)</span>
                                 </div>
                               )}
-                              <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-rose-300">
-                                <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน
+                              <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-rose-300 w-full justify-center">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน (.JPG)
                                 <input
                                   type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
+                                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                                  onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      if (ev.target?.result) setEditLogoUrl(ev.target.result as string);
-                                    };
-                                    reader.readAsDataURL(file);
+                                    try {
+                                      const compressed = await compressImage(file);
+                                      setEditLogoUrl(compressed);
+                                    } catch (err: any) {
+                                      alert(err.message || 'ไม่สามารถประมวลผลรูปภาพได้');
+                                    }
                                   }}
                                   className="hidden"
                                 />
@@ -3746,37 +3756,45 @@ export default function AdminPanel({
                                 placeholder="หรือใส่ URL ตราโรงเรียน"
                                 value={editLogoUrl}
                                 onChange={(e) => setEditLogoUrl(e.target.value)}
-                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
                               />
                             </div>
                           </div>
 
                           {/* 2. รูปภาพโรงเรียน / อาคารสถานที่ */}
-                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
-                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
-                              📷 รูปภาพโรงเรียน / อาคารสถานที่
-                            </span>
+                          <div className="p-3.5 bg-white dark:bg-[#1e1518] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2.5 shadow-xs">
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                                📷 รูปภาพโรงเรียน / อาคารสถานที่
+                              </span>
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1200 × 675 px</span> (16:9 แนวนอน)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                              </p>
+                            </div>
                             <div className="flex flex-col items-center gap-2">
                               {editImageUrl ? (
-                                <img src={editImageUrl} alt="School" className="w-28 h-20 object-cover rounded-lg border border-slate-300" />
+                                <img src={editImageUrl} alt="School" className="w-32 h-20 object-cover rounded-xl border-2 border-slate-300 shadow-xs" />
                               ) : (
-                                <div className="w-28 h-20 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
-                                  ไม่มีรูปโรงเรียน
+                                <div className="w-32 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                                  <span>ไม่มีรูปโรงเรียน</span>
+                                  <span className="text-[9px] text-slate-400/80">(แนะนำ 1200x675 .JPG)</span>
                                 </div>
                               )}
-                              <label className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-teal-300">
-                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน
+                              <label className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-teal-300 w-full justify-center">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน (.JPG)
                                 <input
                                   type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
+                                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                                  onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      if (ev.target?.result) setEditImageUrl(ev.target.result as string);
-                                    };
-                                    reader.readAsDataURL(file);
+                                    try {
+                                      const compressed = await compressImage(file);
+                                      setEditImageUrl(compressed);
+                                    } catch (err: any) {
+                                      alert(err.message || 'ไม่สามารถประมวลผลรูปภาพได้');
+                                    }
                                   }}
                                   className="hidden"
                                 />
@@ -3786,37 +3804,45 @@ export default function AdminPanel({
                                 placeholder="หรือใส่ URL รูปภาพโรงเรียน"
                                 value={editImageUrl}
                                 onChange={(e) => setEditImageUrl(e.target.value)}
-                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
                               />
                             </div>
                           </div>
 
                           {/* 3. รูปภาพ ผอ. / ผู้บริหารโรงเรียน */}
-                          <div className="p-3 bg-white dark:bg-[#1e1518] rounded-xl border border-[#33272A]/30 dark:border-[#FFD3B6]/30 space-y-2">
-                            <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
-                              👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
-                            </span>
+                          <div className="p-3.5 bg-white dark:bg-[#1e1518] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2.5 shadow-xs">
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                                👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
+                              </span>
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">600 × 600 px</span> (1:1 หรือ 4:3)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                              </p>
+                            </div>
                             <div className="flex flex-col items-center gap-2">
                               {editDirectorImageUrl ? (
-                                <img src={editDirectorImageUrl} alt="Director" className="w-20 h-20 object-cover rounded-full border-2 border-[#FF8BA7]" />
+                                <img src={editDirectorImageUrl} alt="Director" className="w-20 h-20 object-cover rounded-full border-2 border-[#FF8BA7] shadow-xs" />
                               ) : (
-                                <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs">
-                                  ไม่มีรูป ผอ.
+                                <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                                  <span>ไม่มีรูป ผอ.</span>
+                                  <span className="text-[9px] text-slate-400/80">(แนะนำ 600x600 .JPG)</span>
                                 </div>
                               )}
-                              <label className="btn-cute bg-amber-200 text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-amber-300">
-                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปภาพ ผอ.
+                              <label className="btn-cute bg-amber-200 text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-amber-300 w-full justify-center">
+                                <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปภาพ ผอ. (.JPG)
                                 <input
                                   type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
+                                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                                  onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      if (ev.target?.result) setEditDirectorImageUrl(ev.target.result as string);
-                                    };
-                                    reader.readAsDataURL(file);
+                                    try {
+                                      const compressed = await compressImage(file);
+                                      setEditDirectorImageUrl(compressed);
+                                    } catch (err) {
+                                      alert('ไม่สามารถประมวลผลรูปภาพได้');
+                                    }
                                   }}
                                   className="hidden"
                                 />
@@ -3826,7 +3852,7 @@ export default function AdminPanel({
                                 placeholder="หรือใส่ URL รูปภาพ ผอ."
                                 value={editDirectorImageUrl}
                                 onChange={(e) => setEditDirectorImageUrl(e.target.value)}
-                                className="w-full text-[10px] font-bold px-2 py-1 rounded border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
+                                className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#150e10] dark:text-[#FFF9F5]"
                               />
                             </div>
                           </div>

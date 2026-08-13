@@ -37,58 +37,81 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
   const now = new Date().toISOString();
   clearAppCache();
 
-  // A. Save to Supabase (Priority)
+  // Primary Database: Supabase
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const supabasePayload = {
-        id: schoolId,
-        name: school.name || '',
-        district: school.district || '',
-        amphoe: school.amphoe || null,
-        network_group: school.networkGroup || null,
-        internet_type: school.internetType || null,
-        electricity: school.electricity ?? null,
-        water_system: school.waterSystem || null,
-        water_system_detail: school.waterSystemDetail || null,
-        solar_kw: school.solarKw || null,
-        has_solar_battery: Boolean(school.hasSolarBattery),
-        solar_battery_capacity: school.solarBatteryCapacity || null,
-        staff_count: Number(school.staffCount) || 0,
-        major_subjects: school.majorSubjects || [],
-        major_subjects_with_staff: school.majorSubjectsWithStaff || [],
-        classrooms: school.classrooms || [],
-        director_phone: school.directorPhone || null,
-        school_phone: school.schoolPhone || null,
-        email: school.email || null,
-        facebook: school.facebook || null,
-        line: school.line || null,
-        website: school.website || null,
-        address: school.address || null,
-        image_url: school.imageUrl || null,
-        logo_url: school.logoUrl || null,
-        director_image_url: school.directorImageUrl || null,
-        latitude: Number(school.latitude) || 0,
-        longitude: Number(school.longitude) || 0,
-        size: school.size || 'small',
-        is_expansion: Boolean(school.isExpansion),
-        special_highlights: school.specialHighlights || null,
-        updated_at: now,
-        updated_by: updatedBy || school.updatedBy || null,
-      };
+    const supabasePayload = {
+      id: schoolId,
+      name: school.name || '',
+      district: school.district || '',
+      amphoe: school.amphoe || null,
+      network_group: school.networkGroup || null,
+      internet_type: school.internetType || null,
+      electricity: school.electricity ?? null,
+      water_system: school.waterSystem || null,
+      water_system_detail: school.waterSystemDetail || null,
+      solar_kw: school.solarKw || null,
+      has_solar_battery: Boolean(school.hasSolarBattery),
+      solar_battery_capacity: school.solarBatteryCapacity || null,
+      staff_count: Number(school.staffCount) || 0,
+      contract_teachers_count: Number(school.contractTeachersCount) || 0,
+      admin_staff_count: Number(school.adminStaffCount) || 0,
+      janitor_count: Number(school.janitorCount) || 0,
+      other_staff_count: Number(school.otherStaffCount) || 0,
+      major_subjects: school.majorSubjects || [],
+      major_subjects_with_staff: school.majorSubjectsWithStaff || [],
+      classrooms: school.classrooms || [],
+      director_name: school.directorName || null,
+      director_phone: school.directorPhone || null,
+      vice_director_name: school.viceDirectors?.[0]?.name || school.viceDirectorName || null,
+      vice_director_phone: school.viceDirectors?.[0]?.phone || school.viceDirectorPhone || null,
+      vice_directors: school.viceDirectors || [],
+      school_phone: school.schoolPhone || null,
+      email: school.email || null,
+      facebook: school.facebook || null,
+      line: school.line || null,
+      website: school.website || null,
+      address: school.address || null,
+      image_url: school.imageUrl || null,
+      logo_url: school.logoUrl || null,
+      director_image_url: school.directorImageUrl || null,
+      latitude: Number(school.latitude) || 0,
+      longitude: Number(school.longitude) || 0,
+      size: school.size || 'small',
+      is_expansion: Boolean(school.isExpansion),
+      special_highlights: school.specialHighlights || null,
+      updated_at: now,
+      updated_by: updatedBy || school.updatedBy || null,
+    };
 
-      const { error } = await supabase.from('schools').upsert(supabasePayload, { onConflict: 'id' });
-      if (error) {
-        console.error('Supabase dbSaveSchool error:', error);
-      } else {
-        console.log(`✅ Saved school ${schoolId} (${school.name}) to Supabase successfully`);
-      }
-    } catch (err) {
-      console.error('Supabase dbSaveSchool exception:', err);
+    let { error } = await supabase.from('schools').upsert(supabasePayload, { onConflict: 'id' });
+    
+    // หากติดปัญหาสคีมาบน Supabase ยังไม่มีคอลัมน์ใหม่ (เช่น PGRST204) ให้รีไทร์โดยตัดคอลัมน์ที่ไม่พบบอกออกชั่วคราว
+    if (error && (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('director_name') || error.message?.includes('column'))) {
+      console.warn('⚠️ Supabase schools table is missing new columns, retrying without new columns:', error.message);
+      const legacyPayload = { ...supabasePayload };
+      delete (legacyPayload as any).director_name;
+      delete (legacyPayload as any).vice_director_name;
+      delete (legacyPayload as any).vice_director_phone;
+      delete (legacyPayload as any).vice_directors;
+      delete (legacyPayload as any).contract_teachers_count;
+      delete (legacyPayload as any).admin_staff_count;
+      delete (legacyPayload as any).janitor_count;
+      delete (legacyPayload as any).other_staff_count;
+
+      const retryResult = await supabase.from('schools').upsert(legacyPayload, { onConflict: 'id' });
+      error = retryResult.error;
     }
-    return; // Don't write to Firestore if Supabase is configured
+
+    if (error) {
+      console.error('Supabase dbSaveSchool error:', error);
+      const errMsg = error.message || error.details || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      throw new Error(`Supabase dbSaveSchool error: ${errMsg}`);
+    }
+    console.log(`✅ Saved school ${schoolId} (${school.name}) to Supabase successfully`);
+    return;
   }
 
-  // B. Fallback to Firestore when Supabase is NOT configured
+  // Fallback: Firestore (เมื่อไม่ได้เปิดใช้ Supabase)
   try {
     const schoolRef = doc(db, 'schools', schoolId);
     const cleanData = cleanForFirestore({
@@ -97,8 +120,10 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
       updatedBy: updatedBy || school.updatedBy || 'system',
     });
     await setDoc(schoolRef, cleanData, { merge: true });
+    console.log(`✅ Saved school ${schoolId} (${school.name}) to Firestore successfully`);
   } catch (err) {
     console.warn('Firestore dbSaveSchool warning:', err);
+    throw err;
   }
 }
 
@@ -107,12 +132,12 @@ export async function dbDeleteSchool(schoolId: string): Promise<void> {
   const cleanId = String(schoolId);
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      await supabase.from('schools').delete().eq('id', cleanId);
-      console.log(`✅ Deleted school ${cleanId} from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteSchool error:', err);
+    const { error } = await supabase.from('schools').delete().eq('id', cleanId);
+    if (error) {
+      console.error('Supabase dbDeleteSchool error:', error);
+      throw error;
     }
+    console.log(`✅ Deleted school ${cleanId} from Supabase`);
     return;
   }
 
@@ -120,6 +145,7 @@ export async function dbDeleteSchool(schoolId: string): Promise<void> {
     await deleteDoc(doc(db, 'schools', cleanId));
   } catch (err) {
     console.warn('Firestore dbDeleteSchool warning:', err);
+    throw err;
   }
 }
 
@@ -132,28 +158,24 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const payload = {
-        id: String(docId),
-        school_id: String(student.schoolId),
-        school_name: student.schoolName || '',
-        academic_year: String(student.academicYear || '2568'),
-        grades: student.grades || {},
-        total_male: Number(student.totalMale) || 0,
-        total_female: Number(student.totalFemale) || 0,
-        total_students: Number(student.totalStudents) || 0,
-        updated_at: now,
-      };
+    const payload = {
+      id: String(docId),
+      school_id: String(student.schoolId),
+      school_name: student.schoolName || '',
+      academic_year: String(student.academicYear || '2568'),
+      grades: student.grades || {},
+      total_male: Number(student.totalMale) || 0,
+      total_female: Number(student.totalFemale) || 0,
+      total_students: Number(student.totalStudents) || 0,
+      updated_at: now,
+    };
 
-      const { error } = await supabase.from('students').upsert(payload, { onConflict: 'id' });
-      if (error) {
-        console.error('Supabase dbSaveStudent error:', error);
-      } else {
-        console.log(`✅ Saved student record ${docId} for ${student.schoolName} to Supabase`);
-      }
-    } catch (err) {
-      console.error('Supabase dbSaveStudent exception:', err);
+    const { error } = await supabase.from('students').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase dbSaveStudent error:', error);
+      throw error;
     }
+    console.log(`✅ Saved student record ${docId} for ${student.schoolName} to Supabase`);
     return;
   }
 
@@ -165,8 +187,10 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
       updatedAt: now,
     });
     await setDoc(studentDocRef, cleanData, { merge: true });
+    console.log(`✅ Saved student record ${docId} to Firestore successfully`);
   } catch (err) {
     console.warn('Firestore dbSaveStudent warning:', err);
+    throw err;
   }
 }
 
@@ -176,59 +200,59 @@ export async function dbBatchSaveStudents(students: StudentData[]): Promise<void
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const mapped = students.map((st) => ({
-        id: String(st.id || `${st.schoolId}_${st.academicYear}`),
-        school_id: String(st.schoolId),
-        school_name: st.schoolName || '',
-        academic_year: String(st.academicYear || '2568'),
-        grades: st.grades || {},
-        total_male: Number(st.totalMale) || 0,
-        total_female: Number(st.totalFemale) || 0,
-        total_students: Number(st.totalStudents) || 0,
-        updated_at: now,
-      }));
+    const mapped = students.map((st) => ({
+      id: String(st.id || `${st.schoolId}_${st.academicYear}`),
+      school_id: String(st.schoolId),
+      school_name: st.schoolName || '',
+      academic_year: String(st.academicYear || '2568'),
+      grades: st.grades || {},
+      total_male: Number(st.totalMale) || 0,
+      total_female: Number(st.totalFemale) || 0,
+      total_students: Number(st.totalStudents) || 0,
+      updated_at: now,
+    }));
 
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-        const batch = mapped.slice(i, i + BATCH_SIZE);
-        await supabase.from('students').upsert(batch, { onConflict: 'id' });
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+      const batch = mapped.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase.from('students').upsert(batch, { onConflict: 'id' });
+      if (error) {
+        console.error('Supabase dbBatchSaveStudents error:', error);
+        throw error;
       }
-      console.log(`✅ Batch saved ${students.length} student records to Supabase`);
-    } catch (err) {
-      console.error('Supabase dbBatchSaveStudents error:', err);
     }
+    console.log(`✅ Batch saved ${students.length} student records to Supabase`);
     return;
   }
 
-  // Backup to Firestore
   for (const st of students) {
     try {
       const docId = st.id || `${st.schoolId}_${st.academicYear}`;
       await setDoc(doc(db, 'students', docId), cleanForFirestore({ ...st, id: docId, updatedAt: now }), { merge: true });
     } catch (err) {
-      // ignore individual batch warnings
+      // ignore
     }
   }
 }
 
 export async function dbDeleteStudent(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
+  clearAppCache();
   const cleanId = String(docId);
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      await supabase.from('students').delete().eq('id', cleanId);
-      if (schoolId && academicYear) {
-        await supabase
-          .from('students')
-          .delete()
-          .eq('school_id', String(schoolId))
-          .eq('academic_year', String(academicYear));
-      }
-      console.log(`✅ Deleted student record ${cleanId} from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteStudent error:', err);
+    const { error } = await supabase.from('students').delete().eq('id', cleanId);
+    if (error) {
+      console.error('Supabase dbDeleteStudent error:', error);
+      throw error;
     }
+    if (schoolId && academicYear) {
+      await supabase
+        .from('students')
+        .delete()
+        .eq('school_id', String(schoolId))
+        .eq('academic_year', String(academicYear));
+    }
+    console.log(`✅ Deleted student record ${cleanId} from Supabase`);
     return;
   }
 
@@ -236,41 +260,39 @@ export async function dbDeleteStudent(docId: string, schoolId?: string, academic
     await deleteDoc(doc(db, 'students', cleanId));
   } catch (err) {
     console.warn('Firestore dbDeleteStudent warning:', err);
+    throw err;
   }
 }
 
 export async function dbDeleteStudentsByYear(year: string): Promise<number> {
   const cleanYear = String(year).trim();
-  let deletedCount = 0;
+  clearAppCache();
 
-  // 1. Delete from Supabase directly
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const { data: suDocs } = await supabase
-        .from('students')
-        .select('id')
-        .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
+    let deletedCount = 0;
+    const { data: suDocs } = await supabase
+      .from('students')
+      .select('id')
+      .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
 
-      if (suDocs && suDocs.length > 0) {
-        deletedCount = Math.max(deletedCount, suDocs.length);
-      }
-
-      const { error: err1 } = await supabase.from('students').delete().eq('academic_year', cleanYear);
-      if (err1) console.error('Supabase delete students by academic_year error:', err1);
-
-      await supabase.from('students').delete().like('id', `%_${cleanYear}`);
-      await supabase.from('students').delete().eq('id', cleanYear);
-
-      console.log(`✅ Deleted student records for year ${cleanYear} directly from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteStudentsByYear error:', err);
+    if (suDocs && suDocs.length > 0) {
+      deletedCount = suDocs.length;
     }
+
+    const { error } = await supabase.from('students').delete().eq('academic_year', cleanYear);
+    if (error) {
+      console.error('Supabase delete students by academic_year error:', error);
+      throw error;
+    }
+    await supabase.from('students').delete().like('id', `%_${cleanYear}`);
+    await supabase.from('students').delete().eq('id', cleanYear);
+
+    console.log(`✅ Deleted student records for year ${cleanYear} directly from Supabase`);
     return deletedCount;
   }
 
-  // 2. Delete from Firestore
+  let fsCount = 0;
   try {
-    let fsCount = 0;
     const allSnapshot = await getDocs(collection(db, 'students'));
     for (const docSnap of allSnapshot.docs) {
       const dData = docSnap.data();
@@ -281,12 +303,11 @@ export async function dbDeleteStudentsByYear(year: string): Promise<number> {
         fsCount++;
       }
     }
-    deletedCount = Math.max(deletedCount, fsCount);
   } catch (err) {
     console.warn('Firestore dbDeleteStudentsByYear warning:', err);
   }
 
-  return deletedCount;
+  return fsCount;
 }
 
 // -------------------------------------------------------------
@@ -298,28 +319,24 @@ export async function dbSaveStudentG(studentG: StudentGData): Promise<void> {
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const payload = {
-        id: String(docId),
-        school_id: String(studentG.schoolId),
-        school_name: studentG.schoolName || '',
-        academic_year: String(studentG.academicYear || '2568'),
-        total_g_students: Number(studentG.totalGStudents) || 0,
-        male_g_count: Number(studentG.maleGCount) || 0,
-        female_g_count: Number(studentG.femaleGCount) || 0,
-        notes: studentG.notes || null,
-        updated_at: now,
-      };
+    const payload = {
+      id: String(docId),
+      school_id: String(studentG.schoolId),
+      school_name: studentG.schoolName || '',
+      academic_year: String(studentG.academicYear || '2568'),
+      total_g_students: Number(studentG.totalGStudents) || 0,
+      male_g_count: Number(studentG.maleGCount) || 0,
+      female_g_count: Number(studentG.femaleGCount) || 0,
+      notes: studentG.notes || null,
+      updated_at: now,
+    };
 
-      const { error } = await supabase.from('students_g').upsert(payload, { onConflict: 'id' });
-      if (error) {
-        console.error('Supabase dbSaveStudentG error:', error);
-      } else {
-        console.log(`✅ Saved Student G record ${docId} for ${studentG.schoolName} to Supabase`);
-      }
-    } catch (err) {
-      console.error('Supabase dbSaveStudentG exception:', err);
+    const { error } = await supabase.from('students_g').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase dbSaveStudentG error:', error);
+      throw error;
     }
+    console.log(`✅ Saved Student G record ${docId} for ${studentG.schoolName} to Supabase`);
     return;
   }
 
@@ -331,38 +348,41 @@ export async function dbSaveStudentG(studentG: StudentGData): Promise<void> {
       updatedAt: now,
     });
     await setDoc(gDocRef, cleanData, { merge: true });
+    console.log(`✅ Saved Student G record ${docId} to Firestore successfully`);
   } catch (err) {
     console.warn('Firestore dbSaveStudentG warning:', err);
+    throw err;
   }
 }
 
 export async function dbBatchSaveStudentsG(studentsG: StudentGData[]): Promise<void> {
   if (studentsG.length === 0) return;
+  clearAppCache();
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const mapped = studentsG.map((sg) => ({
-        id: String(sg.id || `${sg.schoolId}_g_${sg.academicYear}`),
-        school_id: String(sg.schoolId),
-        school_name: sg.schoolName || '',
-        academic_year: String(sg.academicYear || '2568'),
-        total_g_students: Number(sg.totalGStudents) || 0,
-        male_g_count: Number(sg.maleGCount) || 0,
-        female_g_count: Number(sg.femaleGCount) || 0,
-        notes: sg.notes || null,
-        updated_at: now,
-      }));
+    const mapped = studentsG.map((sg) => ({
+      id: String(sg.id || `${sg.schoolId}_g_${sg.academicYear}`),
+      school_id: String(sg.schoolId),
+      school_name: sg.schoolName || '',
+      academic_year: String(sg.academicYear || '2568'),
+      total_g_students: Number(sg.totalGStudents) || 0,
+      male_g_count: Number(sg.maleGCount) || 0,
+      female_g_count: Number(sg.femaleGCount) || 0,
+      notes: sg.notes || null,
+      updated_at: now,
+    }));
 
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-        const batch = mapped.slice(i, i + BATCH_SIZE);
-        await supabase.from('students_g').upsert(batch, { onConflict: 'id' });
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+      const batch = mapped.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase.from('students_g').upsert(batch, { onConflict: 'id' });
+      if (error) {
+        console.error('Supabase dbBatchSaveStudentsG error:', error);
+        throw error;
       }
-      console.log(`✅ Batch saved ${studentsG.length} Student G records to Supabase`);
-    } catch (err) {
-      console.error('Supabase dbBatchSaveStudentsG error:', err);
     }
+    console.log(`✅ Batch saved ${studentsG.length} Student G records to Supabase`);
     return;
   }
 
@@ -377,22 +397,23 @@ export async function dbBatchSaveStudentsG(studentsG: StudentGData[]): Promise<v
 }
 
 export async function dbDeleteStudentG(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
+  clearAppCache();
   const cleanId = String(docId);
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      await supabase.from('students_g').delete().eq('id', cleanId);
-      if (schoolId && academicYear) {
-        await supabase
-          .from('students_g')
-          .delete()
-          .eq('school_id', String(schoolId))
-          .eq('academic_year', String(academicYear));
-      }
-      console.log(`✅ Deleted student_g record ${cleanId} from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteStudentG error:', err);
+    const { error } = await supabase.from('students_g').delete().eq('id', cleanId);
+    if (error) {
+      console.error('Supabase dbDeleteStudentG error:', error);
+      throw error;
     }
+    if (schoolId && academicYear) {
+      await supabase
+        .from('students_g')
+        .delete()
+        .eq('school_id', String(schoolId))
+        .eq('academic_year', String(academicYear));
+    }
+    console.log(`✅ Deleted student_g record ${cleanId} from Supabase`);
     return;
   }
 
@@ -400,41 +421,39 @@ export async function dbDeleteStudentG(docId: string, schoolId?: string, academi
     await deleteDoc(doc(db, 'students_g', cleanId));
   } catch (err) {
     console.warn('Firestore dbDeleteStudentG warning:', err);
+    throw err;
   }
 }
 
 export async function dbDeleteStudentsGByYear(year: string): Promise<number> {
   const cleanYear = String(year).trim();
-  let deletedCount = 0;
+  clearAppCache();
 
-  // 1. Delete from Supabase directly
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const { data: suDocs } = await supabase
-        .from('students_g')
-        .select('id')
-        .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
+    let deletedCount = 0;
+    const { data: suDocs } = await supabase
+      .from('students_g')
+      .select('id')
+      .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
 
-      if (suDocs && suDocs.length > 0) {
-        deletedCount = Math.max(deletedCount, suDocs.length);
-      }
-
-      const { error: err1 } = await supabase.from('students_g').delete().eq('academic_year', cleanYear);
-      if (err1) console.error('Supabase delete students_g by academic_year error:', err1);
-
-      await supabase.from('students_g').delete().like('id', `%_${cleanYear}`);
-      await supabase.from('students_g').delete().eq('id', cleanYear);
-
-      console.log(`✅ Deleted student_g records for year ${cleanYear} directly from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteStudentsGByYear error:', err);
+    if (suDocs && suDocs.length > 0) {
+      deletedCount = suDocs.length;
     }
+
+    const { error } = await supabase.from('students_g').delete().eq('academic_year', cleanYear);
+    if (error) {
+      console.error('Supabase delete students_g by academic_year error:', error);
+      throw error;
+    }
+    await supabase.from('students_g').delete().like('id', `%_${cleanYear}`);
+    await supabase.from('students_g').delete().eq('id', cleanYear);
+
+    console.log(`✅ Deleted student_g records for year ${cleanYear} directly from Supabase`);
     return deletedCount;
   }
 
-  // 2. Delete from Firestore
+  let fsCount = 0;
   try {
-    let fsCount = 0;
     const querySnapshot = await getDocs(collection(db, 'students_g'));
     for (const docSnap of querySnapshot.docs) {
       const dData = docSnap.data();
@@ -446,42 +465,36 @@ export async function dbDeleteStudentsGByYear(year: string): Promise<number> {
         fsCount++;
       }
     }
-    deletedCount = Math.max(deletedCount, fsCount);
   } catch (err) {
     console.warn('Firestore dbDeleteStudentsGByYear warning:', err);
   }
 
-  return deletedCount;
+  return fsCount;
 }
 
 export async function dbCleanCorruptStudentsG(): Promise<number> {
-  let deletedCount = 0;
+  clearAppCache();
 
-  // 1. Supabase
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const { data: allG } = await supabase.from('students_g').select('id, academic_year');
-      if (allG) {
-        const corruptIds = allG
-          .filter((item) => !item.academic_year || !/^\d{4}$/.test(String(item.academic_year).trim()))
-          .map((item) => item.id);
+    let deletedCount = 0;
+    const { data: allG } = await supabase.from('students_g').select('id, academic_year');
+    if (allG) {
+      const corruptIds = allG
+        .filter((item) => !item.academic_year || !/^\d{4}$/.test(String(item.academic_year).trim()))
+        .map((item) => item.id);
 
-        if (corruptIds.length > 0) {
-          await supabase.from('students_g').delete().in('id', corruptIds);
-          deletedCount = Math.max(deletedCount, corruptIds.length);
-          console.log(`✅ Cleaned ${corruptIds.length} corrupt student_g records from Supabase`);
-        }
+      if (corruptIds.length > 0) {
+        await supabase.from('students_g').delete().in('id', corruptIds);
+        deletedCount = corruptIds.length;
+        console.log(`✅ Cleaned ${corruptIds.length} corrupt student_g records from Supabase`);
       }
-    } catch (err) {
-      console.error('Supabase dbCleanCorruptStudentsG error:', err);
     }
     return deletedCount;
   }
 
-  // 2. Firestore
+  let fsCount = 0;
   try {
     const querySnapshot = await getDocs(collection(db, 'students_g'));
-    let fsCount = 0;
     for (const docSnap of querySnapshot.docs) {
       const dData = docSnap.data();
       const dYear = String(dData.academicYear || '').trim();
@@ -490,12 +503,11 @@ export async function dbCleanCorruptStudentsG(): Promise<number> {
         fsCount++;
       }
     }
-    deletedCount = Math.max(deletedCount, fsCount);
   } catch (err) {
     console.warn('Firestore dbCleanCorruptStudentsG warning:', err);
   }
 
-  return deletedCount;
+  return fsCount;
 }
 
 // -------------------------------------------------------------
@@ -511,9 +523,9 @@ export async function dbFetchSystemConfig(): Promise<SystemConfig | null> {
     } catch (err) {
       console.warn('Supabase dbFetchSystemConfig warning:', err);
     }
+    return null;
   }
 
-  // Firestore Fallback
   try {
     const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
     if (configSnap.exists()) {
@@ -530,31 +542,27 @@ export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      // First get current config to merge
-      const { data } = await supabase.from('settings').select('config').eq('id', 'system_config').single();
-      const currentConfig = data?.config || {};
-      const newConfig = { ...currentConfig, ...config };
+    // First get current config to merge
+    const { data } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
+    const currentConfig = data?.config || {};
+    const newConfig = { ...currentConfig, ...config };
 
-      const { error } = await supabase.from('settings').upsert(
-        [
-          {
-            id: 'system_config',
-            config: newConfig,
-            updated_at: now,
-          },
-        ],
-        { onConflict: 'id' }
-      );
+    const { error } = await supabase.from('settings').upsert(
+      [
+        {
+          id: 'system_config',
+          config: newConfig,
+          updated_at: now,
+        },
+      ],
+      { onConflict: 'id' }
+    );
 
-      if (error) {
-        console.error('Supabase dbSaveSystemConfig error:', error);
-      } else {
-        console.log('✅ System Config saved to Supabase settings table');
-      }
-    } catch (err) {
-      console.error('Supabase dbSaveSystemConfig exception:', err);
+    if (error) {
+      console.error('Supabase dbSaveSystemConfig error:', error);
+      throw error;
     }
+    console.log('✅ System Config saved to Supabase settings table');
     return;
   }
 
@@ -563,6 +571,7 @@ export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise
     await setDoc(doc(db, 'settings', 'system_config'), cleanData, { merge: true });
   } catch (err) {
     console.warn('Firestore dbSaveSystemConfig warning:', err);
+    throw err;
   }
 }
 
@@ -621,43 +630,36 @@ function safeToDate(val: any): Date {
 }
 
 export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
-  const now = new Date().toISOString();
-
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const payload = {
-        uid: String(userProfile.uid),
-        email: userProfile.email,
-        first_name: userProfile.firstName || '',
-        last_name: userProfile.lastName || '',
-        school_id: userProfile.schoolId || null,
-        school_name: userProfile.schoolName || null,
-        role: userProfile.role || 'public',
-        status: userProfile.status || 'pending',
-        created_at: safeToISOString(userProfile.createdAt),
-      };
+    const payload = {
+      uid: String(userProfile.uid),
+      email: userProfile.email,
+      first_name: userProfile.firstName || '',
+      last_name: userProfile.lastName || '',
+      school_id: userProfile.schoolId || null,
+      school_name: userProfile.schoolName || null,
+      role: userProfile.role || 'public',
+      status: userProfile.status || 'pending',
+      created_at: safeToISOString(userProfile.createdAt),
+    };
 
-      const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid' });
-      if (error) {
-        if (error.code === '23505' && userProfile.email) {
-          const { error: updateErr } = await supabase
-            .from('users')
-            .update(payload)
-            .eq('email', userProfile.email);
-          if (updateErr) {
-            console.error('Supabase dbSaveUser update by email error:', updateErr);
-          } else {
-            console.log(`✅ Updated user ${userProfile.email} in Supabase users table by email fallback`);
-          }
-        } else {
-          console.error('Supabase dbSaveUser error:', error);
+    const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid' });
+    if (error) {
+      if (error.code === '23505' && userProfile.email) {
+        const { error: updateErr } = await supabase
+          .from('users')
+          .update(payload)
+          .eq('email', userProfile.email);
+        if (updateErr) {
+          console.error('Supabase dbSaveUser update by email error:', updateErr);
+          throw updateErr;
         }
       } else {
-        console.log(`✅ Saved user ${userProfile.email} to Supabase users table`);
+        console.error('Supabase dbSaveUser error:', error);
+        throw error;
       }
-    } catch (err) {
-      console.error('Supabase dbSaveUser exception:', err);
     }
+    console.log(`✅ Saved user ${userProfile.email} to Supabase users table`);
     return;
   }
 
@@ -666,26 +668,17 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
     await setDoc(userDocRef, cleanForFirestore(userProfile), { merge: true });
   } catch (err) {
     console.warn('Firestore dbSaveUser warning:', err);
+    throw err;
   }
 }
 
 export async function dbUpdateUserStatus(uid: string, status: string, email?: string): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const { data, error } = await supabase.from('users').update({ status }).eq('uid', uid).select();
-      if (error) {
-        console.error('Supabase dbUpdateUserStatus error by uid:', error);
-      }
-      if (email) {
-        const { error: errEmail } = await supabase.from('users').update({ status }).eq('email', email);
-        if (errEmail) {
-          console.error('Supabase dbUpdateUserStatus error by email:', errEmail);
-        }
-      }
-      console.log(`✅ Updated user status to ${status} on Supabase (uid: ${uid}, email: ${email || 'n/a'})`);
-    } catch (err) {
-      console.error('Supabase dbUpdateUserStatus error:', err);
+    const { error } = await supabase.from('users').update({ status }).eq('uid', uid);
+    if (error && email) {
+      await supabase.from('users').update({ status }).eq('email', email);
     }
+    console.log(`✅ Updated user status to ${status} on Supabase (uid: ${uid}, email: ${email || 'n/a'})`);
     return;
   }
 
@@ -703,20 +696,17 @@ export async function dbUpdateUserStatus(uid: string, status: string, email?: st
     }
   } catch (err) {
     console.warn('Firestore dbUpdateUserStatus warning:', err);
+    throw err;
   }
 }
 
 export async function dbDeleteUser(uid: string, email?: string): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
-    try {
-      await supabase.from('users').delete().eq('uid', uid);
-      if (email) {
-        await supabase.from('users').delete().eq('email', email);
-      }
-      console.log(`✅ Deleted user ${uid} / ${email || ''} from Supabase`);
-    } catch (err) {
-      console.error('Supabase dbDeleteUser error:', err);
+    const { error } = await supabase.from('users').delete().eq('uid', uid);
+    if (error && email) {
+      await supabase.from('users').delete().eq('email', email);
     }
+    console.log(`✅ Deleted user ${uid} / ${email || ''} from Supabase`);
     return;
   }
 
@@ -733,6 +723,7 @@ export async function dbDeleteUser(uid: string, email?: string): Promise<void> {
     }
   } catch (err) {
     console.warn('Firestore dbDeleteUser warning:', err);
+    throw err;
   }
 }
 
@@ -766,9 +757,9 @@ export async function dbFetchUserProfile(uid: string, email?: string): Promise<U
     } catch (err) {
       console.warn('Supabase dbFetchUserProfile warning:', err);
     }
+    return null;
   }
 
-  // Firestore Fallback
   try {
     const userDocSnap = await getDoc(doc(db, 'users', uid));
     if (userDocSnap.exists()) {
@@ -813,9 +804,9 @@ export async function dbFetchUsersByStatus(status: 'pending' | 'approved' | 'all
     } catch (err) {
       console.warn('Supabase dbFetchUsersByStatus warning:', err);
     }
+    return [];
   }
 
-  // Firestore Fallback
   try {
     let q;
     if (status === 'all') {
@@ -859,7 +850,6 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
       };
     });
 
-    // Deduplicate in memory by email (case-insensitive) to avoid internal duplicate conflicts
     const userMapByEmail = new Map<string, any>();
     const usersWithoutEmail: any[] = [];
 
@@ -881,16 +871,12 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
 
     const usersToUpsert = [...Array.from(userMapByEmail.values()), ...usersWithoutEmail];
 
-    // Try batch upsert first
     const { error } = await activeClient.from('users').upsert(usersToUpsert, { onConflict: 'uid' });
     if (!error) {
       console.log(`✅ Migrated ${usersToUpsert.length} users to Supabase`);
       return usersToUpsert.length;
     }
 
-    console.warn('Batch upsert users failed, processing individually:', error.message || error);
-
-    // Fallback: process user by user to handle duplicate email or constraint conflicts gracefully
     let successCount = 0;
     for (const u of usersToUpsert) {
       const { error: singleErr } = await activeClient.from('users').upsert(u, { onConflict: 'uid' });
@@ -898,18 +884,13 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
         successCount++;
       } else {
         if (singleErr.code === '23505' && u.email) {
-          // If duplicate key error on email constraint, update existing user row by email
           const { error: updateErr } = await activeClient
             .from('users')
             .update(u)
             .eq('email', u.email);
           if (!updateErr) {
             successCount++;
-          } else {
-            console.warn(`Could not update user by email (${u.email}):`, updateErr);
           }
-        } else {
-          console.warn(`Could not migrate user (${u.email || u.uid}):`, singleErr);
         }
       }
     }
@@ -941,9 +922,9 @@ export async function dbFetchSystemStats(): Promise<any | null> {
     } catch (err) {
       console.warn('Supabase dbFetchSystemStats warning:', err);
     }
+    return null;
   }
 
-  // Firestore Fallback
   try {
     const docRef = doc(db, 'system_stats', 'visitor_count');
     const docSnap = await getDoc(docRef);
@@ -961,19 +942,19 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
   const now = new Date().toISOString();
 
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const payload = {
-        id: 'visitor_count',
-        total_visits: Number(statsData.totalVisits) || 0,
-        today_visits: Number(statsData.todayVisits) || 0,
-        today_date: statsData.todayDate || new Date().toISOString().split('T')[0],
-        daily_visits: statsData.dailyVisits || {},
-        updated_at: now,
-      };
+    const payload = {
+      id: 'visitor_count',
+      total_visits: Number(statsData.totalVisits) || 0,
+      today_visits: Number(statsData.todayVisits) || 0,
+      today_date: statsData.todayDate || new Date().toISOString().split('T')[0],
+      daily_visits: statsData.dailyVisits || {},
+      updated_at: now,
+    };
 
-      await supabase.from('system_stats').upsert(payload, { onConflict: 'id' });
-    } catch (err) {
-      console.error('Supabase dbSaveSystemStats error:', err);
+    const { error } = await supabase.from('system_stats').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase dbSaveSystemStats error:', error);
+      throw error;
     }
     return;
   }
@@ -983,6 +964,7 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
     await setDoc(docRef, cleanForFirestore({ ...statsData, updatedAt: now }), { merge: true });
   } catch (err) {
     console.warn('Firestore dbSaveSystemStats warning:', err);
+    throw err;
   }
 }
 
@@ -1035,9 +1017,9 @@ export async function dbFetchDownloadLogs(): Promise<DownloadLog[]> {
     } catch (err) {
       console.warn('Supabase dbFetchDownloadLogs warning:', err);
     }
+    return [];
   }
 
-  // Firestore Fallback
   try {
     const q = query(collection(db, 'download_logs'), orderBy('timestamp', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -1063,21 +1045,21 @@ export async function dbFetchDownloadLogs(): Promise<DownloadLog[]> {
 
 export async function dbAddDownloadLog(logData: DownloadLog): Promise<void> {
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const payload = {
-        name: logData.name || '',
-        email: logData.email || '',
-        school_id: logData.schoolId || '',
-        school_name: logData.schoolName || '',
-        purpose: logData.purpose || '',
-        timestamp: new Date().toISOString(),
-      };
+    const payload = {
+      name: logData.name || '',
+      email: logData.email || '',
+      school_id: logData.schoolId || '',
+      school_name: logData.schoolName || '',
+      purpose: logData.purpose || '',
+      timestamp: new Date().toISOString(),
+    };
 
-      await supabase.from('download_logs').insert([payload]);
-      console.log('✅ Added download log to Supabase');
-    } catch (err) {
-      console.error('Supabase dbAddDownloadLog error:', err);
+    const { error } = await supabase.from('download_logs').insert([payload]);
+    if (error) {
+      console.error('Supabase dbAddDownloadLog error:', error);
+      throw error;
     }
+    console.log('✅ Added download log to Supabase');
     return;
   }
 
@@ -1085,6 +1067,7 @@ export async function dbAddDownloadLog(logData: DownloadLog): Promise<void> {
     await addDoc(collection(db, 'download_logs'), cleanForFirestore(logData));
   } catch (err) {
     console.warn('Firestore dbAddDownloadLog warning:', err);
+    throw err;
   }
 }
 
@@ -1153,7 +1136,6 @@ export async function dbCheckExistingSchoolAdmin(schoolId: string, excludeEmail:
     return null;
   }
 
-  // Firestore Fallback
   try {
     const qAdmins = query(collection(db, 'users'), where('schoolId', '==', schoolId));
     const existingAdminsSnap = await getDocs(qAdmins);

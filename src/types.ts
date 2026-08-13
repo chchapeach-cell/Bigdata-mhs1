@@ -1,6 +1,15 @@
 export interface MajorSubject {
   name: string;
-  teachersCount: number;
+  teachersCount: number; // จำนวนครูรวมในวิชาเอกนี้
+  civilServantsCount?: number; // จำนวนข้าราชการครู
+  contractTeachersCount?: number; // จำนวนครูอัตราจ้าง
+}
+
+export interface ViceDirectorItem {
+  id: string;
+  name: string;
+  phone?: string;
+  imageUrl?: string;
 }
 
 export interface BranchGradeData {
@@ -50,10 +59,18 @@ export interface School {
   hasSolarBattery?: boolean; // มีแบตเตอรี่สำรองหรือไม่
   solarBatteryCapacity?: string; // รายละเอียด/ความจุแบตเตอรี่
   staffCount: number; // จำนวนครู/บุคลากร
+  contractTeachersCount?: number; // จำนวนครูอัตราจ้าง (คน)
+  adminStaffCount?: number; // จำนวนเจ้าหน้าที่ธุรการ (คน)
+  janitorCount?: number; // จำนวนนักการภารโรง (คน)
+  otherStaffCount?: number; // จำนวนบุคลากรอื่นๆ (คน)
   majorSubjects: string[]; // วิชาเอกที่มีในโรงเรียน (คั่นหรือเก็บแบบ string)
   majorSubjectsWithStaff?: MajorSubject[]; // วิชาเอกพร้อมจำนวนครูผู้เชี่ยวชาญ
   classrooms?: ClassroomItem[]; // รายชื่อห้องเรียน/ชั้นเรียนในโรงเรียน
+  directorName?: string; // ชื่อผู้อำนวยการโรงเรียน
   directorPhone: string; // เบอร์โทรศัพท์ผู้บริหาร
+  viceDirectorName?: string; // ชื่อรองผู้อำนวยการโรงเรียน ( legacy / คนแรก )
+  viceDirectorPhone?: string; // เบอร์โทรศัพท์รองผู้อำนวยการ ( legacy / คนแรก )
+  viceDirectors?: ViceDirectorItem[]; // รายชื่อรองผู้อำนวยการโรงเรียน (กรณีมีหลายคน พร้อมรูปภาพ)
   schoolPhone: string; // เบอร์โรงเรียน
   email?: string; // อีเมลติดต่อสถานศึกษา
   facebook?: string; // Facebook Page / ลิงก์ Facebook

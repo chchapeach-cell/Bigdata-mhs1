@@ -55,7 +55,14 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const rawMsg = error instanceof Error ? error.message : String(error);
+  let rawMsg = 'Unknown error';
+  if (error instanceof Error) {
+    rawMsg = error.message;
+  } else if (typeof error === 'object' && error !== null) {
+    rawMsg = (error as any).message || (error as any).details || (error as any).error || JSON.stringify(error);
+  } else {
+    rawMsg = String(error);
+  }
   const isQuota = rawMsg.includes('Quota') || rawMsg.includes('quota') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('Free daily read');
 
   const errInfo: FirestoreErrorInfo = {

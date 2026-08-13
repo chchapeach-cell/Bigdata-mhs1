@@ -85,7 +85,11 @@ CREATE TABLE IF NOT EXISTS public.schools (
     major_subjects JSONB DEFAULT '[]'::jsonb,
     major_subjects_with_staff JSONB DEFAULT '[]'::jsonb,
     classrooms JSONB DEFAULT '[]'::jsonb,
+    director_name TEXT,
     director_phone TEXT,
+    vice_director_name TEXT,
+    vice_director_phone TEXT,
+    vice_directors JSONB DEFAULT '[]'::jsonb,
     school_phone TEXT,
     email TEXT,
     facebook TEXT,
@@ -103,6 +107,17 @@ CREATE TABLE IF NOT EXISTS public.schools (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by TEXT
 );
+
+-- เพิ่มคอลัมน์ใหม่สำหรับโครงสร้างข้อมูลผู้อำนวยการ รองผู้อำนวยการ และประเภทบุคลากร (กรณีมีตารางเดิมอยู่แล้ว)
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS director_name TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS director_phone TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS vice_director_name TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS vice_director_phone TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS vice_directors JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS contract_teachers_count INT DEFAULT 0;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS admin_staff_count INT DEFAULT 0;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS janitor_count INT DEFAULT 0;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS other_staff_count INT DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS public.students (
     id TEXT PRIMARY KEY,
@@ -263,7 +278,11 @@ CREATE TABLE IF NOT EXISTS public.schools (
     major_subjects JSONB DEFAULT '[]'::jsonb,
     major_subjects_with_staff JSONB DEFAULT '[]'::jsonb,
     classrooms JSONB DEFAULT '[]'::jsonb,
+    director_name TEXT,
     director_phone TEXT,
+    vice_director_name TEXT,
+    vice_director_phone TEXT,
+    vice_directors JSONB DEFAULT '[]'::jsonb,
     school_phone TEXT,
     email TEXT,
     facebook TEXT,

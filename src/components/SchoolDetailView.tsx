@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, ClassroomItem, StudentGData } from '../types';
+import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { dbSaveSchool, dbDeleteSchool } from '../lib/dbAdapter';
+import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
@@ -89,9 +90,21 @@ export default function SchoolDetailView({
     return 'has_electric';
   };
 
+  const getInitialViceDirectors = (s: School): ViceDirectorItem[] => {
+    if (s.viceDirectors && s.viceDirectors.length > 0) return s.viceDirectors;
+    if (s.viceDirectorName || s.viceDirectorPhone) {
+      return [{ id: 'vd-1', name: s.viceDirectorName || '', phone: s.viceDirectorPhone || '', imageUrl: '' }];
+    }
+    return [];
+  };
+
   const [editName, setEditName] = useState(school.name);
   const [editNetworkGroup, setEditNetworkGroup] = useState(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
+  const [editDirectorName, setEditDirectorName] = useState(school.directorName || '');
   const [editDirectorPhone, setEditDirectorPhone] = useState(school.directorPhone || '');
+  const [editViceDirectorName, setEditViceDirectorName] = useState(school.viceDirectorName || '');
+  const [editViceDirectorPhone, setEditViceDirectorPhone] = useState(school.viceDirectorPhone || '');
+  const [editViceDirectors, setEditViceDirectors] = useState<ViceDirectorItem[]>(getInitialViceDirectors(school));
   const [editSchoolPhone, setEditSchoolPhone] = useState(school.schoolPhone || '');
   const [editEmail, setEditEmail] = useState(school.email || '');
   const [editFacebook, setEditFacebook] = useState(school.facebook || '');
@@ -106,10 +119,15 @@ export default function SchoolDetailView({
   const [editHasSolarBattery, setEditHasSolarBattery] = useState<boolean>(!!school.hasSolarBattery);
   const [editSolarBatteryCapacity, setEditSolarBatteryCapacity] = useState<string>(school.solarBatteryCapacity || '');
   const [editStaffCount, setEditStaffCount] = useState(school.staffCount);
+  const [editContractTeachersCount, setEditContractTeachersCount] = useState<number>(school.contractTeachersCount || 0);
+  const [editAdminStaffCount, setEditAdminStaffCount] = useState<number>(school.adminStaffCount || 0);
+  const [editJanitorCount, setEditJanitorCount] = useState<number>(school.janitorCount || 0);
+  const [editOtherStaffCount, setEditOtherStaffCount] = useState<number>(school.otherStaffCount || 0);
   const [editMajorsStr, setEditMajorsStr] = useState(school.majorSubjects ? school.majorSubjects.join(', ') : '');
-  const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<{ name: string; teachersCount: number }[]>([]);
+  const [editMajorsWithStaff, setEditMajorsWithStaff] = useState<MajorSubject[]>([]);
   const [newMajorName, setNewMajorName] = useState('');
-  const [newMajorCount, setNewMajorCount] = useState<number>(1);
+  const [newMajorCivilServants, setNewMajorCivilServants] = useState<number>(1);
+  const [newMajorContractTeachers, setNewMajorContractTeachers] = useState<number>(0);
   const [editImageUrl, setEditImageUrl] = useState(school.imageUrl || '');
   const [editLatitude, setEditLatitude] = useState(school.latitude || 19.3);
   const [editLongitude, setEditLongitude] = useState(school.longitude || 97.9);
@@ -126,7 +144,11 @@ export default function SchoolDetailView({
   useEffect(() => {
     setEditName(school.name);
     setEditNetworkGroup(school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup);
+    setEditDirectorName(school.directorName || '');
     setEditDirectorPhone(school.directorPhone || '');
+    setEditViceDirectorName(school.viceDirectorName || '');
+    setEditViceDirectorPhone(school.viceDirectorPhone || '');
+    setEditViceDirectors(getInitialViceDirectors(school));
     setEditSchoolPhone(school.schoolPhone || '');
     setEditEmail(school.email || '');
     setEditFacebook(school.facebook || '');
@@ -141,6 +163,10 @@ export default function SchoolDetailView({
     setEditHasSolarBattery(!!school.hasSolarBattery);
     setEditSolarBatteryCapacity(school.solarBatteryCapacity || '');
     setEditStaffCount(school.staffCount);
+    setEditContractTeachersCount(school.contractTeachersCount || 0);
+    setEditAdminStaffCount(school.adminStaffCount || 0);
+    setEditJanitorCount(school.janitorCount || 0);
+    setEditOtherStaffCount(school.otherStaffCount || 0);
     setEditMajorsStr(school.majorSubjects ? school.majorSubjects.join(', ') : '');
     setEditImageUrl(school.imageUrl || '');
     setEditLogoUrl(school.logoUrl || '');
@@ -155,13 +181,26 @@ export default function SchoolDetailView({
     if (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0) {
       setEditMajorsWithStaff(school.majorSubjectsWithStaff);
     } else if (school.majorSubjects && school.majorSubjects.length > 0) {
-      setEditMajorsWithStaff(school.majorSubjects.map(m => ({ name: m, teachersCount: 1 })));
+      setEditMajorsWithStaff(school.majorSubjects.map(m => ({ name: m, teachersCount: 1, civilServantsCount: 1, contractTeachersCount: 0 })));
     } else {
       setEditMajorsWithStaff([]);
     }
 
     setClassrooms(school.classrooms || []);
   }, [school]);
+
+  // คำนวณยอดรวมครูและบุคลากรอัตโนมัติในโหมดแก้ไข (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ครูอัตราจ้างทั่วไป + ธุรการ + ภารโรง + อื่นๆ)
+  useEffect(() => {
+    if (!isEditing) return;
+    const sumMajorTeachers = editMajorsWithStaff.reduce((sum, item) => {
+      const civ = item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0;
+      const con = Number(item.contractTeachersCount) || 0;
+      return sum + (civ + con);
+    }, 0);
+    const extraStaff = (Number(editContractTeachersCount) || 0) + (Number(editAdminStaffCount) || 0) + (Number(editJanitorCount) || 0) + (Number(editOtherStaffCount) || 0);
+    const calculatedTotal = sumMajorTeachers + extraStaff;
+    setEditStaffCount(calculatedTotal);
+  }, [editMajorsWithStaff, editContractTeachersCount, editAdminStaffCount, editJanitorCount, editOtherStaffCount, isEditing]);
 
   // สถานะข้อมูลห้องเรียน / ชั้นเรียน / โรงเรียนสาขาห่างไกล
   const [classrooms, setClassrooms] = useState<ClassroomItem[]>(school.classrooms || []);
@@ -405,97 +444,110 @@ export default function SchoolDetailView({
     );
   }, [classrooms, classroomSearch]);
 
-  const handleLocalImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleLocalImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImageUploadProgress(10);
-    setImageUploadStatus('กำลังอ่านไฟล์รูปภาพ...');
+    setImageUploadProgress(30);
+    setImageUploadStatus('กำลังประมวลผลและบีบอัดรูปภาพ...');
 
-    const reader = new FileReader();
-    reader.onprogress = (evt) => {
-      if (evt.lengthComputable) {
-        const pct = Math.round((evt.loaded / evt.total) * 100);
-        setImageUploadProgress(pct);
-      }
-    };
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setImageUploadProgress(100);
-        setImageUploadStatus('อัปโหลดรูปภาพเสร็จสิ้น!');
-        setEditImageUrl(result);
-        setSuccessMsg('อัปโหลดรูปภาพสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => {
-          setImageUploadProgress(null);
-          setImageUploadStatus('');
-          setSuccessMsg('');
-        }, 3500);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setImageUploadProgress(100);
+      setImageUploadStatus('อัปโหลดรูปภาพเสร็จสิ้น!');
+      setEditImageUrl(compressed);
+      setSuccessMsg('อัปโหลดรูปภาพสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+      setTimeout(() => {
+        setImageUploadProgress(null);
+        setImageUploadStatus('');
+        setSuccessMsg('');
+      }, 3500);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+      setImageUploadProgress(null);
+      setImageUploadStatus('');
+    }
   };
 
-  const handleLocalLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleLocalLogoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImageUploadProgress(10);
-    setImageUploadStatus('กำลังอ่านไฟล์รูปตราโรงเรียน...');
+    setImageUploadProgress(30);
+    setImageUploadStatus('กำลังประมวลผลและบีบอัดตราโรงเรียน...');
 
-    const reader = new FileReader();
-    reader.onprogress = (evt) => {
-      if (evt.lengthComputable) {
-        const pct = Math.round((evt.loaded / evt.total) * 100);
-        setImageUploadProgress(pct);
-      }
-    };
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setImageUploadProgress(100);
-        setImageUploadStatus('อัปโหลดรูปตราโรงเรียนเสร็จสิ้น!');
-        setEditLogoUrl(result);
-        setSuccessMsg('อัปโหลดรูปตราโรงเรียนสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => {
-          setImageUploadProgress(null);
-          setImageUploadStatus('');
-          setSuccessMsg('');
-        }, 3500);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setImageUploadProgress(100);
+      setImageUploadStatus('อัปโหลดรูปตราโรงเรียนเสร็จสิ้น!');
+      setEditLogoUrl(compressed);
+      setSuccessMsg('อัปโหลดรูปตราโรงเรียนสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+      setTimeout(() => {
+        setImageUploadProgress(null);
+        setImageUploadStatus('');
+        setSuccessMsg('');
+      }, 3500);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+      setImageUploadProgress(null);
+      setImageUploadStatus('');
+    }
   };
 
-  const handleLocalDirectorImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleLocalDirectorImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImageUploadProgress(10);
-    setImageUploadStatus('กำลังอ่านไฟล์รูปภาพผู้บริหาร...');
+    setImageUploadProgress(30);
+    setImageUploadStatus('กำลังประมวลผลและบีบอัดรูปผู้บริหาร...');
 
-    const reader = new FileReader();
-    reader.onprogress = (evt) => {
-      if (evt.lengthComputable) {
-        const pct = Math.round((evt.loaded / evt.total) * 100);
-        setImageUploadProgress(pct);
-      }
-    };
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setImageUploadProgress(100);
-        setImageUploadStatus('อัปโหลดรูปภาพผู้บริหารเสร็จสิ้น!');
-        setEditDirectorImageUrl(result);
-        setSuccessMsg('อัปโหลดรูปภาพผู้บริหารสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
-        setTimeout(() => {
-          setImageUploadProgress(null);
-          setImageUploadStatus('');
-          setSuccessMsg('');
-        }, 3500);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setImageUploadProgress(100);
+      setImageUploadStatus('อัปโหลดรูปภาพผู้บริหารเสร็จสิ้น!');
+      setEditDirectorImageUrl(compressed);
+      setSuccessMsg('อัปโหลดรูปภาพผู้บริหารสำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+      setTimeout(() => {
+        setImageUploadProgress(null);
+        setImageUploadStatus('');
+        setSuccessMsg('');
+      }, 3500);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+      setImageUploadProgress(null);
+      setImageUploadStatus('');
+    }
+  };
+
+  const handleLocalViceDirectorImageUpload = async (idx: number, e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageUploadProgress(30);
+    setImageUploadStatus(`กำลังประมวลผลและบีบอัดรูปภาพรอง ผอ. ท่านที่ ${idx + 1}...`);
+
+    try {
+      const compressed = await compressImage(file, 600, 0.75, 10);
+      setImageUploadProgress(100);
+      setImageUploadStatus('อัปโหลดรูปภาพรอง ผอ. เสร็จสิ้น!');
+      setEditViceDirectors(prev => {
+        const list = [...prev];
+        if (list[idx]) {
+          list[idx] = { ...list[idx], imageUrl: compressed };
+        }
+        return list;
+      });
+      setSuccessMsg('อัปโหลดรูปภาพรอง ผอ. สำเร็จ (กดปุ่มบันทึกด้านบนเพื่อบันทึกการเปลี่ยนแปลง)');
+      setTimeout(() => {
+        setImageUploadProgress(null);
+        setImageUploadStatus('');
+        setSuccessMsg('');
+      }, 3500);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลไฟล์รูปภาพได้');
+      setImageUploadProgress(null);
+      setImageUploadStatus('');
+    }
   };
 
   const handleSave = async () => {
@@ -505,12 +557,25 @@ export default function SchoolDetailView({
 
     try {
       const combinedMajors = editMajorsWithStaff.map(m => m.name.trim()).filter(Boolean);
-      const updatedMajorsWithStaff = editMajorsWithStaff;
+      const updatedMajorsWithStaff: MajorSubject[] = editMajorsWithStaff.map(m => {
+        const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
+        const con = Number(m.contractTeachersCount) || 0;
+        return {
+          name: m.name.trim(),
+          civilServantsCount: civ,
+          contractTeachersCount: con,
+          teachersCount: civ + con
+        };
+      });
 
       const updatedData = {
         name: editName || '',
         networkGroup: editNetworkGroup || '',
+        directorName: editDirectorName || '',
         directorPhone: editDirectorPhone || '',
+        viceDirectorName: editViceDirectors[0]?.name || editViceDirectorName || '',
+        viceDirectorPhone: editViceDirectors[0]?.phone || editViceDirectorPhone || '',
+        viceDirectors: editViceDirectors || [],
         schoolPhone: editSchoolPhone || '',
         email: editEmail || '',
         facebook: editFacebook || '',
@@ -525,6 +590,10 @@ export default function SchoolDetailView({
         hasSolarBattery: !!editHasSolarBattery,
         solarBatteryCapacity: editSolarBatteryCapacity || '',
         staffCount: Number(editStaffCount) || 0,
+        contractTeachersCount: Number(editContractTeachersCount) || 0,
+        adminStaffCount: Number(editAdminStaffCount) || 0,
+        janitorCount: Number(editJanitorCount) || 0,
+        otherStaffCount: Number(editOtherStaffCount) || 0,
         majorSubjects: combinedMajors || [],
         majorSubjectsWithStaff: updatedMajorsWithStaff || [],
         imageUrl: editImageUrl || '',
@@ -574,6 +643,20 @@ export default function SchoolDetailView({
     }
     return [];
   }, [school.majorSubjects, school.majorSubjectsWithStaff]);
+
+  // คำนวณจำนวนข้าราชการครูและครูอัตราจ้างรวมทั้งโรงเรียนอัตโนมัติ
+  const totalCivilServants = useMemo(() => {
+    return displayMajors.reduce((sum, m) => {
+      const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
+      return sum + civ;
+    }, 0);
+  }, [displayMajors]);
+
+  const totalContractTeachers = useMemo(() => {
+    const fromMajors = displayMajors.reduce((sum, m) => sum + (Number(m.contractTeachersCount) || 0), 0);
+    const extraContract = Number(school.contractTeachersCount) || 0;
+    return fromMajors + extraContract;
+  }, [displayMajors, school.contractTeachersCount]);
 
   // สร้างลิงก์แผนที่ Google Maps แบบ Embed Iframe ดึงจากละติจูดและลองจิจูดจริงของโรงเรียน
   const mapIframeUrl = useMemo(() => {
@@ -967,6 +1050,161 @@ export default function SchoolDetailView({
 
         </div>
 
+        {/* ส่วนอัปโหลดและจัดการรูปภาพโรงเรียน (แสดงเฉพาะเมื่อกดแก้ไขข้อมูล) */}
+        {isEditing && (
+          <div className="p-5 border-t-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 pb-2">
+              <div className="flex items-center gap-2">
+                <Image className="h-5 w-5 text-[#FF8BA7]" />
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  🖼️ จัดการรูปภาพและโลโก้สถานศึกษา (School Images & Branding)
+                </h3>
+              </div>
+              <span className="text-[11px] font-bold text-[#FF8BA7] dark:text-[#A0E7E5] bg-rose-50 dark:bg-rose-950/50 px-2.5 py-0.5 rounded-full border border-[#FF8BA7]/30">
+                📌 แนะนำไฟล์ .JPG / .JPEG • ขนาดไฟล์ไม่เกิน 10 MB (ระบบจะบีบอัดภาพให้อัตโนมัติ)
+              </span>
+            </div>
+
+            {/* แสดงสถานะกำลังอัปโหลด/บีบอัดภาพ */}
+            {imageUploadProgress !== null && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-xs font-bold text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                    <span>{imageUploadStatus}</span>
+                  </span>
+                  <span>{imageUploadProgress}%</span>
+                </div>
+                <div className="w-full bg-amber-200 dark:bg-amber-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-full transition-all duration-300"
+                    style={{ width: `${imageUploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 1. ตราโรงเรียน (Logo) */}
+              <div className="p-3.5 bg-white dark:bg-[#150e10] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2 shadow-xs">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                    🏫 ตราสัญลักษณ์โรงเรียน (Logo)
+                  </span>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  {editLogoUrl ? (
+                    <img src={editLogoUrl} alt="Logo" className="w-20 h-20 object-contain rounded-xl border-2 border-slate-300 bg-slate-50 p-1 shadow-xs" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                      <span>ไม่มีรูปตรา</span>
+                      <span className="text-[9px] text-slate-400/80">(แนะนำ 500x500 .JPG)</span>
+                    </div>
+                  )}
+                  <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-rose-300 w-full justify-center">
+                    <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน (.JPG)
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleLocalLogoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="หรือใส่ URL ตราโรงเรียน"
+                    value={editLogoUrl}
+                    onChange={(e) => setEditLogoUrl(e.target.value)}
+                    className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  />
+                </div>
+              </div>
+
+              {/* 2. รูปภาพโรงเรียน / อาคารสถานที่ */}
+              <div className="p-3.5 bg-white dark:bg-[#150e10] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2 shadow-xs">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                    📷 รูปภาพโรงเรียน / อาคารสถานที่
+                  </span>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1200 × 675 px</span> (16:9 แนวนอน)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  {editImageUrl ? (
+                    <img src={editImageUrl} alt="School" className="w-32 h-20 object-cover rounded-xl border-2 border-slate-300 shadow-xs" />
+                  ) : (
+                    <div className="w-32 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                      <span>ไม่มีรูปโรงเรียน</span>
+                      <span className="text-[9px] text-slate-400/80">(แนะนำ 1200x675 .JPG)</span>
+                    </div>
+                  )}
+                  <label className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-teal-300 w-full justify-center">
+                    <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน (.JPG)
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleLocalImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="หรือใส่ URL รูปภาพโรงเรียน"
+                    value={editImageUrl}
+                    onChange={(e) => setEditImageUrl(e.target.value)}
+                    className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  />
+                </div>
+              </div>
+
+              {/* 3. รูปภาพ ผอ. / ผู้บริหารโรงเรียน */}
+              <div className="p-3.5 bg-white dark:bg-[#150e10] rounded-2xl border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2 shadow-xs">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                    👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
+                  </span>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">600 × 600 px</span> (1:1 หรือ 4:3)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  {editDirectorImageUrl ? (
+                    <img src={editDirectorImageUrl} alt="Director" className="w-20 h-20 object-cover rounded-full border-2 border-[#FF8BA7] shadow-xs" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
+                      <span>ไม่มีรูป ผอ.</span>
+                      <span className="text-[9px] text-slate-400/80">(แนะนำ 600x600 .JPG)</span>
+                    </div>
+                  )}
+                  <label className="btn-cute bg-amber-200 text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-amber-300 w-full justify-center">
+                    <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปภาพ ผอ. (.JPG)
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleLocalDirectorImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="หรือใส่ URL รูปภาพ ผอ."
+                    value={editDirectorImageUrl}
+                    onChange={(e) => setEditDirectorImageUrl(e.target.value)}
+                    className="w-full text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-300 dark:bg-[#1e1518] dark:text-[#FFF9F5]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ข้อมูลการติดต่อและสิทธิ์พื้นฐาน */}
         <div className="grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-white dark:bg-[#1e1518]">
           {/* ข้อมูลติดต่อ */}
@@ -995,8 +1233,20 @@ export default function SchoolDetailView({
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20">ผู้บริหาร:</span>
-                <span className="text-[#33272A] dark:text-[#FFF9F5]">ผู้อำนวยการโรงเรียน</span>
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-28 shrink-0">ผู้บริหาร (ผอ.):</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editDirectorName}
+                    onChange={(e) => setEditDirectorName(e.target.value)}
+                    className="flex-grow rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                    placeholder="ชื่อ-นามสกุล ผู้อำนวยการ"
+                  />
+                ) : (
+                  <span className="text-[#33272A] dark:text-[#FFF9F5] font-black">
+                    {school.directorName || "ผู้อำนวยการโรงเรียน"}
+                  </span>
+                )}
               </div>
               {(isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
                 <div className="flex items-center gap-3 mt-2 p-2.5 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[280px]">
@@ -1020,7 +1270,7 @@ export default function SchoolDetailView({
                 </div>
               )}
               <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">เบอร์ผู้บริหาร:</span>
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-28 shrink-0">เบอร์ผู้บริหาร:</span>
                 {isEditing ? (
                   <input
                     type="text"
@@ -1048,6 +1298,198 @@ export default function SchoolDetailView({
                   )
                 )}
               </div>
+
+              {/* รองผู้อำนวยการโรงเรียน (รองรับหลายคน + อัปโหลดรูปภาพ) */}
+              {isEditing ? (
+                <div className="pt-3 border-t border-dashed border-[#33272A]/15 dark:border-[#FFD3B6]/15 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                      <Users className="h-4 w-4 text-[#FF8BA7]" />
+                      รองผู้อำนวยการ ({editViceDirectors.length} ท่าน)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditViceDirectors(prev => [...prev, { id: 'vd-' + Date.now(), name: '', phone: '', imageUrl: '' }])}
+                      className="px-2.5 py-1 text-[11px] font-black bg-pink-100 hover:bg-pink-200 text-pink-900 dark:bg-pink-950 dark:text-pink-200 rounded-lg border border-pink-300 flex items-center gap-1 transition-transform active:scale-95 cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" /> เพิ่มรอง ผอ.
+                    </button>
+                  </div>
+
+                  {editViceDirectors.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic py-1">ยังไม่มีข้อมูลรองผู้อำนวยการ (กดปุ่มเพิ่มเพื่อเพิ่มข้อมูล)</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {editViceDirectors.map((vd, idx) => (
+                        <div key={vd.id || idx} className="p-2.5 rounded-xl bg-white/90 dark:bg-[#1e1518]/90 border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2 relative shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-black text-rose-600 dark:text-rose-300">
+                              รองผู้อำนวยการ ท่านที่ {idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEditViceDirectors(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-rose-500 hover:text-rose-700 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                              title="ลบรองผู้อำนวยการท่านนี้"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">ชื่อ-นามสกุล</label>
+                              <input
+                                type="text"
+                                value={vd.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditViceDirectors(prev => {
+                                    const copy = [...prev];
+                                    copy[idx] = { ...copy[idx], name: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                placeholder="เช่น นายสมศักดิ์ มั่นคง"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">เบอร์โทรศัพท์</label>
+                              <input
+                                type="text"
+                                value={vd.phone || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditViceDirectors(prev => {
+                                    const copy = [...prev];
+                                    copy[idx] = { ...copy[idx], phone: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                placeholder="เช่น 082-1112222"
+                              />
+                            </div>
+                          </div>
+
+                          {/* รูปถ่ายรอง ผอ. */}
+                          <div className="flex items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                            {vd.imageUrl ? (
+                              <div className="relative group shrink-0">
+                                <img
+                                  src={vd.imageUrl}
+                                  alt={vd.name}
+                                  className="w-10 h-10 rounded-lg object-cover border border-[#33272A]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditViceDirectors(prev => {
+                                      const copy = [...prev];
+                                      copy[idx] = { ...copy[idx], imageUrl: '' };
+                                      return copy;
+                                    });
+                                  }}
+                                  className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 text-[9px] cursor-pointer"
+                                  title="ลบรูปภาพ"
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-pink-50 dark:bg-pink-950/30 border border-dashed border-pink-300 flex items-center justify-center text-pink-400 shrink-0">
+                                <UserCheck className="h-5 w-5" />
+                              </div>
+                            )}
+                            <div className="flex-grow flex items-center gap-2">
+                              <label className="cursor-pointer px-2.5 py-1 text-[10px] font-black bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] rounded-lg border border-[#33272A] flex items-center gap-1 shadow-xs shrink-0">
+                                <Upload className="h-3 w-3" />
+                                <span>แนบรูป</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleLocalViceDirectorImageUpload(idx, e)}
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                value={vd.imageUrl || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditViceDirectors(prev => {
+                                    const copy = [...prev];
+                                    copy[idx] = { ...copy[idx], imageUrl: val };
+                                    return copy;
+                                  });
+                                }}
+                                className="flex-grow rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1e1518] p-1 px-2 text-[10px] text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                                placeholder="หรือวาง URL รูปภาพ"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* โหมดแสดงผลปกติ */
+                ((school.viceDirectors && school.viceDirectors.length > 0) || school.viceDirectorName || school.viceDirectorPhone) && (
+                  <div className="pt-2.5 border-t border-dashed border-[#33272A]/15 dark:border-[#FFD3B6]/15 space-y-2">
+                    <div className="text-xs font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                      รองผู้อำนวยการ
+                    </div>
+                    <div className="space-y-2">
+                      {(school.viceDirectors && school.viceDirectors.length > 0
+                        ? school.viceDirectors
+                        : [{ id: 'vd-1', name: school.viceDirectorName || 'รองผู้อำนวยการโรงเรียน', phone: school.viceDirectorPhone, imageUrl: '' }]
+                      ).map((vd, idx) => (
+                        <div key={vd.id || idx} className="flex items-center gap-3 p-2 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                          {vd.imageUrl ? (
+                            <img
+                              src={vd.imageUrl}
+                              alt={vd.name}
+                              onClick={() => setExpandedImageUrl(vd.imageUrl || null)}
+                              className="w-10 h-10 rounded-xl object-cover border-2 border-[#33272A] dark:border-[#FFD3B6] shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                              title="คลิกเพื่อขยายรูปภาพ"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-900/40 border-2 border-pink-300 dark:border-pink-700 flex items-center justify-center shrink-0">
+                              <UserCheck className="h-5 w-5 text-pink-600 dark:text-pink-300" />
+                            </div>
+                          )}
+                          <div className="flex-grow min-w-0">
+                            <div className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] truncate">
+                              {vd.name || "รองผู้อำนวยการ"}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                              {hasAdminAccess && vd.phone ? (
+                                <a
+                                  href={`tel:${vd.phone.replace(/[^0-9+]/g, '')}`}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:hover:bg-emerald-900 dark:text-emerald-100 border border-emerald-500 font-black text-[11px] transition-transform active:scale-95 shadow-xs cursor-pointer mt-0.5"
+                                  title="กดเพื่อโทรออก"
+                                >
+                                  <Phone className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>{vd.phone}</span>
+                                  <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-black">โทรออก</span>
+                                </a>
+                              ) : (
+                                <span className="flex items-center gap-1 mt-0.5">
+                                  <Phone className="h-3 w-3 text-pink-400 shrink-0" />
+                                  {hasAdminAccess ? (vd.phone || "-") : "ซ่อนข้อมูลสำหรับบุคคลทั่วไป"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
 
               <div className="flex items-center gap-2">
                 <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-20 shrink-0">เบอร์โรงเรียน:</span>
@@ -1405,28 +1847,109 @@ export default function SchoolDetailView({
             <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] border-b-2 border-[#33272A] pb-2 dark:border-[#FFD3B6] flex items-center gap-1.5">
               <GraduationCap className="h-4 w-4 text-[#FF8BA7]" /> บุคลากรและวิชาเอกหลัก
             </h3>
-            <div className="space-y-2 text-xs font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80">
-              <div className="flex items-center gap-2">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 w-24">ครู/บุคลากร:</span>
-                {isEditing ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      value={editStaffCount}
-                      onChange={(e) => setEditStaffCount(Number(e.target.value))}
-                      className="w-20 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 px-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] outline-none"
-                      min="0"
-                    />
-                    <span>คน</span>
-                  </div>
-                ) : (
-                  <span className="text-[#33272A] dark:text-[#FFF9F5] font-black flex items-center gap-1">
-                    <Users className="h-4 w-4 text-[#FF8BA7]" /> {school.staffCount} คน
+            <div className="space-y-3 text-xs font-bold text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+              {/* รวมจำนวนบุคลากร */}
+              <div className="flex flex-col gap-1 bg-[#FFF9F5] dark:bg-slate-900 p-2.5 rounded-xl border border-[#33272A]/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#33272A] dark:text-[#FFF9F5] font-black flex items-center gap-1.5 text-xs">
+                    <Users className="h-4 w-4 text-[#FF8BA7]" /> ครู/บุคลากรรวมทั้งหมด:
                   </span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        value={editStaffCount}
+                        onChange={(e) => setEditStaffCount(Number(e.target.value))}
+                        className="w-16 rounded-lg border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] p-1 text-center text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none"
+                        min="0"
+                      />
+                      <span className="font-bold">คน</span>
+                    </div>
+                  ) : (
+                    <span className="text-[#FF8BA7] font-black text-sm">
+                      {school.staffCount} คน
+                    </span>
+                  )}
+                </div>
+                {isEditing && (
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 pt-0.5">
+                    <span>⚡ ระบบคำนวณยอดรวมให้อัตโนมัติจากทุกสายงาน</span>
+                  </div>
                 )}
               </div>
+
+              {/* ฟิลด์กรอกข้อมูลบุคลากรเพิ่มเติมในโหมดแก้ไข */}
+              {isEditing && (
+                <div className="space-y-2 bg-[#FFF9F5]/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-[#33272A]/15">
+                  <span className="text-[10px] font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70 block">
+                    📌 ระบุประเภทบุคลากรเพิ่มเติม (ถ้าไม่มีใส่ 0 หรือเว้นว่างได้):
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
+                      <span className="text-gray-600 dark:text-gray-300">📝 ครูอัตราจ้าง</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editContractTeachersCount || ''}
+                          onChange={(e) => setEditContractTeachersCount(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-12 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900 p-0.5 text-center font-bold text-xs outline-none"
+                        />
+                        <span className="text-[10px]">คน</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
+                      <span className="text-gray-600 dark:text-gray-300">💼 ธุรการ</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editAdminStaffCount || ''}
+                          onChange={(e) => setEditAdminStaffCount(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-12 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900 p-0.5 text-center font-bold text-xs outline-none"
+                        />
+                        <span className="text-[10px]">คน</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
+                      <span className="text-gray-600 dark:text-gray-300">🧹 ภารโรง</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editJanitorCount || ''}
+                          onChange={(e) => setEditJanitorCount(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-12 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900 p-0.5 text-center font-bold text-xs outline-none"
+                        />
+                        <span className="text-[10px]">คน</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-[#33272A]/10">
+                      <span className="text-gray-600 dark:text-gray-300">👥 อื่นๆ</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editOtherStaffCount || ''}
+                          onChange={(e) => setEditOtherStaffCount(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-12 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900 p-0.5 text-center font-bold text-xs outline-none"
+                        />
+                        <span className="text-[10px]">คน</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
-                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs">วิชาเอกที่มีผู้เชี่ยวชาญ:</span>
+                <span className="text-[#33272A]/60 dark:text-[#FFF9F5]/60 text-xs">วิชาเอกที่มีผู้เชี่ยวชาญ (ครูประจำการ):</span>
                 {isEditing ? (
                   <div className="space-y-3">
                     {/* ส่วน Interactive สำหรับจัดการวิชาเอกพร้อมจำนวนครู */}
@@ -1435,89 +1958,202 @@ export default function SchoolDetailView({
                         <GraduationCap className="h-3.5 w-3.5 text-[#FF8BA7]" /> ตั้งค่าจำนวนครูรายวิชาเอก
                       </span>
 
-                      {/* ช่องกรอกด่วน */}
-                      <div className="flex gap-1.5 items-end bg-white dark:bg-slate-800 p-2 rounded-lg border border-[#33272A]/20">
+                      {/* ช่องกรอกเพิ่มวิชาเอกพร้อมสถานะ */}
+                      <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-[#33272A]/20 space-y-2">
                         <div className="flex-grow space-y-0.5">
-                          <span className="text-[9px] text-gray-400 block">ชื่อวิชา</span>
+                          <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 block">ชื่อวิชาเอก</span>
                           <input 
                             type="text"
-                            placeholder="เช่น ศิลปะ, พละ"
+                            placeholder="เช่น ภาษาไทย, คณิตศาสตร์, พละ"
                             value={newMajorName}
                             onChange={(e) => setNewMajorName(e.target.value)}
-                            className="w-full rounded border border-[#33272A]/40 bg-white p-0.5 text-xs font-bold outline-none"
+                            className="w-full rounded border border-[#33272A]/40 bg-white dark:bg-slate-900 p-1 text-xs font-bold outline-none"
                           />
                         </div>
-                        <div className="w-16 space-y-0.5">
-                          <span className="text-[9px] text-gray-400 block">ครู (คน)</span>
-                          <input 
-                            type="number"
-                            min="0"
-                            value={newMajorCount}
-                            onChange={(e) => setNewMajorCount(Number(e.target.value))}
-                            className="w-full rounded border border-[#33272A]/40 bg-white p-0.5 text-xs font-bold outline-none text-center"
-                          />
+                        
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="space-y-0.5 bg-amber-50/50 dark:bg-amber-950/20 p-1.5 rounded border border-amber-200 dark:border-amber-800">
+                            <span className="text-amber-900 dark:text-amber-300 font-bold block">🏛️ ข้าราชการ (คน)</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={newMajorCivilServants}
+                              onChange={(e) => setNewMajorCivilServants(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-1 text-xs font-black outline-none text-center"
+                            />
+                          </div>
+
+                          <div className="space-y-0.5 bg-blue-50/50 dark:bg-blue-950/20 p-1.5 rounded border border-blue-200 dark:border-blue-800">
+                            <span className="text-blue-900 dark:text-blue-300 font-bold block">📝 ครูอัตราจ้าง (คน)</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={newMajorContractTeachers}
+                              onChange={(e) => setNewMajorContractTeachers(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full rounded border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 p-1 text-xs font-black outline-none text-center"
+                            />
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!newMajorName.trim()) return;
-                            if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
-                              alert('วิชาเอกนี้มีอยู่แล้ว');
-                              return;
-                            }
-                            setEditMajorsWithStaff(prev => [...prev, { name: newMajorName.trim(), teachersCount: newMajorCount }]);
-                            setNewMajorName('');
-                            setNewMajorCount(1);
-                          }}
-                          className="bg-[#A0E7E5] hover:opacity-90 border border-[#33272A] text-[#33272A] text-[10px] font-black px-2.5 py-1 rounded-md cursor-pointer shrink-0"
-                        >
-                          + เพิ่ม
-                        </button>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                            ⚡ รวมวิชาเอกนี้: {(Number(newMajorCivilServants) || 0) + (Number(newMajorContractTeachers) || 0)} คน (คำนวณอัตโนมัติ)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newMajorName.trim()) {
+                                alert('กรุณากรอกชื่อวิชาเอก');
+                                return;
+                              }
+                              if (editMajorsWithStaff.some(m => m.name.toLowerCase() === newMajorName.trim().toLowerCase())) {
+                                alert('วิชาเอกนี้มีอยู่แล้ว');
+                                return;
+                              }
+                              const civ = Number(newMajorCivilServants) || 0;
+                              const con = Number(newMajorContractTeachers) || 0;
+                              setEditMajorsWithStaff(prev => [...prev, {
+                                name: newMajorName.trim(),
+                                civilServantsCount: civ,
+                                contractTeachersCount: con,
+                                teachersCount: civ + con
+                              }]);
+                              setNewMajorName('');
+                              setNewMajorCivilServants(1);
+                              setNewMajorContractTeachers(0);
+                            }}
+                            className="bg-[#A0E7E5] hover:opacity-90 border border-[#33272A] text-[#33272A] text-[10px] font-black px-3 py-1 rounded-md cursor-pointer shrink-0"
+                          >
+                            + เพิ่มวิชาเอก
+                          </button>
+                        </div>
                       </div>
 
                       {/* รายการวิชาเอกพร้อมช่องแก้จำนวน */}
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                        {editMajorsWithStaff.map((m, idx) => (
-                          <div key={idx} className="flex justify-between items-center bg-white dark:bg-[#1e1518] p-1.5 rounded-lg border border-[#33272A]/10 text-[11px] font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                            <span>{m.name}</span>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                value={m.teachersCount}
-                                onChange={(e) => {
-                                  const val = Number(e.target.value);
-                                  setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? { ...item, teachersCount: val } : item));
-                                }}
-                                className="w-10 rounded border border-[#33272A]/20 bg-white dark:bg-[#1e1518] p-0.5 text-center text-[10px] font-bold text-[#33272A] dark:text-[#FFF9F5]"
-                              />
-                              <span className="text-[10px]">คน</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx));
-                                }}
-                                className="text-rose-500 hover:text-rose-700 font-bold text-xs"
-                              >
-                                &times;
-                              </button>
+                      <div className="space-y-2 max-h-52 overflow-y-auto pt-1">
+                        {editMajorsWithStaff.map((m, idx) => {
+                          const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
+                          const con = Number(m.contractTeachersCount) || 0;
+                          const total = civ + con;
+                          return (
+                            <div key={idx} className="bg-white dark:bg-[#1e1518] p-2 rounded-lg border border-[#33272A]/20 text-[11px] space-y-1">
+                              <div className="flex justify-between items-center font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                                <span>เอก{m.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                                    รวม: {total} คน
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditMajorsWithStaff(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-rose-500 hover:text-rose-700 font-bold text-xs p-0.5"
+                                    title="ลบวิชาเอก"
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                                <div className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-950/30 p-1 rounded">
+                                  <span className="text-amber-900 dark:text-amber-200">🏛️ ข้าราชการ</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={civ}
+                                    onChange={(e) => {
+                                      const newCiv = Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? {
+                                        ...item,
+                                        civilServantsCount: newCiv,
+                                        teachersCount: newCiv + (Number(item.contractTeachersCount) || 0)
+                                      } : item));
+                                    }}
+                                    className="w-10 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-0.5 text-center font-bold outline-none"
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between bg-blue-50/60 dark:bg-blue-950/30 p-1 rounded">
+                                  <span className="text-blue-900 dark:text-blue-200">📝 อัตราจ้าง</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={con}
+                                    onChange={(e) => {
+                                      const newCon = Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? {
+                                        ...item,
+                                        contractTeachersCount: newCon,
+                                        teachersCount: (item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0) + newCon
+                                      } : item));
+                                    }}
+                                    className="w-10 rounded border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 p-0.5 text-center font-bold outline-none"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {displayMajors.length > 0 ? (
-                      displayMajors.map((m, idx) => (
-                        <span key={idx} className="rounded bg-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] px-1.5 py-0.5 text-[9px] font-bold text-[#33272A] dark:bg-slate-800 dark:text-[#FFF9F5] flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF8BA7]"></span>
-                          {m.name} ({m.teachersCount} คน)
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-slate-400 text-[10px]">ไม่พบข้อมูลวิชาเอก</span>
+                  <div className="space-y-2 mt-1">
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayMajors.length > 0 ? (
+                        displayMajors.map((m, idx) => {
+                          const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
+                          const con = Number(m.contractTeachersCount) || 0;
+                          const total = m.teachersCount || (civ + con);
+                          let statusBadge = '';
+                          if (civ > 0 && con > 0) {
+                            statusBadge = ` (🏛️ข้าราชการ ${civ}, 📝อัตราจ้าง ${con})`;
+                          } else if (con > 0) {
+                            statusBadge = ` (📝อัตราจ้าง ${con})`;
+                          } else if (civ > 0) {
+                            statusBadge = ` (🏛️ข้าราชการ ${civ})`;
+                          }
+
+                          return (
+                            <span key={idx} className="rounded-lg bg-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-0.5 text-[10px] font-bold text-[#33272A] dark:bg-slate-800 dark:text-[#FFF9F5] flex items-center gap-1 shadow-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#FF8BA7]"></span>
+                              เอก{m.name} ({total} คน{statusBadge})
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-slate-400 text-[10px]">ไม่พบข้อมูลวิชาเอก</span>
+                      )}
+                    </div>
+
+                    {/* แสดงป้ายบอกจำนวนตามประเภทบุคลากรเฉพาะที่มี > 0 (ข้าราชการ, ครูอัตราจ้าง, ธุรการ, ภารโรง, บุคลากรอื่นๆ) */}
+                    {(totalCivilServants > 0 || totalContractTeachers > 0 || (school.adminStaffCount || 0) > 0 || (school.janitorCount || 0) > 0 || (school.otherStaffCount || 0) > 0) && (
+                      <div className="flex flex-wrap gap-1.5 pt-1.5 border-t border-dashed border-gray-200 dark:border-gray-800">
+                        {totalCivilServants > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:text-amber-200">
+                            🏛️ ข้าราชการ: {totalCivilServants} คน
+                          </span>
+                        )}
+                        {totalContractTeachers > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 dark:bg-sky-950/40 border border-sky-300 dark:border-sky-700 px-2 py-0.5 text-[10px] font-bold text-sky-900 dark:text-sky-200">
+                            📝 ครูอัตราจ้าง: {totalContractTeachers} คน
+                          </span>
+                        )}
+                        {(school.adminStaffCount || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:text-blue-200">
+                            💼 ธุรการ: {school.adminStaffCount} คน
+                          </span>
+                        )}
+                        {(school.janitorCount || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-200">
+                            🧹 ภารโรง: {school.janitorCount} คน
+                          </span>
+                        )}
+                        {(school.otherStaffCount || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:text-purple-200">
+                            👥 บุคลากรอื่นๆ: {school.otherStaffCount} คน
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

@@ -340,10 +340,18 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
         has_solar_battery: Boolean(s.hasSolarBattery),
         solar_battery_capacity: s.solarBatteryCapacity || s.solar_battery_capacity || null,
         staff_count: Number(s.staffCount) || 0,
+        contract_teachers_count: Number(s.contractTeachersCount) || 0,
+        admin_staff_count: Number(s.adminStaffCount) || 0,
+        janitor_count: Number(s.janitorCount) || 0,
+        other_staff_count: Number(s.otherStaffCount) || 0,
         major_subjects: s.majorSubjects || [],
         major_subjects_with_staff: s.majorSubjectsWithStaff || [],
         classrooms: s.classrooms || [],
+        director_name: s.directorName || s.director_name || null,
         director_phone: s.directorPhone || s.director_phone || null,
+        vice_director_name: s.viceDirectors?.[0]?.name || s.viceDirectorName || s.vice_director_name || null,
+        vice_director_phone: s.viceDirectors?.[0]?.phone || s.viceDirectorPhone || s.vice_director_phone || null,
+        vice_directors: s.viceDirectors || [],
         school_phone: s.schoolPhone || s.school_phone || null,
         email: s.email || null,
         facebook: s.facebook || null,
@@ -364,7 +372,21 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       const BATCH_SIZE = 50;
       for (let i = 0; i < mappedSchools.length; i += BATCH_SIZE) {
         const batch = mappedSchools.slice(i, i + BATCH_SIZE);
-        const { error } = await activeClient.from('schools').upsert(batch, { onConflict: 'id' });
+        let { error } = await activeClient.from('schools').upsert(batch, { onConflict: 'id' });
+        
+        if (error && (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('director_name') || error.message?.includes('column'))) {
+          const legacyBatch = batch.map(item => {
+            const copy = { ...item };
+            delete (copy as any).director_name;
+            delete (copy as any).vice_director_name;
+            delete (copy as any).vice_director_phone;
+            delete (copy as any).vice_directors;
+            return copy;
+          });
+          const retryRes = await activeClient.from('schools').upsert(legacyBatch, { onConflict: 'id' });
+          error = retryRes.error;
+        }
+
         if (error) {
           if (error.message?.includes('row-level security') || error.code === '42501') {
             setIsRlsError(true);

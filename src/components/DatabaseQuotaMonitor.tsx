@@ -452,9 +452,21 @@ export default function DatabaseQuotaMonitor({
                   : 'ตารางสรุปขีดจำกัดโควตา Firebase Spark Plan (สำหรับ Super Admin)'}
               </span>
             </h4>
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-              {isSupabaseActive ? '⚡ Supabase Active Mode (High Availability)' : '⚡ Reset ประจำวันเวลา 14:00 น. (00:00 UTC)'}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isCalculating}
+                className="btn-cute bg-[#A0E7E5] hover:bg-teal-300 text-[#33272A] px-2.5 py-1 text-[11px] font-black flex items-center gap-1.5 border border-[#33272A] rounded-xl shadow-xs transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="กดเพื่อรีเฟรชข้อมูลโควตาโหมด Super Admin ล่าสุด"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-[#33272A] ${isCalculating ? 'animate-spin' : ''}`} />
+                <span>{isCalculating ? 'กำลังประมวลผล...' : 'รีเฟรชโควตา'}</span>
+              </button>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                {isSupabaseActive ? '⚡ Supabase Active Mode (High Availability)' : '⚡ Reset ประจำวันเวลา 14:00 น. (00:00 UTC)'}
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
