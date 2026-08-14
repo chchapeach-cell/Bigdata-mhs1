@@ -934,7 +934,7 @@ export default function SchoolDetailView({
 
       {/* Hero Header Section */}
       <div className="overflow-hidden card">
-        <div className="relative h-56 md:h-72 overflow-hidden">
+        <div className="relative h-72 md:h-96 overflow-hidden">
           <img
             src={isEditing ? (editImageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80") : (school.imageUrl || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80")}
             alt={isEditing ? editName : school.name}
