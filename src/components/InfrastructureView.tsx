@@ -4,8 +4,6 @@ import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, Che
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 
 interface InfrastructureViewProps {
@@ -617,13 +615,13 @@ export default function InfrastructureView({
         schoolId: 'infrastructure_report',
         schoolName: `รายงานโครงสร้างพื้นฐาน (${filteredSchools.length} โรงเรียน)`,
         purpose: downloadPurpose,
-        timestamp: serverTimestamp()
+        timestamp: new Date()
       };
 
       try {
         await dbAddDownloadLog(logData);
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'download_logs');
+        console.error('Database operation failed');
       }
 
       // 2. ส่งออกไฟล์ตามชนิดที่เลือก

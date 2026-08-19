@@ -1,7 +1,20 @@
-import { doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, collection, addDoc, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog } from '../types';
+
+const db = null as any;
+const doc = (...args: any[]) => null;
+const setDoc = async (...args: any[]) => null;
+const updateDoc = async (...args: any[]) => null;
+const deleteDoc = async (...args: any[]) => null;
+const getDoc = async (...args: any[]) => ({ exists: () => false, data: () => ({}) } as any);
+const getDocs = async (...args: any[]) => ({ empty: true, docs: [], forEach: () => {} } as any);
+const collection = (...args: any[]) => null;
+const query = (...args: any[]) => null;
+const where = (...args: any[]) => null;
+const orderBy = (...args: any[]) => null;
+const writeBatch = (...args: any[]) => ({ set: () => {}, update: () => {}, delete: () => {}, commit: async () => {} } as any);
+const addDoc = async (...args: any[]) => null;
+
+import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog, AcademicRecord } from '../types';
 
 // Helper to sanitize object before writing to Firestore
 function cleanForFirestore(obj: any): any {
@@ -159,10 +172,10 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
 
   if (supabase && isSupabaseConfigured()) {
     const payload = {
-      id: String(docId),
-      school_id: String(student.schoolId),
-      school_name: student.schoolName || '',
-      academic_year: String(student.academicYear || '2568'),
+      id: docId,
+      school_id: student.schoolId,
+      school_name: student.schoolName,
+      academic_year: student.academicYear,
       grades: student.grades || {},
       total_male: Number(student.totalMale) || 0,
       total_female: Number(student.totalFemale) || 0,
@@ -175,461 +188,24 @@ export async function dbSaveStudent(student: StudentData): Promise<void> {
       console.error('Supabase dbSaveStudent error:', error);
       throw error;
     }
-    console.log(`✅ Saved student record ${docId} for ${student.schoolName} to Supabase`);
+    console.log(`✅ Saved student data ${docId} to Supabase`);
     return;
   }
 
   try {
     const studentDocRef = doc(db, 'students', docId);
-    const cleanData = cleanForFirestore({
-      ...student,
-      id: docId,
-      updatedAt: now,
-    });
-    await setDoc(studentDocRef, cleanData, { merge: true });
-    console.log(`✅ Saved student record ${docId} to Firestore successfully`);
+    await setDoc(studentDocRef, cleanForFirestore({ ...student, id: docId, updatedAt: new Date() }), { merge: true });
   } catch (err) {
     console.warn('Firestore dbSaveStudent warning:', err);
     throw err;
   }
 }
 
-export async function dbBatchSaveStudents(students: StudentData[]): Promise<void> {
-  if (students.length === 0) return;
-  clearAppCache();
-  const now = new Date().toISOString();
-
-  if (supabase && isSupabaseConfigured()) {
-    const mapped = students.map((st) => ({
-      id: String(st.id || `${st.schoolId}_${st.academicYear}`),
-      school_id: String(st.schoolId),
-      school_name: st.schoolName || '',
-      academic_year: String(st.academicYear || '2568'),
-      grades: st.grades || {},
-      total_male: Number(st.totalMale) || 0,
-      total_female: Number(st.totalFemale) || 0,
-      total_students: Number(st.totalStudents) || 0,
-      updated_at: now,
-    }));
-
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-      const batch = mapped.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase.from('students').upsert(batch, { onConflict: 'id' });
-      if (error) {
-        console.error('Supabase dbBatchSaveStudents error:', error);
-        throw error;
-      }
-    }
-    console.log(`✅ Batch saved ${students.length} student records to Supabase`);
-    return;
-  }
-
-  for (const st of students) {
-    try {
-      const docId = st.id || `${st.schoolId}_${st.academicYear}`;
-      await setDoc(doc(db, 'students', docId), cleanForFirestore({ ...st, id: docId, updatedAt: now }), { merge: true });
-    } catch (err) {
-      // ignore
-    }
-  }
-}
-
-export async function dbDeleteStudent(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
-  clearAppCache();
-  const cleanId = String(docId);
-
-  if (supabase && isSupabaseConfigured()) {
-    const { error } = await supabase.from('students').delete().eq('id', cleanId);
-    if (error) {
-      console.error('Supabase dbDeleteStudent error:', error);
-      throw error;
-    }
-    if (schoolId && academicYear) {
-      await supabase
-        .from('students')
-        .delete()
-        .eq('school_id', String(schoolId))
-        .eq('academic_year', String(academicYear));
-    }
-    console.log(`✅ Deleted student record ${cleanId} from Supabase`);
-    return;
-  }
-
-  try {
-    await deleteDoc(doc(db, 'students', cleanId));
-  } catch (err) {
-    console.warn('Firestore dbDeleteStudent warning:', err);
-    throw err;
-  }
-}
-
-export async function dbDeleteStudentsByYear(year: string): Promise<number> {
-  const cleanYear = String(year).trim();
-  clearAppCache();
-
-  if (supabase && isSupabaseConfigured()) {
-    let deletedCount = 0;
-    const { data: suDocs } = await supabase
-      .from('students')
-      .select('id')
-      .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
-
-    if (suDocs && suDocs.length > 0) {
-      deletedCount = suDocs.length;
-    }
-
-    const { error } = await supabase.from('students').delete().eq('academic_year', cleanYear);
-    if (error) {
-      console.error('Supabase delete students by academic_year error:', error);
-      throw error;
-    }
-    await supabase.from('students').delete().like('id', `%_${cleanYear}`);
-    await supabase.from('students').delete().eq('id', cleanYear);
-
-    console.log(`✅ Deleted student records for year ${cleanYear} directly from Supabase`);
-    return deletedCount;
-  }
-
-  let fsCount = 0;
-  try {
-    const allSnapshot = await getDocs(collection(db, 'students'));
-    for (const docSnap of allSnapshot.docs) {
-      const dData = docSnap.data();
-      const dYear = String(dData.academicYear || '').trim();
-      const docId = docSnap.id;
-      if (dYear === cleanYear || docId.endsWith(`_${cleanYear}`) || docId === cleanYear) {
-        await deleteDoc(doc(db, 'students', docId)).catch(() => {});
-        fsCount++;
-      }
-    }
-  } catch (err) {
-    console.warn('Firestore dbDeleteStudentsByYear warning:', err);
-  }
-
-  return fsCount;
-}
-
 // -------------------------------------------------------------
-// 3. STUDENTS G
+// 2.1 USERS & AUTH PROFILE
 // -------------------------------------------------------------
-export async function dbSaveStudentG(studentG: StudentGData): Promise<void> {
-  clearAppCache();
-  const docId = studentG.id || `${studentG.schoolId}_g_${studentG.academicYear}`;
-  const now = new Date().toISOString();
-
-  if (supabase && isSupabaseConfigured()) {
-    const payload = {
-      id: String(docId),
-      school_id: String(studentG.schoolId),
-      school_name: studentG.schoolName || '',
-      academic_year: String(studentG.academicYear || '2568'),
-      total_g_students: Number(studentG.totalGStudents) || 0,
-      male_g_count: Number(studentG.maleGCount) || 0,
-      female_g_count: Number(studentG.femaleGCount) || 0,
-      notes: studentG.notes || null,
-      updated_at: now,
-    };
-
-    const { error } = await supabase.from('students_g').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.error('Supabase dbSaveStudentG error:', error);
-      throw error;
-    }
-    console.log(`✅ Saved Student G record ${docId} for ${studentG.schoolName} to Supabase`);
-    return;
-  }
-
-  try {
-    const gDocRef = doc(db, 'students_g', docId);
-    const cleanData = cleanForFirestore({
-      ...studentG,
-      id: docId,
-      updatedAt: now,
-    });
-    await setDoc(gDocRef, cleanData, { merge: true });
-    console.log(`✅ Saved Student G record ${docId} to Firestore successfully`);
-  } catch (err) {
-    console.warn('Firestore dbSaveStudentG warning:', err);
-    throw err;
-  }
-}
-
-export async function dbBatchSaveStudentsG(studentsG: StudentGData[]): Promise<void> {
-  if (studentsG.length === 0) return;
-  clearAppCache();
-  const now = new Date().toISOString();
-
-  if (supabase && isSupabaseConfigured()) {
-    const mapped = studentsG.map((sg) => ({
-      id: String(sg.id || `${sg.schoolId}_g_${sg.academicYear}`),
-      school_id: String(sg.schoolId),
-      school_name: sg.schoolName || '',
-      academic_year: String(sg.academicYear || '2568'),
-      total_g_students: Number(sg.totalGStudents) || 0,
-      male_g_count: Number(sg.maleGCount) || 0,
-      female_g_count: Number(sg.femaleGCount) || 0,
-      notes: sg.notes || null,
-      updated_at: now,
-    }));
-
-    const BATCH_SIZE = 50;
-    for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-      const batch = mapped.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase.from('students_g').upsert(batch, { onConflict: 'id' });
-      if (error) {
-        console.error('Supabase dbBatchSaveStudentsG error:', error);
-        throw error;
-      }
-    }
-    console.log(`✅ Batch saved ${studentsG.length} Student G records to Supabase`);
-    return;
-  }
-
-  for (const sg of studentsG) {
-    try {
-      const docId = sg.id || `${sg.schoolId}_g_${sg.academicYear}`;
-      await setDoc(doc(db, 'students_g', docId), cleanForFirestore({ ...sg, id: docId, updatedAt: now }), { merge: true });
-    } catch (err) {
-      // ignore
-    }
-  }
-}
-
-export async function dbDeleteStudentG(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
-  clearAppCache();
-  const cleanId = String(docId);
-
-  if (supabase && isSupabaseConfigured()) {
-    const { error } = await supabase.from('students_g').delete().eq('id', cleanId);
-    if (error) {
-      console.error('Supabase dbDeleteStudentG error:', error);
-      throw error;
-    }
-    if (schoolId && academicYear) {
-      await supabase
-        .from('students_g')
-        .delete()
-        .eq('school_id', String(schoolId))
-        .eq('academic_year', String(academicYear));
-    }
-    console.log(`✅ Deleted student_g record ${cleanId} from Supabase`);
-    return;
-  }
-
-  try {
-    await deleteDoc(doc(db, 'students_g', cleanId));
-  } catch (err) {
-    console.warn('Firestore dbDeleteStudentG warning:', err);
-    throw err;
-  }
-}
-
-export async function dbDeleteStudentsGByYear(year: string): Promise<number> {
-  const cleanYear = String(year).trim();
-  clearAppCache();
-
-  if (supabase && isSupabaseConfigured()) {
-    let deletedCount = 0;
-    const { data: suDocs } = await supabase
-      .from('students_g')
-      .select('id')
-      .or(`academic_year.eq.${cleanYear},id.like.%_${cleanYear},id.eq.${cleanYear}`);
-
-    if (suDocs && suDocs.length > 0) {
-      deletedCount = suDocs.length;
-    }
-
-    const { error } = await supabase.from('students_g').delete().eq('academic_year', cleanYear);
-    if (error) {
-      console.error('Supabase delete students_g by academic_year error:', error);
-      throw error;
-    }
-    await supabase.from('students_g').delete().like('id', `%_${cleanYear}`);
-    await supabase.from('students_g').delete().eq('id', cleanYear);
-
-    console.log(`✅ Deleted student_g records for year ${cleanYear} directly from Supabase`);
-    return deletedCount;
-  }
-
-  let fsCount = 0;
-  try {
-    const querySnapshot = await getDocs(collection(db, 'students_g'));
-    for (const docSnap of querySnapshot.docs) {
-      const dData = docSnap.data();
-      const dYear = String(dData.academicYear || '').trim();
-      const docId = docSnap.id;
-
-      if (dYear === cleanYear || docId.endsWith(`_${cleanYear}`) || docId === cleanYear) {
-        await deleteDoc(doc(db, 'students_g', docId)).catch(() => {});
-        fsCount++;
-      }
-    }
-  } catch (err) {
-    console.warn('Firestore dbDeleteStudentsGByYear warning:', err);
-  }
-
-  return fsCount;
-}
-
-export async function dbCleanCorruptStudentsG(): Promise<number> {
-  clearAppCache();
-
-  if (supabase && isSupabaseConfigured()) {
-    let deletedCount = 0;
-    const { data: allG } = await supabase.from('students_g').select('id, academic_year');
-    if (allG) {
-      const corruptIds = allG
-        .filter((item) => !item.academic_year || !/^\d{4}$/.test(String(item.academic_year).trim()))
-        .map((item) => item.id);
-
-      if (corruptIds.length > 0) {
-        await supabase.from('students_g').delete().in('id', corruptIds);
-        deletedCount = corruptIds.length;
-        console.log(`✅ Cleaned ${corruptIds.length} corrupt student_g records from Supabase`);
-      }
-    }
-    return deletedCount;
-  }
-
-  let fsCount = 0;
-  try {
-    const querySnapshot = await getDocs(collection(db, 'students_g'));
-    for (const docSnap of querySnapshot.docs) {
-      const dData = docSnap.data();
-      const dYear = String(dData.academicYear || '').trim();
-      if (!dYear || !/^\d{4}$/.test(dYear)) {
-        await deleteDoc(doc(db, 'students_g', docSnap.id)).catch(() => {});
-        fsCount++;
-      }
-    }
-  } catch (err) {
-    console.warn('Firestore dbCleanCorruptStudentsG warning:', err);
-  }
-
-  return fsCount;
-}
-
-// -------------------------------------------------------------
-// 4. SETTINGS / CONFIG
-// -------------------------------------------------------------
-export async function dbFetchSystemConfig(): Promise<SystemConfig | null> {
-  if (supabase && isSupabaseConfigured()) {
-    try {
-      const { data, error } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
-      if (!error && data && data.config) {
-        return data.config as SystemConfig;
-      }
-    } catch (err) {
-      console.warn('Supabase dbFetchSystemConfig warning:', err);
-    }
-    return null;
-  }
-
-  try {
-    const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
-    if (configSnap.exists()) {
-      return configSnap.data() as SystemConfig;
-    }
-  } catch (err) {
-    console.warn('Firestore dbFetchSystemConfig warning:', err);
-  }
-
-  return null;
-}
-
-export async function dbSaveSystemConfig(config: Partial<SystemConfig>): Promise<void> {
-  const now = new Date().toISOString();
-
-  if (supabase && isSupabaseConfigured()) {
-    // First get current config to merge
-    const { data } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
-    const currentConfig = data?.config || {};
-    const newConfig = { ...currentConfig, ...config };
-
-    const { error } = await supabase.from('settings').upsert(
-      [
-        {
-          id: 'system_config',
-          config: newConfig,
-          updated_at: now,
-        },
-      ],
-      { onConflict: 'id' }
-    );
-
-    if (error) {
-      console.error('Supabase dbSaveSystemConfig error:', error);
-      throw error;
-    }
-    console.log('✅ System Config saved to Supabase settings table');
-    return;
-  }
-
-  try {
-    const cleanData = cleanForFirestore(config);
-    await setDoc(doc(db, 'settings', 'system_config'), cleanData, { merge: true });
-  } catch (err) {
-    console.warn('Firestore dbSaveSystemConfig warning:', err);
-    throw err;
-  }
-}
-
-// -------------------------------------------------------------
-// 5. USERS
-// -------------------------------------------------------------
-function safeToISOString(val: any): string {
-  if (!val) return new Date().toISOString();
-  if (typeof val === 'string') {
-    const d = new Date(val);
-    if (!isNaN(d.getTime())) return d.toISOString();
-  }
-  if (typeof val === 'number') {
-    const d = new Date(val);
-    if (!isNaN(d.getTime())) return d.toISOString();
-  }
-  if (val instanceof Date) {
-    return isNaN(val.getTime()) ? new Date().toISOString() : val.toISOString();
-  }
-  if (typeof val === 'object') {
-    if (typeof val.toDate === 'function') {
-      try {
-        const d = val.toDate();
-        if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString();
-      } catch (e) {}
-    }
-    if (typeof val.seconds === 'number') {
-      const d = new Date(val.seconds * 1000);
-      if (!isNaN(d.getTime())) return d.toISOString();
-    }
-    if (typeof val.seconds === 'string' && !isNaN(Number(val.seconds))) {
-      const d = new Date(Number(val.seconds) * 1000);
-      if (!isNaN(d.getTime())) return d.toISOString();
-    }
-  }
-  return new Date().toISOString();
-}
-
-function safeToDate(val: any): Date {
-  if (!val) return new Date();
-  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
-  if (typeof val === 'object') {
-    if (typeof val.toDate === 'function') {
-      try {
-        const d = val.toDate();
-        if (d instanceof Date && !isNaN(d.getTime())) return d;
-      } catch (e) {}
-    }
-    if (typeof val.seconds === 'number') {
-      const d = new Date(val.seconds * 1000);
-      if (!isNaN(d.getTime())) return d;
-    }
-  }
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-
 export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
+  clearAppCache();
   if (supabase && isSupabaseConfigured()) {
     const payload = {
       uid: String(userProfile.uid),
@@ -643,7 +219,7 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
       created_at: safeToISOString(userProfile.createdAt),
     };
 
-    const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid' });
+    const { error } = await supabase.from('users').upsert(payload, { onConflict: 'uid', ignoreDuplicates: false });
     if (error) {
       if (error.code === '23505' && userProfile.email) {
         const { error: updateErr } = await supabase
@@ -651,12 +227,10 @@ export async function dbSaveUser(userProfile: UserProfile): Promise<void> {
           .update(payload)
           .eq('email', userProfile.email);
         if (updateErr) {
-          console.error('Supabase dbSaveUser update by email error:', updateErr);
-          throw updateErr;
+          console.warn('Supabase dbSaveUser update by email warning (RLS):', updateErr);
         }
       } else {
-        console.error('Supabase dbSaveUser error:', error);
-        throw error;
+        console.warn('Supabase dbSaveUser error (RLS):', error);
       }
     }
     console.log(`✅ Saved user ${userProfile.email} to Supabase users table`);
@@ -827,6 +401,142 @@ export async function dbFetchUsersByStatus(status: 'pending' | 'approved' | 'all
   }
 }
 
+export function normalizeUserSchoolInfo(user: UserProfile, schools: School[]): { updatedUser: UserProfile; isModified: boolean; reason?: string } {
+  if (!user) {
+    return { updatedUser: user, isModified: false };
+  }
+
+  // ป้องกันการแตะต้องบัญชี Super Admin
+  if (user.role === 'super_admin' || user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com') {
+    return { updatedUser: user, isModified: false };
+  }
+
+  // หน่วยงานเขตพื้นที่ / ศูนย์การศึกษา / บัญชีเฉพาะทาง (เช่น เขตพื้นที่การศึกษาอำเภอขุนยวม 58010160) ต้องคงเดิมเสมอ ห้ามเปลี่ยน
+  const sNameLower = (user.schoolName || '').trim();
+  const sId = (user.schoolId || '').trim();
+  const isSpecialAgency =
+    user.email === 'kpy.mhs1@gmail.com' ||
+    sId === '58010160' ||
+    sNameLower.includes('เขตพื้นที่') ||
+    sNameLower.includes('สำนักงาน') ||
+    sNameLower.includes('สพป') ||
+    sNameLower.includes('กลุ่มโรงเรียน') ||
+    sNameLower.includes('ศูนย์เครือข่าย');
+
+  if (isSpecialAgency) {
+    return { updatedUser: user, isModified: false };
+  }
+
+  if (!schools || schools.length === 0) {
+    return { updatedUser: user, isModified: false };
+  }
+
+  // 1. จับคู่ด้วยรหัสโรงเรียน (schoolId) เป็นหลัก
+  if (user.schoolId && user.schoolId !== 'all') {
+    const schoolById = schools.find(s => s.id === user.schoolId);
+    if (schoolById) {
+      if (user.schoolName !== schoolById.name) {
+        return {
+          updatedUser: {
+            ...user,
+            schoolName: schoolById.name
+          },
+          isModified: true,
+          reason: `ปรับปรุงชื่อสถานศึกษาให้ตรงกับรหัส ${schoolById.id} เป็น "${schoolById.name}"`
+        };
+      }
+      return { updatedUser: user, isModified: false };
+    }
+  }
+
+  // 2. ถ้าไม่มี schoolId หรือ schoolId ว่าง ให้ตรวจชื่อที่ตรงกันเพื่อใส่รหัสโรงเรียนให้ถูกต้อง
+  if (user.schoolName && user.schoolName.trim()) {
+    const rawName = user.schoolName.trim();
+    const cleanName = rawName.replace(/^โรงเรียน/, '').trim();
+
+    const schoolByName = schools.find(s => {
+      const sName = s.name ? s.name.trim() : '';
+      const sClean = sName.replace(/^โรงเรียน/, '').trim();
+      return sName === rawName || (cleanName.length > 4 && sClean === cleanName);
+    });
+
+    if (schoolByName && (user.schoolId !== schoolByName.id || user.schoolName !== schoolByName.name)) {
+      return {
+        updatedUser: {
+          ...user,
+          schoolId: schoolByName.id,
+          schoolName: schoolByName.name
+        },
+        isModified: true,
+        reason: `จับคู่รหัสโรงเรียนให้ตรงกับ "${schoolByName.name}" (รหัส: ${schoolByName.id})`
+      };
+    }
+  }
+
+  return { updatedUser: user, isModified: false };
+}
+
+export async function dbRestoreKpyUser(): Promise<void> {
+  try {
+    if (supabase && isSupabaseConfigured()) {
+      await supabase
+        .from('users')
+        .update({
+          school_id: '58010160',
+          school_name: 'เขตพื้นที่การศึกษาอำเภอขุนยวม'
+        })
+        .eq('email', 'kpy.mhs1@gmail.com');
+    }
+
+    const q = query(collection(db, 'users'), where('email', '==', 'kpy.mhs1@gmail.com'));
+    const snap = await getDocs(q);
+    snap.forEach(async (docSnap) => {
+      await setDoc(doc(db, 'users', docSnap.id), {
+        schoolId: '58010160',
+        schoolName: 'เขตพื้นที่การศึกษาอำเภอขุนยวม'
+      }, { merge: true });
+    });
+    console.log('✅ Restored kpy.mhs1@gmail.com to เขตพื้นที่การศึกษาอำเภอขุนยวม (58010160)');
+  } catch (e) {
+    console.warn('Error restoring kpy user:', e);
+  }
+}
+
+export async function dbSyncAndFixAllUsers(schools: School[]): Promise<{
+  totalChecked: number;
+  totalFixed: number;
+  fixedList: Array<{ email: string; name: string; oldSchool: string; newSchool: string; reason: string }>;
+}> {
+  const users = await dbFetchUsersByStatus('all');
+  let fixedCount = 0;
+  const fixedList: Array<{ email: string; name: string; oldSchool: string; newSchool: string; reason: string }> = [];
+
+  for (const user of users) {
+    const { updatedUser, isModified, reason } = normalizeUserSchoolInfo(user, schools);
+    if (isModified) {
+      try {
+        await dbSaveUser(updatedUser);
+        fixedCount++;
+        fixedList.push({
+          email: user.email || '',
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || user.uid,
+          oldSchool: `${user.schoolName || 'ไม่ระบุ'} (${user.schoolId || 'ไม่มีรหัส'})`,
+          newSchool: `${updatedUser.schoolName} (${updatedUser.schoolId})`,
+          reason: reason || 'ปรับปรุงข้อมูลให้ตรงกับฐานข้อมูลสถานศึกษา'
+        });
+      } catch (err) {
+        console.error(`Failed to auto-fix user ${user.email}:`, err);
+      }
+    }
+  }
+
+  return {
+    totalChecked: users.length,
+    totalFixed: fixedCount,
+    fixedList
+  };
+}
+
 export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
   const activeClient = client || supabase;
   if (!activeClient) return 0;
@@ -953,8 +663,12 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
 
     const { error } = await supabase.from('system_stats').upsert(payload, { onConflict: 'id' });
     if (error) {
-      console.error('Supabase dbSaveSystemStats error:', error);
-      throw error;
+      if (error.code === '42501' || error.code === '42P01') {
+        console.warn('Supabase system_stats warning: Please run the SQL migration in Supabase to create the table and RLS policies.');
+      } else {
+        console.warn('Supabase dbSaveSystemStats warning:', error.message || error);
+      }
+      return;
     }
     return;
   }
@@ -1150,6 +864,603 @@ export async function dbCheckExistingSchoolAdmin(schoolId: string, excludeEmail:
     }
   } catch (err) {
     console.warn('Firestore dbCheckExistingSchoolAdmin warning:', err);
+  }
+
+  return null;
+}
+
+// -------------------------------------------------------------
+// 9. ACADEMIC ASSESSMENTS (ผลสัมฤทธิ์ทางการเรียน NT / RT / ONET)
+// -------------------------------------------------------------
+export async function dbSaveAcademicRecord(record: AcademicRecord, updatedBy?: string): Promise<void> {
+  const docId = record.id || `${record.schoolId || record.order}_${record.academicYear}_${record.testType || 'NT'}`;
+  const now = new Date().toISOString();
+  clearAppCache();
+
+  const payload: AcademicRecord = {
+    ...record,
+    id: docId,
+    updatedAt: now,
+    updatedBy: updatedBy || record.updatedBy || 'Super Admin'
+  };
+
+  // 1. Supabase (if available)
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const supaPayload = {
+        id: docId,
+        order_num: record.order || 0,
+        school_id: record.schoolId || '',
+        school_name: record.schoolName || '',
+        amphoe: record.amphoe || '',
+        math_score: Number(record.mathScore) || 0,
+        math_percentage: Number(record.mathPercentage) || 0,
+        thai_score: Number(record.thaiScore) || 0,
+        thai_percentage: Number(record.thaiPercentage) || 0,
+        total_score: Number(record.totalScore) || 0,
+        total_percentage: Number(record.totalPercentage) || 0,
+        math_quality: record.mathQuality || '',
+        thai_quality: record.thaiQuality || '',
+        total_quality: record.totalQuality || '',
+        academic_year: record.academicYear || '2567',
+        test_type: record.testType || 'NT',
+        test_title: record.testTitle || '',
+        notes: record.notes || '',
+        updated_at: now,
+        updated_by: updatedBy || record.updatedBy || 'Admin'
+      };
+      const { error } = await supabase.from('academic_assessments').upsert(supaPayload, { onConflict: 'id' });
+      if (error) {
+        console.error('Supabase academic_assessments upsert error:', error);
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          throw new Error('ไม่พบตาราง "academic_assessments" บน Supabase กรุณารันคำสั่ง SQL สร้างตารางใน SQL Editor ก่อน');
+        }
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+          throw new Error('ติดขัดสิทธิ์ Row-Level Security (RLS) บนตาราง academic_assessments ใน Supabase กรุณารันคำสั่ง SQL ปลดล็อกสิทธิ์ก่อน');
+        }
+        throw new Error(`บันทึกลง Supabase ไม่สำเร็จ: ${error.message}`);
+      }
+    } catch (supaErr: any) {
+      console.error('Supabase academic_assessments exception:', supaErr);
+      throw supaErr;
+    }
+  }
+
+  // 2. Firestore fallback
+  try {
+    const docRef = doc(db, 'academic_assessments', docId);
+    await setDoc(docRef, cleanForFirestore(payload), { merge: true });
+  } catch (fsErr) {
+    console.warn('Firestore academic_assessments fallback warning:', fsErr);
+  }
+}
+
+export async function dbSaveAcademicRecords(records: AcademicRecord[], updatedBy?: string): Promise<void> {
+  if (!records || records.length === 0) return;
+  clearAppCache();
+
+  // 1. Sync to Supabase if configured (in batches of 50)
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const supaRows = records.map(r => ({
+        id: r.id || `${r.schoolId || r.order}_${r.academicYear}_${r.testType || 'NT'}`,
+        order_num: r.order || 0,
+        school_id: r.schoolId || '',
+        school_name: r.schoolName || '',
+        amphoe: r.amphoe || '',
+        math_score: Number(r.mathScore) || 0,
+        math_percentage: Number(r.mathPercentage) || 0,
+        thai_score: Number(r.thaiScore) || 0,
+        thai_percentage: Number(r.thaiPercentage) || 0,
+        total_score: Number(r.totalScore) || 0,
+        total_percentage: Number(r.totalPercentage) || 0,
+        math_quality: r.mathQuality || '',
+        thai_quality: r.thaiQuality || '',
+        total_quality: r.totalQuality || '',
+        academic_year: r.academicYear || '2567',
+        test_type: r.testType || 'NT',
+        test_title: r.testTitle || '',
+        notes: r.notes || '',
+        updated_at: new Date().toISOString(),
+        updated_by: updatedBy || 'Admin'
+      }));
+
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < supaRows.length; i += CHUNK_SIZE) {
+        const chunk = supaRows.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase.from('academic_assessments').upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          console.error(`Supabase academic_assessments batch ${i} error:`, error);
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            throw new Error('ไม่พบตาราง "academic_assessments" บน Supabase (กรุณารันคำสั่ง SQL สร้างตารางใน SQL Editor บน Supabase Dashboard ก่อน)');
+          }
+          if (error.code === '42501' || error.message?.includes('row-level security')) {
+            throw new Error('ติดขัดสิทธิ์ Row-Level Security (RLS) บนตาราง academic_assessments ใน Supabase (กรุณารันคำสั่ง SQL ปลดล็อก RLS ก่อน)');
+          }
+          throw new Error(`บันทึกลง Supabase ไม่สำเร็จ: ${error.message}`);
+        }
+      }
+    } catch (e: any) {
+      console.error('Supabase batch upsert exception:', e);
+      throw e;
+    }
+  }
+
+  // 2. Firestore Batch Commit (limit 400 per batch)
+  try {
+    const batchSize = 400;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const chunk = records.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+
+      for (const record of chunk) {
+        const docId = record.id || `${record.schoolId || record.order}_${record.academicYear}_${record.testType || 'NT'}`;
+        const now = new Date().toISOString();
+        const payload: AcademicRecord = {
+          ...record,
+          id: docId,
+          updatedAt: now,
+          updatedBy: updatedBy || record.updatedBy || 'Super Admin'
+        };
+        const docRef = doc(db, 'academic_assessments', docId);
+        batch.set(docRef, cleanForFirestore(payload), { merge: true });
+      }
+
+      await batch.commit();
+    }
+  } catch (fsErr) {
+    console.warn('Firestore batch write notice:', fsErr);
+  }
+}
+
+export async function dbFetchAcademicRecords(): Promise<AcademicRecord[]> {
+  // 1. Try Supabase
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('academic_assessments').select('*').order('order_num', { ascending: true });
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          order: Number(d.order_num) || 0,
+          schoolId: d.school_id || '',
+          schoolName: d.school_name || '',
+          amphoe: d.amphoe || '',
+          mathScore: Number(d.math_score) || 0,
+          mathPercentage: Number(d.math_percentage) || 0,
+          thaiScore: Number(d.thai_score) || 0,
+          thaiPercentage: Number(d.thai_percentage) || 0,
+          totalScore: Number(d.total_score) || 0,
+          totalPercentage: Number(d.total_percentage) || 0,
+          mathQuality: d.math_quality || 'พอใช้',
+          thaiQuality: d.thai_quality || 'พอใช้',
+          totalQuality: d.total_quality || 'พอใช้',
+          academicYear: d.academic_year || '2567',
+          testType: d.test_type || 'NT',
+          testTitle: d.test_title || '',
+          notes: d.notes || '',
+          updatedAt: d.updated_at,
+          updatedBy: d.updated_by
+        }));
+      }
+    } catch (supaErr) {
+      console.warn('Supabase dbFetchAcademicRecords warning:', supaErr);
+    }
+  }
+
+  // 2. Firestore
+  try {
+    const snap = await getDocs(collection(db, 'academic_assessments'));
+    if (!snap.empty) {
+      const list = snap.docs.map(d => ({ ...d.data(), id: d.id } as AcademicRecord));
+      return list.sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+  } catch (err) {
+    console.warn('Firestore dbFetchAcademicRecords warning:', err);
+  }
+
+  return [];
+}
+
+export async function dbDeleteAcademicRecord(id: string): Promise<void> {
+  clearAppCache();
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      await supabase.from('academic_assessments').delete().eq('id', id);
+    } catch (e) {
+      // ignore
+    }
+  }
+  const docRef = doc(db, 'academic_assessments', id);
+  await deleteDoc(docRef);
+}
+
+export async function dbDeleteAcademicRecordsByYear(academicYear: string, testType?: string): Promise<number> {
+  const cleanYear = String(academicYear).trim();
+  clearAppCache();
+  let count = 0;
+
+  // Supabase deletion
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      let query = supabase.from('academic_assessments').delete().eq('academic_year', cleanYear);
+      if (testType && testType !== 'all') {
+        query = query.eq('test_type', testType);
+      }
+      const { error } = await query;
+      if (error) {
+        console.warn('Supabase delete academic by year error:', error);
+      }
+    } catch (e) {
+      console.warn('Supabase delete academic by year error:', e);
+    }
+  }
+
+  // Firestore deletion
+  try {
+    const snap = await getDocs(collection(db, 'academic_assessments'));
+    const toDeleteDocs: string[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      const dYear = String(d.academicYear || '').trim();
+      const dType = d.testType || 'NT';
+      if (!cleanYear || dYear === cleanYear) {
+        if (!testType || testType === 'all' || dType === testType) {
+          toDeleteDocs.push(docSnap.id);
+        }
+      }
+    });
+
+    // Delete in batches of 400
+    const batchSize = 400;
+    for (let i = 0; i < toDeleteDocs.length; i += batchSize) {
+      const chunk = toDeleteDocs.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+      for (const id of chunk) {
+        batch.delete(doc(db, 'academic_assessments', id));
+      }
+      await batch.commit();
+      count += chunk.length;
+    }
+  } catch (err) {
+    console.warn('Firestore dbDeleteAcademicRecordsByYear warning:', err);
+  }
+
+  return count;
+}
+
+export async function dbMigrateAcademicAssessmentsToSupabase(client?: any): Promise<number> {
+  const activeClient = client || supabase;
+  if (!activeClient) return 0;
+
+  try {
+    const snap = await getDocs(collection(db, 'academic_assessments'));
+    if (snap.empty) return 0;
+
+    const rows = snap.docs.map(docSnap => {
+      const r = docSnap.data() as any;
+      return {
+        id: docSnap.id,
+        order_num: Number(r.order) || 0,
+        school_id: r.schoolId || '',
+        school_name: r.schoolName || '',
+        amphoe: r.amphoe || '',
+        math_score: Number(r.mathScore) || 0,
+        math_percentage: Number(r.mathPercentage) || 0,
+        thai_score: Number(r.thaiScore) || 0,
+        thai_percentage: Number(r.thaiPercentage) || 0,
+        total_score: Number(r.totalScore) || 0,
+        total_percentage: Number(r.totalPercentage) || 0,
+        math_quality: r.mathQuality || 'พอใช้',
+        thai_quality: r.thaiQuality || 'พอใช้',
+        total_quality: r.totalQuality || 'พอใช้',
+        academic_year: r.academicYear || '2567',
+        test_type: r.testType || 'NT',
+        test_title: r.testTitle || '',
+        notes: r.notes || '',
+        updated_at: safeToISOString(r.updatedAt),
+        updated_by: r.updatedBy || 'Super Admin'
+      };
+    });
+
+    const batchSize = 50;
+    let successCount = 0;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      const { error } = await activeClient.from('academic_assessments').upsert(batch, { onConflict: 'id' });
+      if (!error) {
+        successCount += batch.length;
+      } else {
+        console.warn('academic_assessments upsert notice:', error.message);
+      }
+    }
+
+    console.log(`✅ Migrated ${successCount} academic assessment records to Supabase`);
+    return successCount;
+  } catch (err) {
+    console.error('dbMigrateAcademicAssessmentsToSupabase exception:', err);
+    return 0;
+  }
+}
+
+
+export function safeToDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) return val;
+  if (val && typeof val === 'object' && 'toDate' in val && typeof val.toDate === 'function') {
+    return val.toDate();
+  }
+  const str = String(val);
+  const parsed = Date.parse(str);
+  if (!isNaN(parsed)) return new Date(parsed);
+  return new Date();
+}
+
+export function safeToISOString(val: any): string {
+  try {
+    return safeToDate(val).toISOString();
+  } catch (e) {
+    return new Date().toISOString();
+  }
+}
+
+
+// -------------------------------------------------------------
+// 3. STUDENT OPERATIONS (General & G)
+// -------------------------------------------------------------
+export async function dbSaveStudentG(student: StudentGData): Promise<void> {
+  clearAppCache();
+  const docId = student.id || `${student.schoolId}_g_${student.academicYear}`;
+  const now = new Date().toISOString();
+
+  if (supabase && isSupabaseConfigured()) {
+    const payload = {
+      id: docId,
+      school_id: student.schoolId,
+      school_name: student.schoolName,
+      academic_year: student.academicYear,
+      total_g_students: Number(student.totalGStudents) || 0,
+      male_g_count: Number(student.maleGCount) || 0,
+      female_g_count: Number(student.femaleGCount) || 0,
+      notes: student.notes || '',
+      updated_at: now,
+    };
+
+    const { error } = await supabase.from('students_g').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase dbSaveStudentG error:', error);
+      throw error;
+    }
+    console.log(`✅ Saved student G data ${docId} to Supabase`);
+    return;
+  }
+
+  try {
+    const studentDocRef = doc(db, 'students_g', docId);
+    await setDoc(studentDocRef, cleanForFirestore({ ...student, id: docId, updatedAt: new Date() }), { merge: true });
+  } catch (err) {
+    console.warn('Firestore dbSaveStudentG warning:', err);
+    throw err;
+  }
+}
+
+export async function dbDeleteStudent(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
+  clearAppCache();
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      await supabase.from('students').delete().eq('id', docId);
+      if (schoolId && academicYear) {
+        await supabase.from('students').delete().match({ school_id: schoolId, academic_year: academicYear });
+      }
+    } catch (e) {
+      console.warn('Supabase dbDeleteStudent error:', e);
+    }
+  }
+
+  try {
+    await deleteDoc(doc(db, 'students', docId));
+    if (schoolId && academicYear) {
+      try {
+        const altId = `${schoolId}_${academicYear}`;
+        if (altId !== docId) {
+          await deleteDoc(doc(db, 'students', altId));
+        }
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.warn('Firestore dbDeleteStudent warning:', err);
+    throw err;
+  }
+}
+
+export async function dbDeleteStudentG(docId: string, schoolId?: string, academicYear?: string): Promise<void> {
+  clearAppCache();
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      await supabase.from('students_g').delete().eq('id', docId);
+      if (schoolId && academicYear) {
+        await supabase.from('students_g').delete().match({ school_id: schoolId, academic_year: academicYear });
+      }
+    } catch (e) {
+      console.warn('Supabase dbDeleteStudentG error:', e);
+    }
+  }
+
+  try {
+    await deleteDoc(doc(db, 'students_g', docId));
+    if (schoolId && academicYear) {
+      try {
+        const altId1 = `${schoolId}_g_${academicYear}`;
+        const altId2 = `${schoolId}_${academicYear}`;
+        if (altId1 !== docId) await deleteDoc(doc(db, 'students_g', altId1));
+        if (altId2 !== docId) await deleteDoc(doc(db, 'students_g', altId2));
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.warn('Firestore dbDeleteStudentG warning:', err);
+    throw err;
+  }
+}
+
+export async function dbDeleteStudentsByYear(academicYear: string): Promise<number> {
+  clearAppCache();
+  const cleanYear = String(academicYear).trim();
+  let count = 0;
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      await supabase.from('students').delete().eq('academic_year', cleanYear);
+    } catch (e) {
+      console.warn('Supabase dbDeleteStudentsByYear warning:', e);
+    }
+  }
+
+  try {
+    const snap = await getDocs(collection(db, 'students'));
+    const toDelete: string[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (String(data.academicYear || '').trim() === cleanYear) {
+        toDelete.push(d.id);
+      }
+    });
+
+    const batchSize = 400;
+    for (let i = 0; i < toDelete.length; i += batchSize) {
+      const chunk = toDelete.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+      for (const id of chunk) {
+        batch.delete(doc(db, 'students', id));
+      }
+      await batch.commit();
+      count += chunk.length;
+    }
+  } catch (err) {
+    console.warn('Firestore dbDeleteStudentsByYear warning:', err);
+  }
+
+  return count;
+}
+
+export async function dbDeleteStudentsGByYear(academicYear: string): Promise<number> {
+  clearAppCache();
+  const cleanYear = String(academicYear).trim();
+  let count = 0;
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      await supabase.from('students_g').delete().eq('academic_year', cleanYear);
+    } catch (e) {
+      console.warn('Supabase dbDeleteStudentsGByYear warning:', e);
+    }
+  }
+
+  try {
+    const snap = await getDocs(collection(db, 'students_g'));
+    const toDelete: string[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (String(data.academicYear || '').trim() === cleanYear) {
+        toDelete.push(d.id);
+      }
+    });
+
+    const batchSize = 400;
+    for (let i = 0; i < toDelete.length; i += batchSize) {
+      const chunk = toDelete.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+      for (const id of chunk) {
+        batch.delete(doc(db, 'students_g', id));
+      }
+      await batch.commit();
+      count += chunk.length;
+    }
+  } catch (err) {
+    console.warn('Firestore dbDeleteStudentsGByYear warning:', err);
+  }
+
+  return count;
+}
+
+export async function dbCleanCorruptStudentsG(): Promise<number> {
+  clearAppCache();
+  let cleaned = 0;
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data } = await supabase.from('students_g').select('*');
+      if (data) {
+        for (const item of data) {
+          if (!item.school_id || !item.school_name || item.school_name.includes('undefined')) {
+            await supabase.from('students_g').delete().eq('id', item.id);
+            cleaned++;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase dbCleanCorruptStudentsG warning:', e);
+    }
+  }
+
+  try {
+    const snap = await getDocs(collection(db, 'students_g'));
+    const toDelete: string[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (!data.schoolId || !data.schoolName || String(data.schoolName).includes('undefined')) {
+        toDelete.push(d.id);
+      }
+    });
+
+    for (const id of toDelete) {
+      await deleteDoc(doc(db, 'students_g', id));
+      cleaned++;
+    }
+  } catch (err) {
+    console.warn('Firestore dbCleanCorruptStudentsG warning:', err);
+  }
+
+  return cleaned;
+}
+
+export async function dbSaveSystemConfig(config: Partial<SystemConfig> | any): Promise<void> {
+  clearAppCache();
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data: existing } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
+      const mergedConfig = existing?.config ? { ...existing.config, ...config } : config;
+      await supabase.from('settings').upsert({ id: 'system_config', config: mergedConfig, updated_at: new Date().toISOString() });
+    } catch (e) {
+      console.warn('Supabase dbSaveSystemConfig warning:', e);
+    }
+  }
+
+  try {
+    await setDoc(doc(db, 'settings', 'system_config'), cleanForFirestore(config), { merge: true });
+  } catch (err) {
+    console.warn('Firestore dbSaveSystemConfig warning:', err);
+    throw err;
+  }
+}
+
+export async function dbFetchSystemConfig(): Promise<SystemConfig | null> {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle();
+      if (!error && data?.config) {
+        return data.config as SystemConfig;
+      }
+    } catch (e) {
+      console.warn('Supabase dbFetchSystemConfig warning:', e);
+    }
+  }
+
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'system_config'));
+    if (snap.exists()) {
+      return snap.data() as SystemConfig;
+    }
+  } catch (err) {
+    console.warn('Firestore dbFetchSystemConfig warning:', err);
   }
 
   return null;

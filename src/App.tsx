@@ -1,11 +1,9 @@
+import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
-import { db, auth, OperationType, handleFirestoreError } from './firebase';
-import { collection, getDocs, setDoc, doc, getDoc, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle } from './types';
 import { generateInitialStudentGData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
-import { formatFirestoreError, FIREBASE_CONSOLE_UPGRADE_URL } from './utils/errorHelper';
+import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { dbFetchUserProfile } from './lib/dbAdapter';
 
@@ -38,10 +36,11 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
 
 // นำเข้า Components
 import Header from './components/Header';
-const DashboardView = React.lazy(() => import('./components/DashboardView'));
+import DashboardView from './components/DashboardView';
 import SchoolListView from './components/SchoolListView';
 import SchoolDetailView from './components/SchoolDetailView';
-const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
+import AdminPanel from './components/AdminPanel';
+import AcademicStatsView from './components/AcademicStatsView';
 import AuthModal from './components/AuthModal';
 import InfrastructureView from './components/InfrastructureView';
 import ContactView from './components/ContactView';
@@ -182,14 +181,20 @@ export default function App() {
 
   // ตรวจสอบการเข้าสู่ระบบและโหลดโปรไฟล์
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    if (!isSupabaseConfigured()) {
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user;
       setUser(currentUser);
       if (currentUser) {
-        // ตรวจสอบกรณีเป็น Super Admin เมลที่ระบุไว้ก่อนทำ Firestore read
+        // ตรวจสอบกรณีเป็น Super Admin เมลที่ระบุไว้ก่อนทำ DB read
         const isHardcodedSuperAdmin = currentUser.email === 'tamrri@gmail.com' || currentUser.email === 'ch.chapeach@gmail.com';
         if (isHardcodedSuperAdmin) {
           const superAdminProfile: UserProfile = {
-            uid: currentUser.uid,
+            uid: currentUser.id,
             email: currentUser.email || '',
             firstName: 'Super',
             lastName: 'Admin',
@@ -204,8 +209,8 @@ export default function App() {
         }
 
         try {
-          // ดึงโปรไฟล์แอดมินโรงเรียนจาก Supabase/Firestore ด้วยวิธีเฉพาะเจาะจงและปลอดภัย
-          const matchedProfile = await dbFetchUserProfile(currentUser.uid, currentUser.email || undefined);
+          // ดึงโปรไฟล์แอดมินโรงเรียนจาก Supabase
+          const matchedProfile = await dbFetchUserProfile(currentUser.id, currentUser.email || undefined);
 
           if (matchedProfile) {
             if (matchedProfile.status === 'approved') {
@@ -224,7 +229,7 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   // การจัดการ Active Session (Heartbeat + ตรวจสอบการโดน Super Admin เตะออกจากระบบ)
@@ -240,25 +245,28 @@ export default function App() {
     }, 120000);
 
     // 3. ฟังสถานะ real-time กรณี Super Admin กดเตะออกจากระบบ
-    const sessionRef = doc(db, 'active_sessions', userProfile.uid);
-    const unsubscribeSession = onSnapshot(sessionRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.kicked) {
-          setSessionNoticeModal({
-            title: '⛔ คุณถูก Super Admin เตะออกจากระบบ',
-            message: 'ขออภัยในความไม่สะดวก เซสชันการเข้าใช้งานของคุณถูกสั่งให้ออกจากระบบโดย Super Admin หากต้องการใช้งานต่อกรุณาล็อกอินใหม่อีกครั้ง',
-            type: 'kicked'
-          });
-          removeActiveSession(userProfile.uid);
-          signOut(auth).catch(() => {});
-          setUserProfile(null);
-          setActiveTab('dashboard');
-        }
-      }
-    }, (err) => {
-      console.warn("Session snapshot error:", err);
-    });
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase.channel(`active_session_${userProfile.uid}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'active_sessions', filter: `uid=eq.${userProfile.uid}` },
+          (payload) => {
+            if (payload.new && payload.new.kicked) {
+              setSessionNoticeModal({
+                title: '⛔ คุณถูก Super Admin เตะออกจากระบบ',
+                message: 'ขออภัยในความไม่สะดวก เซสชันการเข้าใช้งานของคุณถูกสั่งให้ออกจากระบบโดย Super Admin หากต้องการใช้งานต่อกรุณาล็อกอินใหม่อีกครั้ง',
+                type: 'kicked'
+              });
+              removeActiveSession(userProfile.uid);
+              supabase.auth.signOut().catch(() => {});
+              setUserProfile(null);
+              setActiveTab('dashboard');
+            }
+          }
+        )
+        .subscribe();
+    }
 
     // 4. ลบเซสชันเมื่อปิดหน้าต่างเบราว์เซอร์
     const handleBeforeUnload = () => {
@@ -268,39 +276,67 @@ export default function App() {
 
     return () => {
       clearInterval(heartbeatTimer);
-      unsubscribeSession();
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [userProfile?.uid]);
 
-  // 1. ฟังนโยบายและค่าตั้งค่าระบบ real-time จาก Firestore
+  // 1. ฟังนโยบายและค่าตั้งค่าระบบ real-time จาก Supabase
   useEffect(() => {
-    const unsubConfig = onSnapshot(doc(db, 'settings', 'system_config'), (configSnap) => {
-      if (configSnap.exists()) {
-        const data = configSnap.data();
-        setSystemConfig({
-          allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
-          contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
-          restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
-          allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
-          highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,
-          highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
-          simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
-          electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
-          internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
-          waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
-          headerBannerUrl: data.headerBannerUrl || '',
-          headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
-          headerBannerFit: data.headerBannerFit || 'contain',
-          headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
-          contactChannels: data.contactChannels || undefined,
-        });
+    let isMounted = true;
+    const fetchConfig = async () => {
+      try {
+        const { dbFetchSystemConfig } = await import('./lib/dbAdapter');
+        const data = await dbFetchSystemConfig();
+        if (data && isMounted) {
+          setSystemConfig({
+            allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
+            contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
+            restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
+            allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
+            highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,
+            highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
+            simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
+            electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
+            internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+            waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
+            headerBannerUrl: data.headerBannerUrl || '',
+            headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
+            headerBannerFit: data.headerBannerFit || 'contain',
+            headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
+            contactChannels: data.contactChannels || undefined,
+          });
+        }
+      } catch (err) {
+        console.warn('System config fetch notice:', err);
       }
-    }, (err) => {
-      console.warn('System config snapshot notice:', err);
-    });
+    };
 
-    return () => unsubConfig();
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 5 * 60 * 1000); // 5 minutes
+
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase.channel('system_config_changes')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'settings', filter: `id=eq.system_config` },
+          () => {
+            fetchConfig();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   // สลับไปยังหน้าหลักอัตโนมัติหากเมนูติดต่อถูกปิดการใช้งานโดย Super Admin และผู้ใช้ไม่ใช่ Super Admin
@@ -310,24 +346,21 @@ export default function App() {
     }
   }, [systemConfig?.contactEnabled, userProfile?.role, activeTab]);
 
-  // 2. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน (ไม่เปิด onSnapshot ค้างไว้เพื่อประหยัดโควตาอ่าน)
+  // 2. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน
   const [activeSessionCount, setActiveSessionCount] = useState<number>(1);
   useEffect(() => {
     let isMounted = true;
     const fetchActiveCount = async () => {
       try {
-        const snap = await getDocs(collection(db, 'active_sessions'));
-        let activeCount = 0;
-        const now = Date.now();
-        const THREE_MINUTES = 3 * 60 * 1000;
-        snap.forEach((docSnap) => {
-          const d = docSnap.data();
-          if (d && d.lastActiveTime && (now - d.lastActiveTime < THREE_MINUTES) && !d.kicked) {
-            activeCount++;
-          }
-        });
+        const minActiveTime = Date.now() - (3 * 60 * 1000);
+        const { count } = await supabase
+          .from('active_sessions')
+          .select('*', { count: 'exact', head: true })
+          .gt('last_active_time', minActiveTime)
+          .eq('kicked', false);
+
         if (isMounted) {
-          setActiveSessionCount(Math.max(1, activeCount));
+          setActiveSessionCount(Math.max(1, count || 0));
         }
       } catch (err) {
         console.warn('Active sessions query notice:', err);
@@ -543,90 +576,10 @@ export default function App() {
           console.warn('Notice reading from Supabase:', suEx);
         }
       }
-
-      // ดึงนโยบายและค่าตั้งค่าระบบ
-      let fetchedConfig = { ...systemConfig };
-      try {
-        const configSnap = await getDoc(doc(db, 'settings', 'system_config'));
-        if (configSnap.exists()) {
-          const data = configSnap.data();
-          fetchedConfig = {
-            allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
-            contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
-            restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
-            allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
-            highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,
-            highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
-            simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
-            electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
-            internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
-            waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
-            headerBannerUrl: data.headerBannerUrl || '',
-            headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
-            headerBannerFit: data.headerBannerFit || 'contain',
-            headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
-            contactChannels: data.contactChannels || undefined,
-          };
-          setSystemConfig(fetchedConfig);
-        }
-      } catch (e) {
-        console.warn('Could not fetch system config from Firestore:', e);
-      }
-
-      let schoolsSnapshot;
-      try {
-        schoolsSnapshot = await getDocs(collection(db, 'schools'));
-      } catch (e) {
-        console.warn('Could not fetch schools from Firestore:', e);
-        throw e;
-      }
-
-      let studentsSnapshot;
-      try {
-        studentsSnapshot = await getDocs(collection(db, 'students'));
-      } catch (e) {
-        console.warn('Could not fetch students from Firestore:', e);
-        throw e;
-      }
-
-      let studentsGSnapshot;
-      try {
-        studentsGSnapshot = await getDocs(collection(db, 'students_g'));
-      } catch (e) {
-        console.warn('Could not fetch students_g from Firestore:', e);
-        // collection may be new, so we don't strictly throw here, but if we have quota issues, schools or students will fail first.
-      }
-      
+      // 1. ถ้าเชื่อมต่อ Supabase ไม่ได้ หรือไม่มีข้อมูลใน Supabase ให้โหลดข้อมูลตั้งต้น (Preset Data)
       const schoolsList: School[] = [];
       const studentsList: StudentData[] = [];
       const studentsGList: StudentGData[] = [];
-
-      schoolsSnapshot?.forEach((doc) => {
-        schoolsList.push({ ...doc.data() } as School);
-      });
-
-      studentsSnapshot?.forEach((doc) => {
-        studentsList.push({ ...doc.data(), id: doc.id } as StudentData);
-      });
-
-      studentsGSnapshot?.forEach((docSnap) => {
-        const data = docSnap.data() as StudentGData;
-        let year = data.academicYear;
-
-        // ถ้า academicYear ไม่เป็นตัวเลข 4 หลัก ให้ลองดึงปีจาก doc.id (เช่น 1058000001_2568)
-        if (!year || !/^\d{4}$/.test(year)) {
-          const parts = docSnap.id.split('_');
-          if (parts.length > 1 && /^\d{4}$/.test(parts[parts.length - 1])) {
-            year = parts[parts.length - 1];
-          }
-        }
-
-        studentsGList.push({
-          ...data,
-          id: docSnap.id,
-          academicYear: year || data.academicYear || 'ไม่ระบุ'
-        });
-      });
 
       if (schoolsList.length === 0) {
         // Fallback to initial preset data if database is empty or connection fails
@@ -675,6 +628,7 @@ export default function App() {
       if (schoolsList.length > 0) {
         try {
           const finalStudentsG = studentsGList.length === 0 ? generateInitialStudentGData(schoolsList) : studentsGList;
+          const fetchedConfig = { ...systemConfig };
           localStorage.setItem(CACHE_KEY, JSON.stringify({
             timestamp: Date.now(),
             systemConfig: fetchedConfig,
@@ -770,7 +724,9 @@ export default function App() {
 
   // ออกจากระบบ
   const handleLogout = async () => {
-    await signOut(auth);
+    if (isSupabaseConfigured()) {
+      await import('firebase/auth').then(({signOut}) => signOut(auth)).catch(() => {});
+    }
     localStorage.removeItem('mhs_app_data_cache_v3');
     setUserProfile(null);
     setUser(null);
@@ -876,19 +832,17 @@ export default function App() {
             ) : (
               <>
                 {activeTab === 'dashboard' && (
-                  <Suspense fallback={<div className="flex h-96 flex-col items-center justify-center gap-3"><div className="h-10 w-10 text-rose-500 animate-spin border-4 border-rose-200 border-t-rose-500 rounded-full" /><span className="text-sm font-extrabold text-slate-500">กำลังเปิดหน้าแดชบอร์ด...</span></div>}>
-                    <DashboardView
-                      schools={schools}
-                      studentData={studentData}
-                      studentGData={studentGData}
-                      academicYear={academicYear}
-                      setAcademicYear={setAcademicYear}
-                      availableYears={availableYears}
-                      onSelectSchool={(id) => setSelectedSchoolId(id)}
-                      isDarkMode={isDarkMode}
-                      onFilterNavigate={handleFilterNavigate}
-                    />
-                  </Suspense>
+                  <DashboardView
+                    schools={schools}
+                    studentData={studentData}
+                    studentGData={studentGData}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    onSelectSchool={(id) => setSelectedSchoolId(id)}
+                    isDarkMode={isDarkMode}
+                    onFilterNavigate={handleFilterNavigate}
+                  />
                 )}
 
                 {activeTab === 'schools' && (
@@ -903,6 +857,22 @@ export default function App() {
                     academicYear={academicYear}
                     setAcademicYear={setAcademicYear}
                     availableYears={availableYears}
+                  />
+                )}
+
+                {activeTab === 'academic' && (
+                  <AcademicStatsView
+                    schools={schools}
+                    userProfile={userProfile}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    systemConfig={systemConfig}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                    isDarkMode={isDarkMode}
                   />
                 )}
 
@@ -943,23 +913,28 @@ export default function App() {
                 )}
 
                 {activeTab === 'admin' && userProfile && (
-                  <Suspense fallback={<div className="flex h-96 flex-col items-center justify-center gap-3"><div className="h-10 w-10 text-rose-500 animate-spin border-4 border-rose-200 border-t-rose-500 rounded-full" /><span className="text-sm font-extrabold text-slate-500">กำลังเปิดแผงควบคุมแอดมิน...</span></div>}>
-                    <AdminPanel
-                      userProfile={userProfile}
-                      schools={schools}
-                      studentData={studentData}
-                      studentGData={studentGData}
-                      onRefreshData={() => fetchAllData(true)}
-                      systemConfig={systemConfig}
-                      serverStatus={serverStatus}
-                      themeStyle={themeStyle}
-                      setThemeStyle={setThemeStyle}
-                      designStyle={designStyle}
-                      setDesignStyle={setDesignStyle}
-                      isDarkMode={isDarkMode}
-                      setIsDarkMode={setIsDarkMode}
-                    />
-                  </Suspense>
+                  <AdminPanel
+                    userProfile={userProfile}
+                    schools={schools}
+                    studentData={studentData}
+                    studentGData={studentGData}
+                    onRefreshData={() => fetchAllData(true)}
+                    systemConfig={systemConfig}
+                    serverStatus={serverStatus}
+                    themeStyle={themeStyle}
+                    setThemeStyle={setThemeStyle}
+                    designStyle={designStyle}
+                    setDesignStyle={setDesignStyle}
+                    isDarkMode={isDarkMode}
+                    setIsDarkMode={setIsDarkMode}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                  />
                 )}
               </>
             )}

@@ -1,12 +1,14 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { auth } from '../firebase';
+import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { School, UserProfile } from '../types';
 import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn, ExternalLink } from 'lucide-react';
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, googleProvider, db, OperationType, handleFirestoreError } from '../firebase';
+
+
+
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
-import { signOut } from 'firebase/auth';
-import { formatFirestoreError } from '../utils/errorHelper';
+
+import { formatDatabaseError as formatFirestoreError } from '../utils/errorHelper';
 import { dbSaveUser, dbFetchUserProfile, dbFetchSystemConfig, dbCheckExistingSchoolAdmin } from '../lib/dbAdapter';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -35,14 +37,15 @@ export default function AuthModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const isLoggingInRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
       const checkConfig = async () => {
         try {
-          const snap = await getDoc(doc(db, 'settings', 'system_config'));
-          if (snap.exists() && snap.data().allowSchoolAdminRegistration !== undefined) {
-            setIsRegistrationOpen(snap.data().allowSchoolAdminRegistration);
+          const data = await dbFetchSystemConfig();
+          if (data && data.allowSchoolAdminRegistration !== undefined) {
+            setIsRegistrationOpen(data.allowSchoolAdminRegistration);
           }
         } catch(e) {
            console.warn(e);
@@ -59,13 +62,36 @@ export default function AuthModal({
 
   // 1. เข้าสู่ระบบด้วย Google (Gmail)
   const handleGoogleLogin = async () => {
+    if (isLoggingInRef.current || isLoading) return;
+    
+    if (!isSupabaseConfigured()) {
+      setErrorMsg('ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล กรุณาตั้งค่า Supabase URL และ Key ก่อนเข้าใช้งาน');
+      return;
+    }
+
+    isLoggingInRef.current = true;
     setIsLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      
+      
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+
+      
+      
+      
+      // with OAuth redirect we won't get user right away, but if it returns immediately:
+      
+      const user = auth.currentUser;
+
+      if (!user) {
+        return; // wait for redirect
+      }
+
 
       if (!user.email) {
         setErrorMsg('ไม่สามารถดึงอีเมลจากบัญชี Google ได้');
@@ -102,7 +128,12 @@ export default function AuthModal({
       let profile: UserProfile | null = await dbFetchUserProfile(user.uid, user.email || undefined);
       if (profile) {
         try {
-          await dbSaveUser({ ...profile, uid: user.uid });
+          
+            // skip updating existing user on regular login to avoid rls errors for users without edit perms
+            if (profile.role === 'super_admin' || !profile.createdAt) {
+               await dbSaveUser({ ...profile, uid: user.uid }).catch(()=>console.warn('RLS prevent dbSaveUser on login'));
+            }
+
         } catch (err) {
           console.warn('Set doc error:', err);
         }
@@ -141,28 +172,37 @@ export default function AuthModal({
         setIsLoading(false);
       }
     } catch (error: any) {
-      console.error('Google login error:', error);
       setIsLoading(false);
       const formatted = formatFirestoreError(error);
       if (formatted.isQuotaError) {
         setErrorMsg('การเชื่อมต่อขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/popup-blocked') {
-        setErrorMsg('ป๊อปอัปเข้าสู่ระบบถูกบล็อกโดยเบราว์เซอร์ของคุณ กรุณาอนุญาตหน้าต่างป๊อปอัปหรือเปลี่ยนเบราว์เซอร์');
-      } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-        setErrorMsg('หน้าต่างลงชื่อเข้าใช้ถูกยกเลิกหรือถูกปิดก่อนที่จะทำรายการเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
+        setErrorMsg('เบราว์เซอร์หรือเฟรมบล็อกหน้าต่างป๊อปอัป Google Login กรุณาอนุญาตป๊อปอัป หรือเปิดเว็บไซต์ในแท็บใหม่ หรือใช้วิธีเข้าสู่ระบบด้วยอีเมล/รหัสผ่าน');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // มีคำขอป๊อปอัปซ้อนกัน ให้เคลียร์และพร้อมให้ลองใหม่
+        setErrorMsg('มีการร้องขอหน้าต่างลงชื่อเข้าใช้ซ้ำซ้อน กรุณากดปุ่มเพื่อลองใหม่อีกครั้ง');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setErrorMsg('หน้าต่างลงชื่อเข้าใช้ถูกปิดก่อนทำรายการเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
       } else if (error.code === 'auth/operation-not-allowed') {
         setErrorMsg('⚠️ บริการล็อกอินด้วย Google (Google Auth Provider) ยังไม่ถูกเปิดใช้งานในระบบ Firebase Console ของคุณ กรุณาเข้าไปเปิดใช้งานที่ Authentication > Sign-in method');
       } else if (error.code === 'auth/unauthorized-domain') {
         setErrorMsg('⚠️ โดเมนปัจจุบันยังไม่ได้ถูกตั้งค่าเป็น Authorized Domain ในระบบ Firebase Console ของคุณ กรุณาตั้งค่าโดเมนในหน้า Authentication');
       } else {
+        console.error('Google login error:', error);
         setErrorMsg(`เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google: ${formatted.message || error.message || error.code || 'Unknown Error'}`);
       }
+    } finally {
+      isLoggingInRef.current = false;
     }
   };
 
   // เข้าสู่ระบบด้วย Email/Password
   const handleEmailLogin = async (e: FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured()) {
+      setErrorMsg('ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล กรุณาตั้งค่า Supabase URL และ Key ก่อนเข้าใช้งาน');
+      return;
+    }
     setIsLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -194,8 +234,13 @@ export default function AuthModal({
       // 2. หากยังไม่พบโปรไฟล์ ให้ลองผ่าน Firebase Auth
       if (!profile) {
         try {
-          const result = await signInWithEmailAndPassword(auth, cleanEmail, password);
-          const user = result.user;
+          
+          
+          const suData = await signInWithEmailAndPassword(auth, cleanEmail, password);
+
+          
+          const user = suData.user;
+
           authenticatedUid = user.uid;
 
           const isHardcodedSuperAdmin = user.email === 'tamrri@gmail.com' || user.email === 'ch.chapeach@gmail.com';
@@ -211,7 +256,7 @@ export default function AuthModal({
               status: 'approved',
               createdAt: new Date()
             };
-            await dbSaveUser(profile).catch(() => {});
+            await dbSaveUser(profile).catch((err) => console.warn('RLS prevent insert fallback', err));
           } else {
             profile = await dbFetchUserProfile(user.uid, user.email || '');
           }
@@ -269,6 +314,10 @@ export default function AuthModal({
   // 2. ส่งคำสมัครสิทธิ์ลงทะเบียน (Sign Up Form)
   const handleSignUpSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured()) {
+      setErrorMsg('ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล กรุณาตั้งค่า Supabase URL และ Key ก่อนเข้าใช้งาน');
+      return;
+    }
     setErrorMsg('');
     setSuccessMsg('');
 
@@ -333,7 +382,8 @@ export default function AuthModal({
       // 2. สร้าง/ลงทะเบียนบัญชีใน Supabase (หากใช้ Supabase)
       if (isSupabaseConfigured()) {
         try {
-          const { data: saData, error: saError } = await supabase.auth.signUp({
+          
+        const { data: saData, error: saError } = await supabase.auth.signUp({
             email: cleanEmail,
             password: password,
             options: {
@@ -379,11 +429,15 @@ export default function AuthModal({
       // 3. สำรองสร้างบัญชีใน Firebase Auth (ไม่ให้ค้างหรือบล็อก Supabase)
       if (!userId || !isSupabaseConfigured()) {
         try {
+          
           const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+
           userId = userCredential.user.uid;
         } catch (authErr: any) {
           if (authErr.code === 'auth/email-already-in-use') {
             try {
+              
+              
               const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, password);
               userId = signInRes.user.uid;
             } catch (signInErr: any) {
@@ -564,15 +618,16 @@ export default function AuthModal({
               {/* ปุ่ม Google Auth - Gmail */}
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-2.5 rounded-2xl border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/20 p-2 text-xs font-black text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] cursor-pointer shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] hover:translate-y-0.5 active:translate-y-1 transition-all outline-none"
+                className="w-full flex items-center justify-center gap-2.5 rounded-2xl border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/20 p-2 text-xs font-black text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] cursor-pointer shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] hover:translate-y-0.5 active:translate-y-1 transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <img
                   src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                   alt="Google"
                   className="h-4 w-4"
                 />
-                <span>เข้าสู่ระบบด้วย Gmail (Google)</span>
+                <span>{isLoading ? 'กำลังเชื่อมต่อ...' : 'เข้าสู่ระบบด้วย Gmail (Google)'}</span>
               </button>
 
               {/* การ์ดและปุ่มลงทะเบียนโดดเด่นชัดเจน */}
@@ -672,7 +727,7 @@ export default function AuthModal({
                 >
                   <option value="">-- กรุณาเลือกสถานศึกษาของคุณ --</option>
                   {schools.map(school => (
-                    <option key={school.id} value={school.id}>{school.name}</option>
+                    <option key={school.id} value={school.id}>{school.id} - {school.name}</option>
                   ))}
                 </select>
               </div>

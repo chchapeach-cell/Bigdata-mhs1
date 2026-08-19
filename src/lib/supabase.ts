@@ -1,11 +1,23 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Read Supabase environment variables or localStorage overrides dynamically
+// Permanent Supabase configuration
 const env = (import.meta as any).env || {};
 
+export const SUPABASE_URL = env.VITE_SUPABASE_URL || 'https://frpjtkltipmwpevngdrp.supabase.co';
+export const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5wJwoIwcwvyjKBJsP1uMdg_x0xhwOB9';
+
+// Clean up any legacy localStorage keys to avoid any stale data/confusion
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem('override_supabase_url');
+    window.localStorage.removeItem('override_supabase_anon_key');
+  }
+} catch {
+  // ignore
+}
+
 export const getSupabaseUrl = (): string => {
-  let url = localStorage.getItem('override_supabase_url') || env.VITE_SUPABASE_URL || '';
-  url = url.trim();
+  let url = SUPABASE_URL.trim();
   if (url && !url.startsWith('http')) {
     url = 'https://' + url;
   }
@@ -13,7 +25,7 @@ export const getSupabaseUrl = (): string => {
 };
 
 export const getSupabaseKey = (): string => {
-  return (localStorage.getItem('override_supabase_anon_key') || env.VITE_SUPABASE_ANON_KEY || '').trim();
+  return SUPABASE_ANON_KEY.trim();
 };
 
 export const isSupabaseConfigured = (): boolean => {
@@ -195,6 +207,29 @@ CREATE TABLE IF NOT EXISTS public.active_sessions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.academic_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'NT',
+    test_title TEXT,
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
 -- 2. ปิดใช้งาน RLS บนทุกตารางก่อน
 ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
@@ -204,6 +239,7 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_assessments DISABLE ROW LEVEL SECURITY;
 
 -- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัด
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
@@ -214,6 +250,7 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_assessments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
@@ -246,6 +283,10 @@ CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) W
 DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
 DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
 CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_assessments;
+DROP POLICY IF EXISTS "Public All AcademicAssessments" ON public.academic_assessments;
+CREATE POLICY "Public All Access" ON public.academic_assessments FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. ให้สิทธิ์การใช้งาน DB แก่ anon และ authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
@@ -385,7 +426,31 @@ CREATE TABLE IF NOT EXISTS public.active_sessions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
+-- 9. สร้างตาราง academic_assessments (ข้อมูลผลการประเมิน NT/RT)
+CREATE TABLE IF NOT EXISTS public.academic_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'NT',
+    test_title TEXT,
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 10. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
 ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
@@ -394,6 +459,7 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_assessments DISABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
@@ -403,6 +469,7 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_assessments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
@@ -431,6 +498,14 @@ CREATE POLICY "Public All Access" ON public.system_stats FOR ALL USING (true) WI
 DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
 CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
+DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
+CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_assessments;
+DROP POLICY IF EXISTS "Public All AcademicAssessments" ON public.academic_assessments;
+CREATE POLICY "Public All Access" ON public.academic_assessments FOR ALL USING (true) WITH CHECK (true);
 
 -- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะ
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;

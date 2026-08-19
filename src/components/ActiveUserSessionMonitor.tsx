@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { Users, UserX, Clock, Shield, AlertTriangle, CheckCircle, RefreshCw, LogOut, Radio, UserCheck } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -88,39 +86,11 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
     if (supabase && isSupabaseConfigured()) {
       fetchSessions();
       intervalId = setInterval(fetchSessions, 10000);
+    } else {
+      setIsLoading(false);
     }
 
-    // Firestore Listener (Primary or Fallback)
-    const sessionsRef = collection(db, 'active_sessions');
-    const unsubscribe = onSnapshot(sessionsRef, (snapshot) => {
-      if (supabase && isSupabaseConfigured()) {
-        // If Supabase is active, fetchSessions handled it, but update if snapshot has data
-        return;
-      }
-      const now = Date.now();
-      
-      const loadedSessions: ActiveSessionData[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as ActiveSessionData;
-        if (data && data.lastActiveTime && (now - data.lastActiveTime < THREE_MINUTES) && !data.kicked) {
-          loadedSessions.push({
-            ...data,
-            uid: docSnap.id
-          });
-        }
-      });
-
-      loadedSessions.sort((a, b) => (b.lastActiveTime || 0) - (a.lastActiveTime || 0));
-
-      setActiveSessions(loadedSessions);
-      setIsLoading(false);
-    }, (error) => {
-      console.error('Error listening to active sessions:', error);
-      setIsLoading(false);
-    });
-
     return () => {
-      unsubscribe();
       if (intervalId) clearInterval(intervalId);
     };
   }, []);
@@ -139,19 +109,6 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
           updated_at: new Date().toISOString()
         }).eq('uid', sessionToKick.uid);
       }
-
-      const sessionRef = doc(db, 'active_sessions', sessionToKick.uid);
-      await updateDoc(sessionRef, {
-        kicked: true,
-        kickedAt: now,
-        kickedBy: currentUserProfile.email
-      }).catch(async () => {
-        await setDoc(doc(db, 'active_sessions', sessionToKick.uid), {
-          kicked: true,
-          kickedAt: now,
-          kickedBy: currentUserProfile.email
-        }, { merge: true });
-      });
 
       setToastMsg(`เตะผู้ใช้ ${sessionToKick.firstName || ''} (${sessionToKick.email}) ออกจากระบบเรียบร้อยแล้ว`);
       setTimeout(() => setToastMsg(''), 4000);
@@ -173,7 +130,7 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
 
       for (const session of activeSessions) {
         if (now - session.lastActiveTime > TEN_MINUTES || session.kicked) {
-          await deleteDoc(doc(db, 'active_sessions', session.uid)).catch(() => {});
+          await supabase.from('active_sessions').delete().eq('uid', session.uid);
           cleanedCount++;
         }
       }

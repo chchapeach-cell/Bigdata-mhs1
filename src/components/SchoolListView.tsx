@@ -2,8 +2,6 @@ import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
 import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
 import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST } from '../utils/initialData';
@@ -339,13 +337,13 @@ export default function SchoolListView({
         schoolId: downloadTarget ? downloadTarget.id : 'all',
         schoolName: downloadTarget ? downloadTarget.name : 'โรงเรียนทั้งหมดในเขตพื้นที่',
         purpose: downloadPurpose,
-        timestamp: serverTimestamp()
+        timestamp: new Date()
       };
 
       try {
         await dbAddDownloadLog(logData);
       } catch (e) {
-        handleFirestoreError(e, OperationType.CREATE, 'download_logs');
+        console.error('Database operation failed');
       }
 
       // 2. ดำเนินการสร้างไฟล์ Excel ด้วย xlsx

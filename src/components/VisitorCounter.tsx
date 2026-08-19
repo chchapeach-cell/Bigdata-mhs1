@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Eye, Users, Calendar, TrendingUp, BarChart3, RefreshCw, X, Clock } from 'lucide-react';
-import { db } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from 'firebase/firestore';
 import { dbSaveSystemStats, dbFetchSystemStats } from '../lib/dbAdapter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 
@@ -36,7 +34,6 @@ export default function VisitorCounter() {
       const hourlyKey = `${todayStr}_${hourStr}`;
 
       const sessionKey = `mhs1_visited_${todayStr}`;
-      const docRef = doc(db, 'system_stats', 'visitor_count');
 
       try {
         // Fetch visitor statistics via adapter (checks Supabase first, falls back to Firestore)
@@ -130,7 +127,6 @@ export default function VisitorCounter() {
     setIsResetting(true);
     try {
       const todayStr = new Date().toISOString().slice(0, 10);
-      const docRef = doc(db, 'system_stats', 'visitor_count');
       const resetData: VisitorData = {
         totalVisits: 0,
         todayVisits: 0,

@@ -1,10 +1,11 @@
+import { auth } from '../firebase';
+import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
+import { supabase } from '../lib/supabase';
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject } from '../types';
 import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { collection, query, where, getDocs, updateDoc, doc, setDoc, getDoc, deleteDoc, orderBy } from 'firebase/firestore';
-import { db, auth, OperationType, handleFirestoreError } from '../firebase';
-import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
+
 import * as XLSX from 'xlsx';
 import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils/initialData';
 import { removeUndefinedFields } from '../utils/errorHelper';
@@ -12,7 +13,7 @@ import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
-import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs } from '../lib/dbAdapter';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 
 interface AdminPanelProps {
@@ -29,6 +30,10 @@ interface AdminPanelProps {
   setDesignStyle?: (design: DesignStyle) => void;
   isDarkMode?: boolean;
   setIsDarkMode?: (dark: boolean) => void;
+  academicYear?: string;
+  setAcademicYear?: (year: string) => void;
+  availableYears?: string[];
+  onSelectSchool?: (id: string) => void;
 }
 
 export default function AdminPanel({
@@ -44,7 +49,11 @@ export default function AdminPanel({
   designStyle = 'classic',
   setDesignStyle,
   isDarkMode = false,
-  setIsDarkMode
+  setIsDarkMode,
+  academicYear,
+  setAcademicYear,
+  availableYears,
+  onSelectSchool
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin' || userProfile.email === 'tamrri@gmail.com' || userProfile.email === 'ch.chapeach@gmail.com';
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -125,11 +134,12 @@ export default function AdminPanel({
         if (selfPassword.trim().length < 6) {
           throw new Error('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
         }
-        if (auth.currentUser) {
-          await updatePassword(auth.currentUser, selfPassword.trim());
-        } else {
-          throw new Error('ไม่พบข้อมูลบัญชีผู้ใช้ปัจจุบัน');
-        }
+        
+        
+        if (!auth.currentUser) throw new Error('ไม่พบข้อมูลบัญชีผู้ใช้ปัจจุบัน');
+        await updatePassword(auth.currentUser, selfPassword.trim());
+
+
       }
 
       setSelfSuccess('แก้ไขข้อมูลส่วนตัวสำเร็จแล้ว!');
@@ -159,6 +169,38 @@ export default function AdminPanel({
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [userEditError, setUserEditError] = useState('');
   const [userEditSuccess, setUserEditSuccess] = useState('');
+  const [isSyncingUsers, setIsSyncingUsers] = useState(false);
+  const [syncResultModal, setSyncResultModal] = useState<{
+    open: boolean;
+    summary: string;
+    details: Array<{ email: string; name: string; oldSchool: string; newSchool: string; reason: string }>;
+  } | null>(null);
+
+  const handleSyncAllUsers = async (showNoticeOnNoChanges = true) => {
+    if (!isSuperAdmin) return;
+    setIsSyncingUsers(true);
+    try {
+      const res = await dbSyncAndFixAllUsers(schools);
+      await loadApprovedUsers();
+      await loadPendingUsers();
+      if (res.totalFixed > 0 || showNoticeOnNoChanges) {
+        setSyncResultModal({
+          open: true,
+          summary: res.totalFixed > 0
+            ? `ตรวจสอบเสร็จสมบูรณ์! ปรับปรุงข้อมูลสังกัดและรหัสโรงเรียนให้ตรงกันสำเร็จ ${res.totalFixed} จากทั้งหมด ${res.totalChecked} บัญชี`
+            : `ตรวจสอบเสร็จสมบูรณ์! ข้อมูลสังกัดและรหัสโรงเรียนของผู้ใช้งานทุกคน (${res.totalChecked} บัญชี) ถูกต้องสมบูรณ์ตรงกับฐานข้อมูลแล้ว`,
+          details: res.fixedList
+        });
+      }
+    } catch (err: any) {
+      console.error('Sync users error:', err);
+      if (showNoticeOnNoChanges) {
+        alert('เกิดข้อผิดพลาดในการตรวจสอบและปรับปรุงข้อมูลผู้ใช้: ' + (err.message || err));
+      }
+    } finally {
+      setIsSyncingUsers(false);
+    }
+  };
 
   const handleOpenEditUser = (user: UserProfile) => {
     setEditingUser(user);
@@ -179,7 +221,7 @@ export default function AdminPanel({
     setUserEditSuccess('');
     try {
       const matchedSchool = schools.find(s => s.id === editUserSchoolId);
-      const updatedProfile: UserProfile = {
+      const rawUpdated: UserProfile = {
         ...editingUser,
         firstName: editUserFirstName.trim(),
         lastName: editUserLastName.trim(),
@@ -188,7 +230,9 @@ export default function AdminPanel({
         schoolName: editUserSchoolId === 'all' ? 'สพป.แม่ฮ่องสอน เขต 1' : (matchedSchool ? matchedSchool.name : ''),
         role: editUserRole as any,
       };
-      await dbSaveUser(updatedProfile);
+
+      const { updatedUser } = normalizeUserSchoolInfo(rawUpdated, schools);
+      await dbSaveUser(updatedUser);
       setUserEditSuccess('อัปเดตข้อมูลผู้ใช้งานเรียบร้อยแล้ว!');
       
       await loadApprovedUsers();
@@ -211,7 +255,11 @@ export default function AdminPanel({
     setUserEditError('');
     setUserEditSuccess('');
     try {
-      await sendPasswordResetEmail(auth, editingUser.email);
+      
+        
+        await sendPasswordResetEmail(auth, editingUser.email);
+
+
       setUserEditSuccess('ส่งอีเมลลิงก์เพื่อรีเซ็ตรหัสผ่านไปยัง ' + editingUser.email + ' เรียบร้อยแล้ว!');
     } catch (err: any) {
       console.error('Failed to send reset password email:', err);
@@ -290,19 +338,37 @@ export default function AdminPanel({
     }
   }, [isSuperAdmin, schools, selectedSchoolId]);
 
-  // เอฟเฟ็กต์สำหรับกรณีเป็น School Admin ให้เลือกโรงเรียนของตนเองเสมอ
+  // เอฟเฟ็กต์สำหรับกรณีเป็น School Admin ให้เลือกโรงเรียนของตนเองเสมอและแก้ไขกรณี schoolId ไม่ตรงกับ schoolName
   useEffect(() => {
     if (!isSuperAdmin) {
-      if (userProfile?.schoolId) {
-        setSelectedSchoolId(userProfile.schoolId);
-      } else if (userProfile?.schoolName) {
-        const matched = schools.find(s => s.name?.trim() === userProfile.schoolName?.trim());
-        if (matched) {
-          setSelectedSchoolId(matched.id);
+      let targetId = '';
+      
+      // 1. ค้นหาจากชื่อโรงเรียนเป็นลำดับแรกเพื่อให้ตรงกับชื่อสังกัดที่แสดงในหัวเว็บ
+      if (userProfile?.schoolName) {
+        const cleanName = userProfile.schoolName.trim().replace(/^โรงเรียน/, '');
+        const matchedByName = schools.find(s => 
+          s.name?.trim() === userProfile.schoolName?.trim() ||
+          s.name?.trim().replace(/^โรงเรียน/, '') === cleanName ||
+          (cleanName && s.name?.includes(cleanName))
+        );
+        if (matchedByName) {
+          targetId = matchedByName.id;
         }
       }
+
+      // 2. หากไม่พบจากชื่อ ให้ค้นหาจาก schoolId
+      if (!targetId && userProfile?.schoolId) {
+        const matchedById = schools.find(s => s.id === userProfile.schoolId);
+        if (matchedById) {
+          targetId = matchedById.id;
+        }
+      }
+
+      if (targetId && targetId !== selectedSchoolId) {
+        setSelectedSchoolId(targetId);
+      }
     }
-  }, [isSuperAdmin, userProfile?.schoolId, userProfile?.schoolName, schools]);
+  }, [isSuperAdmin, userProfile?.schoolId, userProfile?.schoolName, schools, selectedSchoolId]);
 
   // คำนวณรายชื่อโรงเรียนที่ผู้ใช้มีสิทธิ์แสดงและจัดการในแผงผู้ดูแลระบบ
   const manageableSchools = useMemo(() => {
@@ -1699,8 +1765,10 @@ export default function AdminPanel({
 
   useEffect(() => {
     if (isSuperAdmin) {
-      loadPendingUsers();
-      loadApprovedUsers();
+      dbRestoreKpyUser().then(() => {
+        loadPendingUsers();
+        loadApprovedUsers();
+      });
       loadDownloadLogs();
       loadSystemSettings();
     }
@@ -1824,7 +1892,7 @@ export default function AdminPanel({
       try {
         await dbSaveSchool(updatedSchoolObj, userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'ผู้ดูแลระบบ'));
       } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `schools/${targetId}`);
+        console.error('Database operation failed');
         throw e;
       }
       setEditSuccess('บันทึกข้อมูลพื้นฐานโรงเรียน อำเภอ เครือข่าย และวิชาเอกพร้อมจำนวนครูเรียบร้อยแล้ว!');
@@ -2046,7 +2114,7 @@ export default function AdminPanel({
                 totalStudents
               });
             } catch (e) {
-              handleFirestoreError(e, OperationType.WRITE, `students/${schoolId}_${uploadYear}`);
+              console.error('Database operation failed');
               throw e;
             }
 
@@ -2076,7 +2144,7 @@ export default function AdminPanel({
                 updatedBy: 'ระบบนำเข้าข้อมูล Excel'
               }, 'ระบบนำเข้าข้อมูล Excel');
             } catch (e) {
-              handleFirestoreError(e, OperationType.WRITE, `schools/${schoolId}`);
+              console.error('Database operation failed');
               throw e;
             }
 
@@ -2843,6 +2911,30 @@ export default function AdminPanel({
           {/* TAB: User Management */}
           {adminTab === 'users' && (
             <div className="space-y-6">
+              {/* แถบเครื่องมือจัดการและปรับปรุงข้อมูลสังกัดให้ถูกต้องอัตโนมัติ */}
+              <div className="card p-4 bg-gradient-to-r from-[#A0E7E5]/20 via-[#FFD3B6]/20 to-[#FF8BA7]/20 border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_#FFD3B6]">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-[#FF8BA7] animate-pulse" />
+                    <h4 className="text-xs sm:text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+                      ตรวจสอบและจัดระเบียบข้อมูลสังกัดของผู้ใช้ทุกคน (Data Alignment)
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
+                    ตรวจสอบความถูกต้องของรหัสโรงเรียน (schoolId) และชื่อโรงเรียน (schoolName) ของผู้ใช้ทุกคน ให้ตรงกับฐานข้อมูลสถานศึกษาแม่ฮ่องสอน เขต 1 อัตโนมัติ
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSyncingUsers}
+                  onClick={() => handleSyncAllUsers(true)}
+                  className="btn-cute bg-[#A0E7E5] hover:bg-[#85dedc] text-[#33272A] px-4 py-2 text-xs font-black shrink-0 flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_#33272A] cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncingUsers ? 'animate-spin' : ''}`} />
+                  {isSyncingUsers ? 'กำลังตรวจสอบและปรับปรุง...' : '⚡ ตรวจสอบและซิงค์ข้อมูลทุกคน'}
+                </button>
+              </div>
+
               {/* ค้นหาข้อมูลผู้ใช้งาน */}
               <div className="card p-4">
                 <div className="relative">
@@ -5636,6 +5728,78 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+      {/* Sync Result Details Modal */}
+      {syncResultModal && syncResultModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div
+            className="fixed inset-0"
+            onClick={() => setSyncResultModal(null)}
+          />
+          <div className="relative z-10 w-full max-w-xl max-h-[85vh] bg-white dark:bg-[#1e1518] border-2 sm:border-4 border-[#33272A] dark:border-[#FFD3B6] rounded-3xl p-4 sm:p-6 overflow-y-auto shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+              <h3 className="text-sm sm:text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-[#FF8BA7]" />
+                ผลการตรวจสอบและจัดระเบียบข้อมูลผู้ใช้งาน
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSyncResultModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-black text-xl p-1 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-3 bg-[#A0E7E5]/20 dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-bold text-[#33272A] dark:text-[#FFF9F5]">
+              {syncResultModal.summary}
+            </div>
+
+            {syncResultModal.details.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  รายการบัญชีที่ได้รับการปรับปรุงข้อมูล ({syncResultModal.details.length} รายการ):
+                </p>
+                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                  {syncResultModal.details.map((item, idx) => (
+                    <div key={idx} className="p-3 bg-[#FFF9F5] dark:bg-slate-800/80 rounded-xl border border-[#33272A] text-xs space-y-1.5 font-bold shadow-[2px_2px_0px_#33272A]">
+                      <div className="flex justify-between items-center">
+                        <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">{item.name}</span>
+                        <span className="text-[10px] text-gray-500 font-mono">{item.email}</span>
+                      </div>
+                      <div className="text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-[#33272A]/10 dark:border-slate-700">
+                        <div className="bg-rose-50 dark:bg-rose-950/30 p-1.5 rounded text-rose-700 dark:text-rose-300">
+                          <span className="font-bold">ข้อมูลเดิม:</span> {item.oldSchool}
+                        </div>
+                        <div className="bg-emerald-50 dark:bg-emerald-950/30 p-1.5 rounded text-emerald-700 dark:text-emerald-300">
+                          <span className="font-bold">ปรับปรุงใหม่:</span> {item.newSchool}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-gray-500 italic">
+                        เหตุผล: {item.reason}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs font-bold text-gray-500 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-[#33272A]/20">
+                ✅ ข้อมูลผู้ใช้งานทุกคนตรงกับฐานข้อมูลสถานศึกษาเรียบร้อยแล้ว ไม่พบบัญชีที่มีข้อมูลขัดแย้ง
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-[#33272A]/20 dark:border-[#FFD3B6]/20">
+              <button
+                type="button"
+                onClick={() => setSyncResultModal(null)}
+                className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2 text-xs font-black cursor-pointer shadow-[2px_2px_0px_#33272A]"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Supabase Migration Modal */}
       <SupabaseMigrationModal
         isOpen={isSupabaseModalOpen}

@@ -1,7 +1,5 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject } from '../types';
-import { db, OperationType, handleFirestoreError } from '../firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { dbSaveSchool, dbDeleteSchool } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
@@ -618,7 +616,7 @@ export default function SchoolDetailView({
           id: school.id,
         }, updaterName);
       } catch (e) {
-        handleFirestoreError(e, OperationType.WRITE, `schools/${school.id}`);
+        console.error('Database operation failed');
       }
       await onRefreshData();
       

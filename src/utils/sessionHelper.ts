@@ -1,5 +1,3 @@
-import { db } from '../firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -45,34 +43,6 @@ export async function checkActiveUsersConcurrency(profile: UserProfile): Promise
     }
   }
 
-  // 2. Firestore Fallback
-  try {
-    const sessionsRef = collection(db, 'active_sessions');
-    const snap = await getDocs(sessionsRef);
-
-    let activeCount = 0;
-    let isAlreadyActive = false;
-
-    snap.forEach((d) => {
-      const data = d.data();
-      if (data && data.lastActiveTime && (now - data.lastActiveTime < THREE_MINUTES) && !data.kicked) {
-        activeCount++;
-        if (d.id === profile.uid) {
-          isAlreadyActive = true;
-        }
-      }
-    });
-
-    if (activeCount >= MAX_CONCURRENT_USERS && !isAlreadyActive) {
-      return {
-        allowed: false,
-        message: CONCURRENCY_BLOCKED_MESSAGE
-      };
-    }
-  } catch (e) {
-    console.error('Error checking active users limit:', e);
-  }
-
   return { allowed: true };
 }
 
@@ -101,23 +71,6 @@ export async function registerActiveSession(profile: UserProfile): Promise<void>
       console.warn('Supabase registerActiveSession error:', e);
     }
   }
-
-  try {
-    const sessionRef = doc(db, 'active_sessions', profile.uid);
-    await setDoc(sessionRef, {
-      uid: profile.uid,
-      email: profile.email || '',
-      firstName: profile.firstName || '',
-      lastName: profile.lastName || '',
-      schoolName: profile.schoolName || '',
-      role: profile.role || 'school_admin',
-      loginTime: now,
-      lastActiveTime: now,
-      kicked: false
-    }, { merge: true });
-  } catch (e) {
-    console.error('Failed to register active session:', e);
-  }
 }
 
 /**
@@ -136,15 +89,6 @@ export async function sendSessionHeartbeat(uid: string): Promise<void> {
       console.warn('Supabase sendSessionHeartbeat error:', e);
     }
   }
-
-  try {
-    const sessionRef = doc(db, 'active_sessions', uid);
-    await setDoc(sessionRef, {
-      lastActiveTime: now
-    }, { merge: true });
-  } catch (e) {
-    console.error('Failed to send heartbeat:', e);
-  }
 }
 
 /**
@@ -157,12 +101,5 @@ export async function removeActiveSession(uid: string): Promise<void> {
     } catch (e) {
       console.warn('Supabase removeActiveSession error:', e);
     }
-  }
-
-  try {
-    const sessionRef = doc(db, 'active_sessions', uid);
-    await deleteDoc(sessionRef).catch(() => {});
-  } catch (e) {
-    console.error('Failed to remove active session:', e);
   }
 }

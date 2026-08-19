@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL } from '../lib/supabase';
-import { dbMigrateUsersToSupabase, dbMigrateSystemStatsToSupabase, dbMigrateDownloadLogsToSupabase } from '../lib/dbAdapter';
+import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { dbMigrateUsersToSupabase, dbMigrateSystemStatsToSupabase, dbMigrateDownloadLogsToSupabase, dbMigrateAcademicAssessmentsToSupabase, dbFetchAcademicRecords } from '../lib/dbAdapter';
 
 interface SupabaseMigrationModalProps {
   isOpen: boolean;
@@ -23,9 +23,8 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
 }) => {
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [copiedRls, setCopiedRls] = useState(false);
-  const env = (import.meta as any).env || {};
-  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('override_supabase_url') || env.VITE_SUPABASE_URL || '');
-  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('override_supabase_anon_key') || env.VITE_SUPABASE_ANON_KEY || '');
+  const [supabaseUrl, setSupabaseUrl] = useState(SUPABASE_URL);
+  const [supabaseKey, setSupabaseKey] = useState(SUPABASE_ANON_KEY);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Migration states
@@ -81,23 +80,11 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       cleanUrl = 'https://' + cleanUrl;
       setSupabaseUrl(cleanUrl);
     }
-    if (cleanUrl) {
-      localStorage.setItem('override_supabase_url', cleanUrl);
-    } else {
-      localStorage.removeItem('override_supabase_url');
-    }
-
-    if (supabaseKey.trim()) {
-      localStorage.setItem('override_supabase_anon_key', supabaseKey.trim());
-    } else {
-      localStorage.removeItem('override_supabase_anon_key');
-    }
 
     setSaveSuccess(true);
     setTimeout(() => {
       setSaveSuccess(false);
-      window.location.reload();
-    }, 1200);
+    }, 2500);
   };
 
   const handleTestConnection = async () => {
@@ -120,10 +107,6 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       setTestStatus('❌ รูปแบบ Supabase Project URL ไม่ถูกต้อง (ตัวอย่าง: https://xyz.supabase.co)');
       return;
     }
-
-    // Auto-persist credentials so user doesn't lose them
-    localStorage.setItem('override_supabase_url', cleanUrl);
-    localStorage.setItem('override_supabase_anon_key', cleanKey);
 
     try {
       const testClient = createClient(cleanUrl, cleanKey);
@@ -152,7 +135,7 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     }
   };
 
-  const handleDownloadDataSql = () => {
+  const handleDownloadDataSql = async () => {
     let sql = `-- =============================================================\n`;
     sql += `-- ข้อมูลสำหรับนำเข้า Supabase แบบ Manual\n`;
     sql += `-- วันที่สร้าง: ${new Date().toLocaleString('th-TH')}\n`;
@@ -258,6 +241,40 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     }
     sql += `\n`;
 
+    // 5. Academic Assessments (NT / RT)
+    try {
+      const academicRecords = await dbFetchAcademicRecords();
+      if (academicRecords && academicRecords.length > 0) {
+        sql += `-- ข้อมูลผลการประเมิน NT/RT (${academicRecords.length} รายการ)\n`;
+        academicRecords.forEach(ar => {
+          const id = escapeString(ar.id || `${ar.schoolId || ar.order}_${ar.academicYear}_${ar.testType || 'NT'}`);
+          const orderNum = escapeNumber(ar.order);
+          const sId = escapeString(ar.schoolId);
+          const sName = escapeString(ar.schoolName);
+          const amp = escapeString(ar.amphoe);
+          const mScore = escapeNumber(ar.mathScore);
+          const mPerc = escapeNumber(ar.mathPercentage);
+          const tScore = escapeNumber(ar.thaiScore);
+          const tPerc = escapeNumber(ar.thaiPercentage);
+          const totScore = escapeNumber(ar.totalScore);
+          const totPerc = escapeNumber(ar.totalPercentage);
+          const mQual = escapeString(ar.mathQuality);
+          const tQual = escapeString(ar.thaiQuality);
+          const totQual = escapeString(ar.totalQuality);
+          const year = escapeString(ar.academicYear || '2567');
+          const tType = escapeString(ar.testType || 'NT');
+          const tTitle = escapeString(ar.testTitle);
+          const notes = escapeString(ar.notes);
+          const updBy = escapeString(ar.updatedBy || 'Admin');
+
+          sql += `INSERT INTO public.academic_assessments (id, order_num, school_id, school_name, amphoe, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_by) VALUES (${id}, ${orderNum}, ${sId}, ${sName}, ${amp}, ${mScore}, ${mPerc}, ${tScore}, ${tPerc}, ${totScore}, ${totPerc}, ${mQual}, ${tQual}, ${totQual}, ${year}, ${tType}, ${tTitle}, ${notes}, ${updBy}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+        });
+        sql += `\n`;
+      }
+    } catch (e) {
+      // ignore
+    }
+
     const blob = new Blob([sql], { type: 'text/sql' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -301,10 +318,6 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       setMigrationError('ยังไม่ได้ตั้งค่า Supabase Credentials กรุณากรอก URL และ Key ในขั้นตอนที่ 3 ก่อน');
       return;
     }
-
-    // Auto-save credentials to localStorage so the app remembers them automatically
-    localStorage.setItem('override_supabase_url', cleanUrl);
-    localStorage.setItem('override_supabase_anon_key', cleanKey);
 
     let activeClient: any = null;
     try {
@@ -487,7 +500,18 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
 
       setMigrationProgress(92);
 
-      // 6. Sync System Stats & Download Logs
+      // 6. Sync Academic Assessments (NT/RT)
+      setMigrationStatus(`กำลังย้ายข้อมูลผลการประเมิน NT/RT (Academic Assessments) เข้าสู่ Supabase...`);
+      let migratedAcademicCount = 0;
+      try {
+        migratedAcademicCount = await dbMigrateAcademicAssessmentsToSupabase(activeClient);
+      } catch (aErr: any) {
+        console.warn('Academic Assessments migration warning:', aErr);
+      }
+
+      setMigrationProgress(95);
+
+      // 7. Sync System Stats & Download Logs
       setMigrationStatus(`กำลังย้ายข้อมูลสถิติผู้เข้าชม (System Stats) และประวัติการดาวน์โหลดเอกสาร (Download Logs)...`);
       try {
         await dbMigrateSystemStatsToSupabase(activeClient);
@@ -497,7 +521,7 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
       }
 
       setMigrationProgress(100);
-      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ, ผู้ใช้งาน ${migratedUsersCount} รายการ)`);
+      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ, ผลการประเมิน NT/RT ${migratedAcademicCount} รายการ, ผู้ใช้งาน ${migratedUsersCount} รายการ)`);
       setMigrationSuccess(true);
     } catch (err: any) {
       console.error('Migration error:', err);

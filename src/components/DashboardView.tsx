@@ -1650,7 +1650,7 @@ export default function DashboardView({
                   <option value="">-- แสดงทั้งหมด ({filteredMapSchools.length} แห่ง) --</option>
                   {filteredMapSchools.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe})
+                      {s.id} - {s.name} ({s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe})
                     </option>
                   ))}
                 </select>

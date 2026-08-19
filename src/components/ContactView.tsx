@@ -1,8 +1,6 @@
 import React, { useState, ChangeEvent } from 'react';
 import { ContactChannel, SystemConfig, UserProfile } from '../types';
-import { db, handleFirestoreError, OperationType } from '../firebase';
 import { removeUndefinedFields } from '../utils/errorHelper';
-import { doc, setDoc } from 'firebase/firestore';
 import { dbSaveSystemConfig } from '../lib/dbAdapter';
 import { 
   Phone, Mail, MessageCircle, Globe, MapPin, QrCode, Share2, Plus, Trash2, Edit3, 
@@ -143,7 +141,7 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {
       console.error(err);
-      handleFirestoreError(err, OperationType.WRITE, 'settings/system_config');
+      console.error('Database operation failed');
       setErrorMsg('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.message || ''));
     } finally {
       setIsSaving(false);
@@ -244,7 +242,7 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       console.error(err);
-      handleFirestoreError(err, OperationType.WRITE, 'settings/system_config');
+      console.error('Database operation failed');
       setErrorMsg('เกิดข้อผิดพลาดในการบันทึกสถานะเมนูติดต่อ');
     } finally {
       setIsSaving(false);

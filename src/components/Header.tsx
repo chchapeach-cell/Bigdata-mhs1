@@ -214,6 +214,19 @@ export default function Header({
             <span>รายชื่อโรงเรียน</span>
           </button>
 
+          {/* Tab 3: ผลสัมฤทธิ์ทางการเรียน */}
+          <button
+            onClick={() => setActiveTab('academic')}
+            className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === 'academic'
+                ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-[2px_2px_0px_#FFD3B6]'
+                : 'text-[#33272A] hover:bg-[#FFD3B6]/50 dark:text-[#FFF9F5] dark:hover:bg-slate-800/80 border-2 border-transparent'
+            }`}
+          >
+            <GraduationCap className="h-4 w-4 text-indigo-600 fill-indigo-200 dark:text-indigo-400 dark:fill-indigo-900 shrink-0" />
+            <span>ผลสัมฤทธิ์</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('infrastructure')}
             className={`rounded-xl px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer ${
@@ -293,7 +306,20 @@ export default function Header({
           <span className="text-[10px] font-black">โรงเรียน</span>
         </button>
 
-        {/* Tab 3: โครงสร้างพื้นฐาน */}
+        {/* Tab 3: ผลสัมฤทธิ์ทางการเรียน */}
+        <button
+          onClick={() => setActiveTab('academic')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+            activeTab === 'academic'
+              ? 'text-[#FF8BA7] scale-105 font-black'
+              : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
+          }`}
+        >
+          <GraduationCap className={`h-5 w-5 text-indigo-500 ${activeTab === 'academic' ? 'stroke-[2.5px] fill-indigo-200' : 'stroke-2'}`} />
+          <span className="text-[10px] font-black">ผลสัมฤทธิ์</span>
+        </button>
+
+        {/* Tab 4: โครงสร้างพื้นฐาน */}
         <button
           onClick={() => setActiveTab('infrastructure')}
           className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${

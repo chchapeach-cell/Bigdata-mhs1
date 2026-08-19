@@ -97,7 +97,7 @@ export interface GradeData {
 }
 
 export interface StudentData {
-  id?: string; // firebase doc id
+  id?: string; // record id
   schoolId: string;
   schoolName: string;
   academicYear: string; // ปีการศึกษา เช่น "2568"
@@ -111,7 +111,7 @@ export interface StudentData {
 }
 
 export interface StudentGData {
-  id?: string; // firebase doc id e.g. `${schoolId}_${academicYear}`
+  id?: string; // record id e.g. `${schoolId}_${academicYear}`
   schoolId: string;
   schoolName: string;
   academicYear: string; // ปีการศึกษา เช่น "2568"
@@ -183,4 +183,33 @@ export interface SystemConfig {
   contactEnabled?: boolean; // เปิด-ปิดการแสดงผลเมนูติดต่อสำหรับทุกคน (Super Admin เป็นผู้กำหนด)
   updatedAt?: any;
 }
+
+export type QualityLevel = 'ดีมาก' | 'ดี' | 'พอใช้' | 'ปรับปรุง' | string;
+
+export interface AcademicRecord {
+  id: string; // เช่น `${schoolId || order}_${academicYear}_${testType}`
+  order?: number; // ลำดับ 1, 2, 3...
+  schoolId: string; // รหัสโรงเรียน
+  schoolName: string; // ชื่อโรงเรียน
+  amphoe: string; // อำเภอ/เขต เช่น "ขุนยวม", "ปาย", "เมืองแม่ฮ่องสอน", "ปางมะผ้า"
+  mathScore: number; // คะแนนด้านคณิตศาสตร์
+  mathPercentage: number; // ร้อยละด้านคณิตศาสตร์
+  thaiScore: number; // คะแนนด้านภาษาไทย
+  thaiPercentage: number; // ร้อยละด้านภาษาไทย
+  totalScore: number; // คะแนนรวม 2 ด้าน
+  totalPercentage: number; // ร้อยละรวม 2 ด้าน
+  mathQuality: QualityLevel; // ระดับคุณภาพคณิตศาสตร์ (ดีมาก / ดี / พอใช้ / ปรับปรุง)
+  thaiQuality: QualityLevel; // ระดับคุณภาพภาษาไทย (ดีมาก / ดี / พอใช้ / ปรับปรุง)
+  totalQuality: QualityLevel; // ระดับคุณภาพรวม 2 ด้าน (ดีมาก / ดี / พอใช้ / ปรับปรุง)
+  academicYear: string; // ปีการศึกษา เช่น "2567", "2568"
+  testType: string; // เช่น 'NT' (การประเมินคุณภาพผู้เรียน ป.3) หรือ 'RT' (ป.1) หรือ 'ONET'
+  testTitle?: string; // เช่น "การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3"
+  notes?: string;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+// Alias for backwards compatibility
+export type AcademicAssessment = AcademicRecord;
+
 

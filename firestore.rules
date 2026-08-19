@@ -137,5 +137,11 @@ service cloud.firestore {
     match /active_sessions/{sessionId} {
       allow read, write: if true;
     }
+
+    // 9. Academic Assessments (ผลสัมฤทธิ์ทางการเรียน NT / RT / ONET)
+    match /academic_assessments/{assessmentId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
   }
 }

@@ -1,6 +1,6 @@
+import { auth } from '../firebase';
 import React, { useState, useEffect, useRef } from 'react';
 import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
 import { UserProfile } from '../types';
 import { ShieldAlert, Clock, LogOut, RefreshCw, Lock } from 'lucide-react';
 
