@@ -289,6 +289,16 @@ function parseScoreValue(val: any): number {
 /**
  * จับคู่ชื่อโรงเรียน หรือรหัสโรงเรียน กับฐานข้อมูลของระบบ
  */
+function normalizeThaiName(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/^โรงเรียน/, '')
+    .replace(/^ร\.ร\./, '')
+    .replace(/\.+/g, '.')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
 export function matchSchoolId(rawCode: string, name: string, amphoe: string, schools: School[] = []): string {
   // 1. ถ้ามีรหัสที่เป็นตัวเลข 6-10 หลัก ส่งตรงกลับทันที
   const cleanCode = String(rawCode || '').trim();
@@ -296,12 +306,15 @@ export function matchSchoolId(rawCode: string, name: string, amphoe: string, sch
     return cleanCode;
   }
 
-  // 2. ค้นหาจาก Master RAW_INITIAL_NT_DATA และ RAW_INITIAL_RT_DATA
   const cleanName = name.replace(/^โรงเรียน/, '').trim();
+  const normalized = normalizeThaiName(name);
+
+  // 2. ค้นหาจาก Master RAW_INITIAL_NT_DATA และ RAW_INITIAL_RT_DATA
   const masterMatchNT = RAW_INITIAL_NT_DATA.find(r => {
     const rClean = r.name.replace(/^โรงเรียน/, '').trim();
-    if (rClean === cleanName || r.name === name) return true;
-    if (amphoe && r.amphoe.includes(amphoe) && (rClean.includes(cleanName) || cleanName.includes(rClean))) return true;
+    const rNorm = normalizeThaiName(r.name);
+    if (rClean === cleanName || r.name === name || rNorm === normalized) return true;
+    if (amphoe && r.amphoe.includes(amphoe) && (rClean.includes(cleanName) || cleanName.includes(rClean) || rNorm.includes(normalized) || normalized.includes(rNorm))) return true;
     return false;
   });
   if (masterMatchNT && masterMatchNT.schoolId) {
@@ -310,8 +323,9 @@ export function matchSchoolId(rawCode: string, name: string, amphoe: string, sch
 
   const masterMatchRT = RAW_INITIAL_RT_DATA.find(r => {
     const rClean = r.name.replace(/^โรงเรียน/, '').trim();
-    if (rClean === cleanName || r.name === name) return true;
-    if (amphoe && r.amphoe.includes(amphoe) && (rClean.includes(cleanName) || cleanName.includes(rClean))) return true;
+    const rNorm = normalizeThaiName(r.name);
+    if (rClean === cleanName || r.name === name || rNorm === normalized) return true;
+    if (amphoe && r.amphoe.includes(amphoe) && (rClean.includes(cleanName) || cleanName.includes(rClean) || rNorm.includes(normalized) || normalized.includes(rNorm))) return true;
     return false;
   });
   if (masterMatchRT && masterMatchRT.schoolId) {
@@ -320,13 +334,14 @@ export function matchSchoolId(rawCode: string, name: string, amphoe: string, sch
 
   // 3. ค้นหาจากรายชื่อ schools ในระบบ
   if (schools && schools.length > 0) {
-    const exact = schools.find(s => s.name === name || s.name === cleanName || s.name === `โรงเรียน${cleanName}`);
+    const exact = schools.find(s => s.name === name || s.name === cleanName || s.name === `โรงเรียน${cleanName}` || normalizeThaiName(s.name) === normalized);
     if (exact) return exact.id;
 
     const sameAmphoe = schools.filter(s => !amphoe || (s.amphoe && s.amphoe.includes(amphoe)));
     const fuzzy = sameAmphoe.find(s => {
       const sClean = s.name.replace(/^โรงเรียน/, '').trim();
-      return sClean.includes(cleanName) || cleanName.includes(sClean);
+      const sNorm = normalizeThaiName(s.name);
+      return sClean.includes(cleanName) || cleanName.includes(sClean) || sNorm.includes(normalized) || normalized.includes(sNorm);
     });
     if (fuzzy) return fuzzy.id;
   }
@@ -349,6 +364,7 @@ function detectAmphoe(text: string): string {
 /**
  * ตัวแยกวิเคราะห์ไฟล์ (CSV / Excel) แบบยืดหยุ่นและแม่นยำสูง
  * ตรวจจับคอลัมน์อัตโนมัติ ไม่ว่าลำดับคอลัมน์จะสลับกัน หรือมี/ไม่มีคอลัมน์รหัสโรงเรียน
+ * รองรับไฟล์ทั้งผลสอบ NT (ป.3) และ RT (ป.1) ตามฟอร์แมต สพฐ.
  */
 export function parseAcademicFile(
   fileContent: string | ArrayBuffer,
@@ -357,24 +373,42 @@ export function parseAcademicFile(
   testType: string = 'NT',
   testTitle: string = 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
   schools: School[] = []
-): { records: AcademicRecord[]; errors: string[] } {
+): { records: AcademicRecord[]; errors: string[]; detectedType?: string; detectedTitle?: string } {
   const records: AcademicRecord[] = [];
   const errors: string[] = [];
+
+  let effectiveTestType = testType || 'NT';
+  let effectiveTestTitle = testTitle;
 
   try {
     let rawRows: any[][] = [];
     const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
 
     if (isExcel) {
-      const workbook = XLSX.read(fileContent, { type: typeof fileContent === 'string' ? 'string' : 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+      const workbook = XLSX.read(fileContent, { type: typeof fileContent === 'string' ? 'string' : 'array', raw: false, cellDates: true });
+      let bestRows: any[][] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const ws = workbook.Sheets[sheetName];
+        const sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false }) as any[][];
+        if (sheetRows.length > bestRows.length) {
+          bestRows = sheetRows;
+        }
+      }
+      rawRows = bestRows;
     } else {
       let text = typeof fileContent === 'string' ? fileContent : new TextDecoder('utf-8').decode(fileContent);
       if (text.charCodeAt(0) === 0xFEFF) {
         text = text.slice(1);
       }
+      // Detect delimiter (, or ; or \t)
+      const firstFewLines = text.split(/\r?\n/).slice(0, 5).join('\n');
+      let delimiter = ',';
+      if (firstFewLines.split('\t').length > firstFewLines.split(',').length && firstFewLines.split('\t').length > firstFewLines.split(';').length) {
+        delimiter = '\t';
+      } else if (firstFewLines.split(';').length > firstFewLines.split(',').length) {
+        delimiter = ';';
+      }
+
       const lines = text.split(/\r?\n/);
       rawRows = lines.map(line => {
         const row: string[] = [];
@@ -384,7 +418,7 @@ export function parseAcademicFile(
           const char = line[i];
           if (char === '"') {
             insideQuotes = !insideQuotes;
-          } else if (char === ',' && !insideQuotes) {
+          } else if (char === delimiter && !insideQuotes) {
             row.push(entry.trim());
             entry = '';
           } else {
@@ -396,153 +430,150 @@ export function parseAcademicFile(
       });
     }
 
-    // กรองแถวว่าง (ต้องมีข้อมูลอย่างน้อย 1 ช่องที่ไม่ใช่ช่องว่าง)
-    const rows = rawRows.filter(r => r && r.some(cell => String(cell).trim().length > 0));
+    // กรองแถวว่าง
+    const rows = rawRows.filter(r => r && r.some(cell => String(cell ?? '').trim().length > 0));
 
     if (rows.length === 0) {
       errors.push('ไฟล์ไม่มีข้อมูลหรือเป็นไฟล์ว่างเปล่า');
       return { records, errors };
     }
 
-    // 1. ค้นหาแถวเริ่มต้นข้อมูล (Data row start)
-    let startRowIndex = -1;
-    for (let i = 0; i < Math.min(rows.length, 25); i++) {
-      const row = rows[i];
-      const c0 = String(row[0] || '').trim();
-      const c1 = String(row[1] || '').trim();
-      const c2 = String(row[2] || '').trim();
-
-      // ตรวจสอบว่า cell แรกเป็นลำดับเลข 1 หรือ 01
-      if ((c0 === '1' || c0 === '01') && (c1.length > 0 || c2.length > 0 || row.length >= 4)) {
-        startRowIndex = i;
-        break;
-      }
-    }
-
-    // Fallback: ถ้าไม่พบ '1' ให้ค้นหาแถวที่มีตัวเลขลำดับแถวแรก
-    if (startRowIndex === -1) {
-      for (let i = 0; i < rows.length; i++) {
-        const c0 = String(rows[i][0] || '').trim();
-        if (/^\d+$/.test(c0) && rows[i].length >= 4) {
-          startRowIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (startRowIndex === -1) {
-      startRowIndex = 0;
-    }
-
-    // 2. วิเคราะห์โครงสร้างคอลัมน์จากตัวอย่างแถวข้อมูลจริง (Dynamic Column Detection)
-    const sampleRow = rows[startRowIndex] || [];
-    const col0Str = String(sampleRow[0] || '').trim();
-    const col1Str = String(sampleRow[1] || '').trim();
-    const col2Str = String(sampleRow[2] || '').trim();
-    const col3Str = String(sampleRow[3] || '').trim();
-    const col4Str = String(sampleRow[4] || '').trim();
-
-    let nameColIndex = 2;
-    let amphoeColIndex = 3;
-    let scoreStartIndex = 4;
-    let hasSchoolIdCol = true;
-
-    // ตรวจสอบโครงสร้าง:
-    // โครงสร้าง A (มาตรฐาน สพฐ. 13 คอลัมน์):
-    // [0: ลำดับ, 1: รหัสโรงเรียน(อาจเว้นว่าง), 2: ชื่อโรงเรียน, 3: อำเภอ, 4: mathScore, 5: math%, 6: thaiScore, 7: thai%, 8: totalScore, 9: total%, 10: mathQ, 11: thaiQ, 12: totalQ]
+    // 1. ตรวจสอบประเภทการสอบ (NT vs RT) อัตโนมัติจากเนื้อหาในตาราง
+    const headerInspectText = rows.slice(0, 15).map(r => r.join(' ')).join(' ');
     if (
-      (detectAmphoe(col3Str) || /^\d+(\.\d+)?$/.test(col4Str)) &&
-      col2Str.length > 0 &&
-      !detectAmphoe(col1Str)
+      headerInspectText.includes('การอ่านออกเสียง') ||
+      headerInspectText.includes('การอ่านรู้เรื่อง') ||
+      headerInspectText.includes('(RT)') ||
+      headerInspectText.includes('ด้านการอ่าน') ||
+      fileName.toUpperCase().includes('RT')
     ) {
-      hasSchoolIdCol = true;
-      nameColIndex = 2;
-      amphoeColIndex = 3;
-      scoreStartIndex = 4;
+      effectiveTestType = 'RT';
+      effectiveTestTitle = 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1';
     } else if (
-      (detectAmphoe(col2Str) || /^\d+(\.\d+)?$/.test(col3Str)) &&
-      col1Str.length > 0
+      headerInspectText.includes('ด้านคณิตศาสตร์') ||
+      headerInspectText.includes('ด้านภาษาไทย') ||
+      headerInspectText.includes('(NT)') ||
+      headerInspectText.includes('คุณภาพผู้เรียน') ||
+      fileName.toUpperCase().includes('NT')
     ) {
-      // โครงสร้าง B (ไม่มีคอลัมน์รหัสโรงเรียน): [0: ลำดับ, 1: ชื่อโรงเรียน, 2: อำเภอ, 3: mathScore, ...]
-      hasSchoolIdCol = false;
-      nameColIndex = 1;
-      amphoeColIndex = 2;
-      scoreStartIndex = 3;
-    } else if (/^\d{6,10}$/.test(col1Str)) {
-      // โครงสร้าง C: col1 เป็นรหัส 6-10 หลัก
-      hasSchoolIdCol = true;
-      nameColIndex = 2;
-      amphoeColIndex = 3;
-      scoreStartIndex = 4;
-    } else if (sampleRow.length >= 12) {
-      // ค่าเริ่มต้นสำหรับไฟล์ 12-13 คอลัมน์
-      hasSchoolIdCol = true;
-      nameColIndex = 2;
-      amphoeColIndex = 3;
-      scoreStartIndex = 4;
-    } else {
-      hasSchoolIdCol = false;
-      nameColIndex = 1;
-      amphoeColIndex = 2;
-      scoreStartIndex = 3;
+      effectiveTestType = 'NT';
+      effectiveTestTitle = 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3';
     }
 
-    // 3. ประมวลผลแถวข้อมูลทั้งหมด
-    for (let i = startRowIndex; i < rows.length; i++) {
+    // 2. ค้นหาแถวข้อมูลจริง (Data row start)
+    for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (!row || row.length < 3) continue;
+      if (!row || !Array.isArray(row)) continue;
 
-      const orderStr = String(row[0] || '').trim();
-      const rowText = row.join(' ');
+      const cleanCells = row.map(c => String(c ?? '').trim());
+      if (cleanCells.every(c => c.length === 0)) continue;
 
-      // ข้ามแถวรวมผล หรือหมายเหตุท้ายตาราง
+      const rowText = cleanCells.join(' ');
+
+      // ข้ามแถวหัวข้อรายงาน, สรุปท้ายตาราง หรือหมายเหตุ
       if (
+        rowText.includes('คะแนนผลการประเมิน') ||
+        rowText.includes('ผลคะแนนการประเมิน') ||
+        rowText.includes('ระดับคุณภาพของแต่ละด้าน') ||
         rowText.includes('เฉลี่ยรวม') ||
         rowText.includes('รวมทั้งสิ้น') ||
-        rowText.includes('หมายเหตุ') ||
         rowText.includes('เกณฑ์การตัดสิน') ||
-        rowText.includes('ผลคะแนนการประเมิน') ||
-        rowText.includes('ระดับคุณภาพของแต่ละด้าน')
+        rowText.includes('หมายเหตุ')
       ) {
         continue;
       }
 
-      // ข้ามแถวที่ไม่มีข้อมูลตัวเลขลำดับ และไม่มีชื่อสถานศึกษา
-      if (!/^\d+$/.test(orderStr) && !rowText.includes('โรงเรียน') && !rowText.includes('บ้าน') && !rowText.includes('ขุนยวม') && !rowText.includes('ปาย') && !rowText.includes('เขตพื้นที่')) {
+      // ข้ามแถวย่อยของ Header เช่น [..., 'การอ่านออกเสียง', ..., 'การอ่านรู้เรื่อง']
+      if (
+        (cleanCells.includes('การอ่านออกเสียง') || cleanCells.includes('ด้านคณิตศาสตร์') || cleanCells.includes('การอ่านรู้เรื่อง') || cleanCells.includes('ด้านภาษาไทย')) &&
+        !cleanCells.some(c => /^\d+(\.\d+)?$/.test(c))
+      ) {
         continue;
       }
 
-      const orderNum = parseInt(orderStr, 10) || (i - startRowIndex + 1);
-
-      let rawSchoolId = '';
-      let rawSchoolName = '';
-      let rawAmphoe = '';
-
-      if (hasSchoolIdCol) {
-        rawSchoolId = String(row[1] || '').trim();
-        rawSchoolName = String(row[nameColIndex] || '').trim();
-        rawAmphoe = String(row[amphoeColIndex] || '').trim();
-
-        // กรณีฉุกเฉิน: ถ้า col[2] ว่าง แต่ col[1] มีข้อความชื่อโรงเรียน
-        if (!rawSchoolName && rawSchoolId && !/^\d+$/.test(rawSchoolId)) {
-          rawSchoolName = rawSchoolId;
-          rawSchoolId = '';
-          if (detectAmphoe(rawAmphoe)) {
-            // amphoe อยู่ใน col 3
-          } else {
-            rawAmphoe = String(row[2] || '').trim();
-          }
-        }
-      } else {
-        rawSchoolName = String(row[nameColIndex] || '').trim();
-        rawAmphoe = String(row[amphoeColIndex] || '').trim();
+      // ข้ามแถวย่อย [..., 'คะแนน', 'ร้อยละ', ...]
+      if (
+        (cleanCells.includes('คะแนน') || cleanCells.includes('ร้อยละ')) &&
+        !cleanCells.some(c => /^\d{2,}(\.\d+)?$/.test(c))
+      ) {
+        continue;
       }
 
-      if (!rawSchoolName || rawSchoolName.length < 2) continue;
+      // ข้ามแถวชื่อคอลัมน์
+      if (
+        cleanCells[0] === 'รหัสโรงเรียน' ||
+        cleanCells[0] === 'ลำดับ' ||
+        cleanCells[1] === 'ชื่อโรงเรียน' ||
+        cleanCells[2] === 'ชื่อโรงเรียน'
+      ) {
+        continue;
+      }
 
-      // ตรวจหาอำเภออัตโนมัติถ้าไม่มีในคอลัมน์ หรือระบุไม่ชัดเจน
-      if (!rawAmphoe || rawAmphoe === '' || !detectAmphoe(rawAmphoe)) {
-        rawAmphoe = detectAmphoe(rawSchoolName) || detectAmphoe(rawAmphoe) || 'เมืองแม่ฮ่องสอน';
+      // 3. ตรวจหาคอลัมน์ อำเภอ ใน 6 ช่องแรก
+      let ampIdx = -1;
+      let rawAmphoe = '';
+      for (let c = 0; c < Math.min(cleanCells.length, 6); c++) {
+        const detected = detectAmphoe(cleanCells[c]);
+        if (detected) {
+          ampIdx = c;
+          rawAmphoe = detected;
+          break;
+        }
+      }
+
+      let rawSchoolName = '';
+      let rawSchoolId = '';
+      let orderNum = 0;
+      let scoreStartIndex = -1;
+
+      if (ampIdx >= 1) {
+        rawSchoolName = cleanCells[ampIdx - 1];
+
+        if (ampIdx >= 3) {
+          if (/^\d+$/.test(cleanCells[0])) {
+            orderNum = parseInt(cleanCells[0], 10);
+          }
+          if (/^\d{6,10}/.test(cleanCells[1])) {
+            rawSchoolId = cleanCells[1];
+          }
+        } else if (ampIdx === 2) {
+          if (/^\d{6,10}/.test(cleanCells[0])) {
+            rawSchoolId = cleanCells[0];
+          } else if (/^\d+$/.test(cleanCells[0])) {
+            orderNum = parseInt(cleanCells[0], 10);
+          }
+        }
+
+        scoreStartIndex = ampIdx + 1;
+      } else {
+        // กรณีไม่พบคอลัมน์อำเภอ ให้ค้นหาชื่อโรงเรียนจากช่องแรกๆ
+        for (let c = 0; c < Math.min(cleanCells.length, 4); c++) {
+          const val = cleanCells[c];
+          if (val.length >= 2 && !/^\d+(\.\d+)?$/.test(val)) {
+            rawSchoolName = val;
+            rawAmphoe = detectAmphoe(val) || '';
+            for (let sc = c + 1; sc < cleanCells.length; sc++) {
+              if (/^\d+(\.\d+)?$/.test(cleanCells[sc])) {
+                scoreStartIndex = sc;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      // ล้างลำดับเลขนำหน้าชื่อโรงเรียนถ้ามี (เช่น "1. โรงเรียน..." หรือ "1 ")
+      if (rawSchoolName) {
+        rawSchoolName = rawSchoolName.replace(/^\d+[\.\s]+/, '').trim();
+      }
+
+      if (!rawSchoolName || rawSchoolName.length < 2) {
+        continue;
+      }
+
+      if (!orderNum) {
+        orderNum = records.length + 1;
       }
 
       // ดึงคะแนนและร้อยละ
@@ -553,42 +584,36 @@ export function parseAcademicFile(
       let totalScore = 0;
       let totalPercentage = 0;
 
-      const cS = scoreStartIndex;
+      const cS = scoreStartIndex >= 0 ? scoreStartIndex : (ampIdx >= 0 ? ampIdx + 1 : 3);
 
-      // ในไฟล์มาตรฐาน OBEC:
-      // Col cS: mathScore, Col cS+1: mathPercentage, Col cS+2: thaiScore, Col cS+3: thaiPercentage, Col cS+4: totalScore, Col cS+5: totalPercentage
-      if (row.length >= cS + 6) {
-        mathScore = parseScoreValue(row[cS]);
-        mathPercentage = parseScoreValue(row[cS + 1]) || mathScore;
-        thaiScore = parseScoreValue(row[cS + 2]);
-        thaiPercentage = parseScoreValue(row[cS + 3]) || thaiScore;
-        totalScore = parseScoreValue(row[cS + 4]);
-        totalPercentage = parseScoreValue(row[cS + 5]) || totalScore;
-      } else if (row.length >= cS + 3) {
-        // รูปแบบ 3 คอลัมน์: คณิต, ไทย, รวม
-        mathPercentage = parseScoreValue(row[cS]);
+      if (cleanCells.length >= cS + 6 && /^\d+(\.\d+)?$/.test(cleanCells[cS])) {
+        mathScore = parseScoreValue(cleanCells[cS]);
+        mathPercentage = parseScoreValue(cleanCells[cS + 1]) || mathScore;
+        thaiScore = parseScoreValue(cleanCells[cS + 2]);
+        thaiPercentage = parseScoreValue(cleanCells[cS + 3]) || thaiScore;
+        totalScore = parseScoreValue(cleanCells[cS + 4]);
+        totalPercentage = parseScoreValue(cleanCells[cS + 5]) || totalScore;
+      } else if (cleanCells.length >= cS + 3 && /^\d+(\.\d+)?$/.test(cleanCells[cS])) {
+        mathPercentage = parseScoreValue(cleanCells[cS]);
         mathScore = mathPercentage;
-        thaiPercentage = parseScoreValue(row[cS + 1]);
+        thaiPercentage = parseScoreValue(cleanCells[cS + 1]);
         thaiScore = thaiPercentage;
-        totalPercentage = parseScoreValue(row[cS + 2]) || Number(((mathPercentage + thaiPercentage) / 2).toFixed(2));
+        totalPercentage = parseScoreValue(cleanCells[cS + 2]) || Number(((mathPercentage + thaiPercentage) / 2).toFixed(2));
         totalScore = totalPercentage;
-      } else if (row.length >= cS + 2) {
-        // รูปแบบ 2 คอลัมน์: คณิต, ไทย
-        mathPercentage = parseScoreValue(row[cS]);
+      } else if (cleanCells.length >= cS + 2 && /^\d+(\.\d+)?$/.test(cleanCells[cS])) {
+        mathPercentage = parseScoreValue(cleanCells[cS]);
         mathScore = mathPercentage;
-        thaiPercentage = parseScoreValue(row[cS + 1]);
+        thaiPercentage = parseScoreValue(cleanCells[cS + 1]);
         thaiScore = thaiPercentage;
         totalPercentage = Number(((mathPercentage + thaiPercentage) / 2).toFixed(2));
         totalScore = totalPercentage;
       }
 
-      // ถ้าคะแนนรวมเป็น 0 แต่มีคณิตและไทย ให้คำนวณเฉลี่ยอัตโนมัติ
       if (totalPercentage === 0 && (mathPercentage > 0 || thaiPercentage > 0)) {
         totalPercentage = Number(((mathPercentage + thaiPercentage) / 2).toFixed(2));
         totalScore = totalPercentage;
       }
 
-      // ตรวจสอบและดึงระดับคุณภาพ (จากไฟล์โดยตรงถ้ามี หรือคำนวณจากเกณฑ์ สพฐ.)
       const parseQuality = (val: any, fallbackPercentage: number): QualityLevel => {
         const str = String(val || '').trim();
         if (str === 'ดีมาก' || str === 'ดี' || str === 'พอใช้' || str === 'ปรับปรุง') {
@@ -597,15 +622,15 @@ export function parseAcademicFile(
         return determineQualityLevel(fallbackPercentage);
       };
 
-      const rawMathQ = row[cS + 6];
-      const rawThaiQ = row[cS + 7];
-      const rawTotalQ = row[cS + 8];
+      const rawMathQ = cleanCells[cS + 6];
+      const rawThaiQ = cleanCells[cS + 7];
+      const rawTotalQ = cleanCells[cS + 8];
 
       const mathQuality = parseQuality(rawMathQ, mathPercentage);
       const thaiQuality = parseQuality(rawThaiQ, thaiPercentage);
       const totalQuality = parseQuality(rawTotalQ, totalPercentage);
 
-      // จับคู่ School ID 8 หลักให้แม่นยำ
+      // จับคู่ School ID 8 หลัก และ อำเภอ
       let schoolId = rawSchoolId;
       if (!schoolId || !/^\d{6,10}/.test(schoolId)) {
         schoolId = matchSchoolId(rawSchoolId, rawSchoolName, rawAmphoe, schools);
@@ -614,8 +639,16 @@ export function parseAcademicFile(
         schoolId = `5801${String(orderNum).padStart(4, '0')}`;
       }
 
+      // ถ้ายังไม่ทราบอำเภอ ค้นหาจาก Master Data
+      if (!rawAmphoe) {
+        const foundMaster = RAW_INITIAL_NT_DATA.find(r => r.schoolId === schoolId) || RAW_INITIAL_RT_DATA.find(r => r.schoolId === schoolId);
+        if (foundMaster) {
+          rawAmphoe = foundMaster.amphoe;
+        }
+      }
+
       const cleanSchoolName = rawSchoolName.trim();
-      const recId = `${schoolId}_${academicYear}_${testType}`;
+      const recId = `${schoolId}_${academicYear}_${effectiveTestType}`;
 
       records.push({
         id: recId,
@@ -633,9 +666,9 @@ export function parseAcademicFile(
         thaiQuality,
         totalQuality,
         academicYear,
-        testType,
-        testTitle,
-        notes: 'นำเข้าจากไฟล์ ' + fileName,
+        testType: effectiveTestType,
+        testTitle: effectiveTestTitle,
+        notes: `นำเข้าจากไฟล์ ${fileName}`,
         updatedAt: new Date().toISOString()
       });
     }
@@ -648,7 +681,12 @@ export function parseAcademicFile(
     errors.push('เกิดข้อผิดพลาดในการประมวลผลไฟล์: ' + (err.message || String(err)));
   }
 
-  return { records, errors };
+  return {
+    records,
+    errors,
+    detectedType: effectiveTestType,
+    detectedTitle: effectiveTestTitle
+  };
 }
 
 /**

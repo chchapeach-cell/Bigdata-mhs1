@@ -245,31 +245,64 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     try {
       const academicRecords = await dbFetchAcademicRecords();
       if (academicRecords && academicRecords.length > 0) {
-        sql += `-- ข้อมูลผลการประเมิน NT/RT (${academicRecords.length} รายการ)\n`;
-        academicRecords.forEach(ar => {
-          const id = escapeString(ar.id || `${ar.schoolId || ar.order}_${ar.academicYear}_${ar.testType || 'NT'}`);
-          const orderNum = escapeNumber(ar.order);
-          const sId = escapeString(ar.schoolId);
-          const sName = escapeString(ar.schoolName);
-          const amp = escapeString(ar.amphoe);
-          const mScore = escapeNumber(ar.mathScore);
-          const mPerc = escapeNumber(ar.mathPercentage);
-          const tScore = escapeNumber(ar.thaiScore);
-          const tPerc = escapeNumber(ar.thaiPercentage);
-          const totScore = escapeNumber(ar.totalScore);
-          const totPerc = escapeNumber(ar.totalPercentage);
-          const mQual = escapeString(ar.mathQuality);
-          const tQual = escapeString(ar.thaiQuality);
-          const totQual = escapeString(ar.totalQuality);
-          const year = escapeString(ar.academicYear || '2567');
-          const tType = escapeString(ar.testType || 'NT');
-          const tTitle = escapeString(ar.testTitle);
-          const notes = escapeString(ar.notes);
-          const updBy = escapeString(ar.updatedBy || 'Admin');
+        const ntList = academicRecords.filter(ar => ar.testType !== 'RT');
+        const rtList = academicRecords.filter(ar => ar.testType === 'RT');
 
-          sql += `INSERT INTO public.academic_assessments (id, order_num, school_id, school_name, amphoe, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_by) VALUES (${id}, ${orderNum}, ${sId}, ${sName}, ${amp}, ${mScore}, ${mPerc}, ${tScore}, ${tPerc}, ${totScore}, ${totPerc}, ${mQual}, ${tQual}, ${totQual}, ${year}, ${tType}, ${tTitle}, ${notes}, ${updBy}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
-        });
-        sql += `\n`;
+        if (ntList.length > 0) {
+          sql += `-- ข้อมูลผลการประเมิน NT ชั้น ป.3 (${ntList.length} รายการ)\n`;
+          ntList.forEach(ar => {
+            const id = escapeString(ar.id || `${ar.schoolId || ar.order}_${ar.academicYear}_NT`);
+            const orderNum = escapeNumber(ar.order);
+            const sId = escapeString(ar.schoolId);
+            const sName = escapeString(ar.schoolName);
+            const amp = escapeString(ar.amphoe);
+            const mScore = escapeNumber(ar.mathScore);
+            const mPerc = escapeNumber(ar.mathPercentage);
+            const tScore = escapeNumber(ar.thaiScore);
+            const tPerc = escapeNumber(ar.thaiPercentage);
+            const totScore = escapeNumber(ar.totalScore);
+            const totPerc = escapeNumber(ar.totalPercentage);
+            const mQual = escapeString(ar.mathQuality);
+            const tQual = escapeString(ar.thaiQuality);
+            const totQual = escapeString(ar.totalQuality);
+            const year = escapeString(ar.academicYear || '2567');
+            const tType = escapeString('NT');
+            const tTitle = escapeString(ar.testTitle || 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3');
+            const notes = escapeString(ar.notes);
+            const updBy = escapeString(ar.updatedBy || 'Admin');
+
+            sql += `INSERT INTO public.academic_nt_assessments (id, order_num, school_id, school_name, amphoe, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_by) VALUES (${id}, ${orderNum}, ${sId}, ${sName}, ${amp}, ${mScore}, ${mPerc}, ${tScore}, ${tPerc}, ${totScore}, ${totPerc}, ${mQual}, ${tQual}, ${totQual}, ${year}, ${tType}, ${tTitle}, ${notes}, ${updBy}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+          });
+          sql += `\n`;
+        }
+
+        if (rtList.length > 0) {
+          sql += `-- ข้อมูลผลการประเมิน RT ชั้น ป.1 (${rtList.length} รายการ)\n`;
+          rtList.forEach(ar => {
+            const id = escapeString(ar.id || `${ar.schoolId || ar.order}_${ar.academicYear}_RT`);
+            const orderNum = escapeNumber(ar.order);
+            const sId = escapeString(ar.schoolId);
+            const sName = escapeString(ar.schoolName);
+            const amp = escapeString(ar.amphoe);
+            const mScore = escapeNumber(ar.mathScore);
+            const mPerc = escapeNumber(ar.mathPercentage);
+            const tScore = escapeNumber(ar.thaiScore);
+            const tPerc = escapeNumber(ar.thaiPercentage);
+            const totScore = escapeNumber(ar.totalScore);
+            const totPerc = escapeNumber(ar.totalPercentage);
+            const mQual = escapeString(ar.mathQuality);
+            const tQual = escapeString(ar.thaiQuality);
+            const totQual = escapeString(ar.totalQuality);
+            const year = escapeString(ar.academicYear || '2567');
+            const tType = escapeString('RT');
+            const tTitle = escapeString(ar.testTitle || 'การประเมินความสามารถด้านการอ่าน (RT) ชั้นประถมศึกษาปีที่ 1');
+            const notes = escapeString(ar.notes);
+            const updBy = escapeString(ar.updatedBy || 'Admin');
+
+            sql += `INSERT INTO public.academic_rt_assessments (id, order_num, school_id, school_name, amphoe, reading_aloud_score, reading_aloud_percentage, reading_comprehension_score, reading_comprehension_percentage, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, reading_aloud_quality, reading_comprehension_quality, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_by) VALUES (${id}, ${orderNum}, ${sId}, ${sName}, ${amp}, ${mScore}, ${mPerc}, ${tScore}, ${tPerc}, ${mScore}, ${mPerc}, ${tScore}, ${tPerc}, ${totScore}, ${totPerc}, ${mQual}, ${tQual}, ${mQual}, ${tQual}, ${totQual}, ${year}, ${tType}, ${tTitle}, ${notes}, ${updBy}) ON CONFLICT (id) DO UPDATE SET updated_at = NOW();\n`;
+          });
+          sql += `\n`;
+        }
       }
     } catch (e) {
       // ignore

@@ -1,7 +1,7 @@
 import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle } from './types';
-import { generateInitialStudentGData } from './utils/initialData';
+import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -406,110 +406,80 @@ export default function App() {
     }
   }, [serverStatus, systemConfig.highTrafficAlertEnabled]);
 
-  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Firestore / Supabase
+  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Supabase / Firestore (ดึงข้อมูลสดเสมอ ไม่ผ่านแคช)
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    const CACHE_KEY = 'mhs_app_data_cache_v3';
-    // ตั้งเวลาแคช 30 นาที (1,800,000 ms) เพื่อลด Network Egress และความซ้ำซ้อน
-    const CACHE_TTL = 30 * 60 * 1000; 
-
-    if (forceRefresh) {
-      try {
-        localStorage.removeItem(CACHE_KEY);
-        sessionStorage.removeItem(CACHE_KEY);
-      } catch (e) {
-        // ignore
-      }
-    } else {
-      try {
-        const cached = localStorage.getItem(CACHE_KEY) || sessionStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Date.now() - parsed.timestamp < CACHE_TTL && parsed.schools && parsed.schools.length > 0) {
-            setSchools(parsed.schools);
-            setStudentData(parsed.students);
-            setStudentGData(parsed.studentsG);
-            
-            if (parsed.systemConfig) {
-              setSystemConfig(parsed.systemConfig);
-            }
-
-            const years = Array.from(new Set((parsed.students as StudentData[]).map(s => s.academicYear)));
-            if (years.length > 0) {
-              years.sort((a, b) => b.localeCompare(a));
-              setAvailableYears(years);
-              if (years.includes(currentBEYear)) {
-                setAcademicYear(currentBEYear);
-              } else {
-                setAcademicYear(years[0]);
-              }
-            }
-            setIsLoading(false);
-            return; // ใช้ข้อมูลจากแคชโดยไม่ต้องดึงจากฐานข้อมูลใหม่
-          }
-        }
-      } catch(e) {
-        // ignore cache read errors
-      }
+    // ล้างแคชเก่าที่อาจตกค้างอยู่ในเบราว์เซอร์เพื่อให้ได้ข้อมูลจริงล่าสุดเสมอ
+    try {
+      localStorage.removeItem('mhs_app_data_cache_v3');
+      sessionStorage.removeItem('mhs_app_data_cache_v3');
+    } catch (e) {
+      // ignore
     }
 
     try {
       // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
       if (supabase && isSupabaseConfigured()) {
         try {
-          const { data: suSchools, error: suErr } = await supabase.from('schools').select('*');
+          const { data: suSchools, error: suErr } = await supabase.from('schools').select('*').order('id', { ascending: true });
           if (!suErr && suSchools && suSchools.length > 0) {
-            const mappedSchools: School[] = suSchools.map(s => ({
-              id: s.id,
-              name: s.name,
-              district: s.district,
-              amphoe: s.amphoe,
-              networkGroup: s.network_group,
-              internetType: s.internet_type,
-              electricity: s.electricity,
-              waterSystem: s.water_system,
-              waterSystemDetail: s.water_system_detail,
-              solarKw: s.solar_kw,
-              hasSolarBattery: s.has_solar_battery,
-              solarBatteryCapacity: s.solar_battery_capacity,
-              staffCount: s.staff_count ?? 0,
-              contractTeachersCount: s.contract_teachers_count ?? s.contractTeachersCount ?? 0,
-              adminStaffCount: s.admin_staff_count ?? s.adminStaffCount ?? 0,
-              janitorCount: s.janitor_count ?? s.janitorCount ?? 0,
-              otherStaffCount: s.other_staff_count ?? s.otherStaffCount ?? 0,
-              majorSubjects: s.major_subjects || [],
-              majorSubjectsWithStaff: s.major_subjects_with_staff || [],
-              classrooms: s.classrooms || [],
-              directorName: s.director_name || s.directorName,
-              directorPhone: s.director_phone || s.directorPhone,
-              viceDirectorName: s.vice_director_name || s.viceDirectorName,
-              viceDirectorPhone: s.vice_director_phone || s.viceDirectorPhone,
-              viceDirectors: (s.vice_directors && Array.isArray(s.vice_directors) && s.vice_directors.length > 0)
-                ? s.vice_directors
-                : ((s.viceDirectorName || s.vice_director_name)
-                  ? [{ id: 'vd-1', name: s.viceDirectorName || s.vice_director_name || '', phone: s.viceDirectorPhone || s.vice_director_phone || '' }]
-                  : []),
-              schoolPhone: s.school_phone,
-              email: s.email,
-              facebook: s.facebook,
-              line: s.line,
-              website: s.website,
-              address: s.address,
-              imageUrl: s.image_url,
-              logoUrl: s.logo_url,
-              directorImageUrl: s.director_image_url,
-              latitude: s.latitude,
-              longitude: s.longitude,
-              size: s.size,
-              isExpansion: s.is_expansion,
-              specialHighlights: s.special_highlights,
-              updatedAt: s.updated_at,
-              updatedBy: s.updated_by
-            }));
+            const mappedSchools: School[] = suSchools.map(s => {
+              const autoInfo = getAmphoeAndNetwork(s.id, s.name);
+              const resolvedAmphoe = (s.amphoe && s.amphoe !== 'NULL' && String(s.amphoe).trim()) ? String(s.amphoe).trim() : autoInfo.amphoe;
+              const resolvedNetworkGroup = (s.network_group && s.network_group !== 'NULL' && String(s.network_group).trim()) ? String(s.network_group).trim() : autoInfo.networkGroup;
+
+              return {
+                id: s.id,
+                name: s.name,
+                district: s.district || 'สพป.แม่ฮ่องสอน เขต 1',
+                amphoe: resolvedAmphoe,
+                networkGroup: resolvedNetworkGroup,
+                internetType: s.internet_type || 'fiber',
+                electricity: s.electricity !== undefined ? s.electricity : true,
+                waterSystem: s.water_system || 'government',
+                waterSystemDetail: s.water_system_detail,
+                solarKw: s.solar_kw,
+                hasSolarBattery: s.has_solar_battery,
+                solarBatteryCapacity: s.solar_battery_capacity,
+                staffCount: s.staff_count ?? 0,
+                contractTeachersCount: s.contract_teachers_count ?? s.contractTeachersCount ?? 0,
+                adminStaffCount: s.admin_staff_count ?? s.adminStaffCount ?? 0,
+                janitorCount: s.janitor_count ?? s.janitorCount ?? 0,
+                otherStaffCount: s.other_staff_count ?? s.otherStaffCount ?? 0,
+                majorSubjects: s.major_subjects || [],
+                majorSubjectsWithStaff: s.major_subjects_with_staff || [],
+                classrooms: s.classrooms || [],
+                directorName: s.director_name || s.directorName,
+                directorPhone: s.director_phone || s.directorPhone,
+                viceDirectorName: s.vice_director_name || s.viceDirectorName,
+                viceDirectorPhone: s.vice_director_phone || s.viceDirectorPhone,
+                viceDirectors: (s.vice_directors && Array.isArray(s.vice_directors) && s.vice_directors.length > 0)
+                  ? s.vice_directors
+                  : ((s.viceDirectorName || s.vice_director_name)
+                    ? [{ id: 'vd-1', name: s.viceDirectorName || s.vice_director_name || '', phone: s.viceDirectorPhone || s.vice_director_phone || '' }]
+                    : []),
+                schoolPhone: s.school_phone,
+                email: s.email,
+                facebook: s.facebook,
+                line: s.line,
+                website: s.website,
+                address: s.address,
+                imageUrl: s.image_url,
+                logoUrl: s.logo_url,
+                directorImageUrl: s.director_image_url,
+                latitude: s.latitude,
+                longitude: s.longitude,
+                size: s.size || 'small',
+                isExpansion: s.is_expansion || false,
+                specialHighlights: s.special_highlights,
+                updatedAt: s.updated_at,
+                updatedBy: s.updated_by
+              };
+            });
 
             const { data: suStudents } = await supabase.from('students').select('*');
-            const mappedStudents: StudentData[] = (suStudents || []).map(st => ({
+            let mappedStudents: StudentData[] = (suStudents || []).map(st => ({
               id: st.id,
               schoolId: st.school_id,
               schoolName: st.school_name,
@@ -519,6 +489,21 @@ export default function App() {
               totalFemale: st.total_female,
               totalStudents: st.total_students
             }));
+
+            // หากตาราง students บน Supabase ยังไม่มีข้อมูล ให้สร้างโครงสร้างข้อมูลนักเรียนสำหรับทุกโรงเรียน
+            if (mappedStudents.length === 0) {
+              const currentYear = currentBEYear || '2568';
+              mappedStudents = mappedSchools.map(sch => ({
+                id: `${sch.id}_${currentYear}`,
+                schoolId: sch.id,
+                schoolName: sch.name,
+                academicYear: currentYear,
+                grades: {},
+                totalMale: 0,
+                totalFemale: 0,
+                totalStudents: 0
+              }));
+            }
 
             const { data: suStudentsG } = await supabase.from('students_g').select('*');
             const mappedStudentsG: StudentGData[] = (suStudentsG || []).map(sg => ({
@@ -555,18 +540,6 @@ export default function App() {
               } else {
                 setAcademicYear(years[0]);
               }
-            }
-
-            // บันทึกข้อมูลแคชเพื่อประหยัด Network Egress ในการโหลดถัดไป
-            try {
-              localStorage.setItem(CACHE_KEY, JSON.stringify({
-                timestamp: Date.now(),
-                schools: mappedSchools,
-                students: mappedStudents,
-                studentsG: finalStudentsG,
-              }));
-            } catch (cacheErr) {
-              console.warn('Cache write warning:', cacheErr);
             }
 
             setIsLoading(false);
@@ -624,84 +597,28 @@ export default function App() {
         }
       }
 
-      // บันทึกข้อมูลลงใน Local Storage เพื่อใช้เป็นแคชในครั้งต่อไป
-      if (schoolsList.length > 0) {
-        try {
-          const finalStudentsG = studentsGList.length === 0 ? generateInitialStudentGData(schoolsList) : studentsGList;
-          const fetchedConfig = { ...systemConfig };
-          localStorage.setItem(CACHE_KEY, JSON.stringify({
-            timestamp: Date.now(),
-            systemConfig: fetchedConfig,
-            schools: schoolsList,
-            students: studentsList,
-            studentsG: finalStudentsG
-          }));
-        } catch(e) {
-          // ignore cache write error
-        }
-      }
-
     } catch (error) {
-      console.warn('Notice fetching data (falling back to cache or preset data):', error);
+      console.warn('Notice fetching data (falling back to preset data):', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       if (errMsg.includes('Quota') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Free daily read') || errMsg.includes('resource-exhausted')) {
         setIsQuotaExceeded(true);
       }
       
-      // ลองใช้ข้อมูลจาก LocalStorage แม้จะหมดเวลาแคช เพื่อรองรับกรณี Quota ลิมิตของ Firebase เต็มในวันนั้น
-      let loadedFromCache = false;
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.schools && parsed.schools.length > 0) {
-            setSchools(parsed.schools);
-            if (parsed.systemConfig) setSystemConfig(parsed.systemConfig);
-            
-            let cachedStudents = parsed.students || [];
-            let cachedStudentsG = parsed.studentsG || [];
-            
-            if (cachedStudents.length === 0) {
-              const { parseInitialData } = await import('./utils/initialData');
-              const initial = parseInitialData('2568');
-              cachedStudents = initial.students;
-              cachedStudentsG = generateInitialStudentGData(initial.schools);
-            }
-            
-            setStudentData(cachedStudents);
-            setStudentGData(cachedStudentsG);
-            
-            const years = Array.from(new Set((cachedStudents as StudentData[]).map(s => s.academicYear)));
-            if (years.length > 0) {
-              years.sort((a, b) => b.localeCompare(a));
-              setAvailableYears(years);
-              if (years.includes(currentBEYear)) setAcademicYear(currentBEYear);
-              else setAcademicYear(years[0]);
-            }
-            loadedFromCache = true;
-          }
-        }
-      } catch (cacheErr) {
-        // ignore cache read error
-      }
-
-      // Fallback to initial preset data if network or Firestore fails and no cache exists
-      if (!loadedFromCache) {
-        const { parseInitialData } = await import('./utils/initialData');
-        const initial = parseInitialData('2568');
-        setSchools(initial.schools);
-        setStudentData(initial.students);
-        setStudentGData(generateInitialStudentGData(initial.schools));
-        
-        const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
-        if (years.length > 0) {
-          years.sort((a, b) => b.localeCompare(a));
-          setAvailableYears(years);
-          if (years.includes(currentBEYear)) {
-            setAcademicYear(currentBEYear);
-          } else {
-            setAcademicYear(years[0]);
-          }
+      // Fallback to initial preset data only if network or database fetch completely fails
+      const { parseInitialData } = await import('./utils/initialData');
+      const initial = parseInitialData('2568');
+      setSchools(initial.schools);
+      setStudentData(initial.students);
+      setStudentGData(generateInitialStudentGData(initial.schools));
+      
+      const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
+      if (years.length > 0) {
+        years.sort((a, b) => b.localeCompare(a));
+        setAvailableYears(years);
+        if (years.includes(currentBEYear)) {
+          setAcademicYear(currentBEYear);
+        } else {
+          setAcademicYear(years[0]);
         }
       }
     } finally {

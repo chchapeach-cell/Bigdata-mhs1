@@ -123,6 +123,8 @@ export default function AcademicStatsView({
   const [parsedUploadResults, setParsedUploadResults] = useState<AcademicRecord[]>([]);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const [isParsingFile, setIsParsingFile] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadProgressStage, setUploadProgressStage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Custom Years State & Year Management
@@ -368,12 +370,17 @@ export default function AcademicStatsView({
 
     setUploadFile(file);
     setIsParsingFile(true);
+    setUploadProgress(20);
+    setUploadProgressStage(`กำลังอ่านไฟล์ ${file.name}...`);
     setUploadErrors([]);
     setParsedUploadResults([]);
 
     try {
       const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
       let parsed;
+
+      setUploadProgress(50);
+      setUploadProgressStage('กำลังแปลงข้อมูลและวิเคราะห์คอลัมน์...');
 
       if (isExcel) {
         const buffer = await file.arrayBuffer();
@@ -383,10 +390,20 @@ export default function AcademicStatsView({
         parsed = parseAcademicFile(text, file.name, uploadYear, uploadTestType, uploadTestTitle, schools);
       }
 
+      setUploadProgress(90);
+      setUploadProgressStage('กำลังจับคู่รหัสโรงเรียนและตรวจสอบความถูกต้อง...');
+
+      if (parsed.detectedType && parsed.detectedType !== uploadTestType) {
+        setUploadTestType(parsed.detectedType);
+        if (parsed.detectedTitle) setUploadTestTitle(parsed.detectedTitle);
+      }
+
       if (parsed.errors.length > 0) {
         setUploadErrors(parsed.errors);
       }
       setParsedUploadResults(parsed.records);
+      setUploadProgress(100);
+      setUploadProgressStage(`ตรวจสอบเรียบร้อย พบข้อมูล ${parsed.records.length} สถานศึกษา`);
     } catch (err: any) {
       setUploadErrors(['ไม่สามารถอ่านไฟล์ได้: ' + (err.message || String(err))]);
     } finally {
@@ -398,6 +415,8 @@ export default function AcademicStatsView({
   const reparseCurrentFile = async (targetYear: string, targetType: string, targetTitle: string) => {
     if (!uploadFile) return;
     setIsParsingFile(true);
+    setUploadProgress(30);
+    setUploadProgressStage('กำลังประมวลผลไฟล์ใหม่...');
     try {
       const isExcel = uploadFile.name.endsWith('.xlsx') || uploadFile.name.endsWith('.xls');
       let parsed;
@@ -414,6 +433,8 @@ export default function AcademicStatsView({
         setUploadErrors([]);
       }
       setParsedUploadResults(parsed.records);
+      setUploadProgress(100);
+      setUploadProgressStage(`พบข้อมูล ${parsed.records.length} สถานศึกษา`);
     } catch (err: any) {
       setUploadErrors(['ไม่สามารถอ่านไฟล์ได้: ' + (err.message || String(err))]);
     } finally {
@@ -425,37 +446,76 @@ export default function AcademicStatsView({
   const handleConfirmUpload = async () => {
     if (parsedUploadResults.length === 0) return;
     setIsSaving(true);
+    setUploadProgress(5);
+    setUploadProgressStage('กำลังเตรียมความพร้อมของข้อมูล...');
     try {
-      // Save all parsed records to database
-      await dbSaveAcademicRecords(parsedUploadResults, userProfile?.email || 'Super Admin');
+      const targetYear = uploadYear || academicYear || '2567';
+      const targetType = uploadTestType || selectedTestType || 'NT';
+      const isRT = targetType === 'RT';
+
+      const finalRecordsToSave: AcademicRecord[] = parsedUploadResults.map(r => ({
+        ...r,
+        academicYear: targetYear,
+        testType: targetType,
+        testTitle: isRT
+          ? 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1'
+          : 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+        id: `${r.schoolId || r.order}_${targetYear}_${targetType}`,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.email || 'Super Admin'
+      }));
+
+      // Save all parsed records to database (Supabase & Firestore) with progress tracking
+      await dbSaveAcademicRecords(
+        finalRecordsToSave,
+        userProfile?.email || 'Super Admin',
+        (percent, stage) => {
+          setUploadProgress(percent);
+          setUploadProgressStage(stage);
+        }
+      );
 
       // Update local state by merging or replacing for that year/type
       const otherRecords = records.filter(
-        r => !(r.academicYear === uploadYear && r.testType === uploadTestType)
+        r => !(r.academicYear === targetYear && r.testType === targetType)
       );
-      const updated = [...otherRecords, ...parsedUploadResults];
+      const updated = [...otherRecords, ...finalRecordsToSave];
       setRecords(updated);
 
-      // Switch view to match uploaded test type and academic year
-      setSelectedTestType(uploadTestType);
-      if (uploadYear && uploadYear !== academicYear) {
-        setAcademicYear(uploadYear);
+      // Register new custom year if not in list
+      if (!customYears.includes(targetYear)) {
+        const updatedCustom = [...customYears, targetYear];
+        setCustomYears(updatedCustom);
+        try {
+          localStorage.setItem('academic_custom_years', JSON.stringify(updatedCustom));
+        } catch {}
       }
 
-      setStatusMessage({
-        type: 'success',
-        text: `นำเข้าข้อมูลผลสัมฤทธิ์ (${uploadTestType}) ปีการศึกษา ${uploadYear} สำเร็จเรียบร้อย (${parsedUploadResults.length} สถานศึกษา)`
-      });
-      setShowUploadModal(false);
-      setUploadFile(null);
-      setParsedUploadResults([]);
+      // Switch view to match uploaded test type and academic year
+      setSelectedTestType(targetType);
+      setAcademicYear(targetYear);
+
+      setUploadProgress(100);
+      setUploadProgressStage('บันทึกข้อมูลเรียบร้อยแล้ว!');
+
+      setTimeout(() => {
+        setStatusMessage({
+          type: 'success',
+          text: `นำเข้าข้อมูลผลสัมฤทธิ์ (${targetType}) ปีการศึกษา ${targetYear} สำเร็จเรียบร้อย (${finalRecordsToSave.length} สถานศึกษา)`
+        });
+        setShowUploadModal(false);
+        setUploadFile(null);
+        setParsedUploadResults([]);
+        setUploadProgress(0);
+        setUploadProgressStage('');
+        setIsSaving(false);
+      }, 700);
     } catch (err: any) {
+      setIsSaving(false);
       setStatusMessage({
         type: 'error',
         text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err.message || String(err))
       });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -1636,7 +1696,7 @@ export default function AcademicStatsView({
                 <span>
                   <strong className="font-black">เป้าหมายฐานข้อมูล: </strong>
                   {isSupabaseConfigured() ? (
-                    <span>Supabase PostgreSQL (ตาราง <code className="bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.5 rounded font-mono font-bold">academic_assessments</code>)</span>
+                    <span>Supabase PostgreSQL (แยกตารางตรงประเภท: <code className="bg-emerald-100 dark:bg-emerald-900/60 px-1 py-0.5 rounded font-mono font-bold">{uploadTestType === 'RT' ? 'rt_assessments' : 'nt_assessments'}</code>)</span>
                   ) : (
                     <span>Firebase Firestore (ยังไม่ได้ตั้งค่าเชื่อมต่อ Supabase)</span>
                   )}
@@ -1774,36 +1834,59 @@ export default function AcademicStatsView({
               </p>
             </div>
 
-            {/* Parsing Progress / Preview */}
-            {isParsingFile && (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
-                <RefreshCw className="h-4 w-4 animate-spin text-rose-600" />
-                กำลังอ่านและจับคู่ข้อมูลสถานศึกษา...
+            {/* Parsing / Upload Progress Bar */}
+            {(isParsingFile || isSaving || (uploadProgress > 0 && uploadProgress < 100)) && (
+              <div className="p-4 rounded-2xl border-2 border-[#33272A] bg-rose-50/70 dark:bg-slate-800/80 space-y-2.5 shadow-[2px_2px_0px_#33272A]">
+                <div className="flex items-center justify-between text-xs font-black text-slate-800 dark:text-slate-100">
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-rose-600" />
+                    <span>{uploadProgressStage || (isParsingFile ? 'กำลังอ่านและตรวจสอบไฟล์...' : 'กำลังบันทึกข้อมูล...')}</span>
+                  </span>
+                  <span className="font-mono text-sm font-black text-rose-600">{uploadProgress}%</span>
+                </div>
+
+                {/* Progress track */}
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden p-0.5 border border-slate-300 dark:border-slate-600">
+                  <div
+                    className="bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 h-full rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${Math.max(6, Math.min(100, uploadProgress))}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                  <span>{isSaving ? 'กำลังบันทึก Supabase & Firestore' : 'การประมวลผลไฟล์'}</span>
+                  <span>{uploadFile?.name || ''}</span>
+                </div>
               </div>
             )}
 
             {uploadErrors.length > 0 && (
-              <div className="p-3.5 rounded-2xl bg-rose-100 text-rose-800 text-xs font-bold space-y-1">
+              <div className="p-3.5 rounded-2xl bg-rose-100 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-bold space-y-1">
                 {uploadErrors.map((err, i) => (
                   <div key={i}>• {err}</div>
                 ))}
               </div>
             )}
 
-            {parsedUploadResults.length > 0 && (
+            {parsedUploadResults.length > 0 && !isSaving && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-emerald-700 dark:text-emerald-400">
-                    ✓ พบข้อมูลพร้อมนำเข้า {parsedUploadResults.length} สถานศึกษา
+                    ✓ พบข้อมูลพร้อมนำเข้า {parsedUploadResults.length} สถานศึกษา ({uploadTestType} ปีการศึกษา {uploadYear})
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    ตาราง: academic_{uploadTestType.toLowerCase()}_assessments
                   </span>
                 </div>
-                <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 text-[11px] p-2 bg-slate-50 dark:bg-slate-800">
+                <div className="max-h-44 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 text-[11px] p-2 bg-slate-50 dark:bg-slate-800">
                   {parsedUploadResults.slice(0, 10).map((r, i) => (
-                    <div key={i} className="py-1 flex items-center justify-between">
-                      <span className="font-bold">
+                    <div key={i} className="py-1.5 px-1 flex items-center justify-between">
+                      <span className="font-bold truncate max-w-[240px]">
                         {r.order}. {r.schoolId && <span className="font-mono text-slate-500 font-bold mr-1">{r.schoolId}</span>}{r.schoolName} ({r.amphoe})
                       </span>
-                      <span className="font-mono text-rose-600 font-bold">รวม: {r.totalScore}%</span>
+                      <span className="font-mono text-rose-600 font-bold whitespace-nowrap">
+                        {uploadTestType === 'RT' ? `อ่าน: ${r.mathPercentage}% / รู้เรื่อง: ${r.thaiPercentage}%` : `คณิต: ${r.mathPercentage}% / ไทย: ${r.thaiPercentage}%`} | รวม: {r.totalScore}%
+                      </span>
                     </div>
                   ))}
                   {parsedUploadResults.length > 10 && (

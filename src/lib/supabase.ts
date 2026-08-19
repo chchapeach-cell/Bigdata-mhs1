@@ -207,7 +207,11 @@ CREATE TABLE IF NOT EXISTS public.active_sessions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.academic_assessments (
+-- ลบตารางเดิม academic_assessments ที่รวมกันออก
+DROP TABLE IF EXISTS public.academic_assessments CASCADE;
+
+-- 9. ตารางผลการประเมิน NT (ป.3) : academic_nt_assessments
+CREATE TABLE IF NOT EXISTS public.academic_nt_assessments (
     id TEXT PRIMARY KEY,
     order_num INT DEFAULT 0,
     school_id TEXT NOT NULL,
@@ -224,7 +228,91 @@ CREATE TABLE IF NOT EXISTS public.academic_assessments (
     total_quality TEXT DEFAULT 'พอใช้',
     academic_year TEXT NOT NULL DEFAULT '2567',
     test_type TEXT NOT NULL DEFAULT 'NT',
-    test_title TEXT,
+    test_title TEXT DEFAULT 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- ตาราง nt_assessments (Alias / Compatibility)
+CREATE TABLE IF NOT EXISTS public.nt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'NT',
+    test_title TEXT DEFAULT 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 10. ตารางผลการประเมิน RT (ป.1) : academic_rt_assessments
+CREATE TABLE IF NOT EXISTS public.academic_rt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    reading_aloud_score DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_score DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_percentage DOUBLE PRECISION DEFAULT 0,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_quality TEXT DEFAULT 'พอใช้',
+    reading_comprehension_quality TEXT DEFAULT 'พอใช้',
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'RT',
+    test_title TEXT DEFAULT 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- ตาราง rt_assessments (Alias / Compatibility)
+CREATE TABLE IF NOT EXISTS public.rt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    reading_aloud_score DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_score DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_percentage DOUBLE PRECISION DEFAULT 0,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_quality TEXT DEFAULT 'พอใช้',
+    reading_comprehension_quality TEXT DEFAULT 'พอใช้',
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'RT',
+    test_title TEXT DEFAULT 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
     notes TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by TEXT
@@ -239,7 +327,10 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.academic_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_nt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_rt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rt_assessments DISABLE ROW LEVEL SECURITY;
 
 -- 3. เปิดใช้งาน RLS และสร้าง Policy แบบ Permissive อนุญาต อ่าน-เขียน แบบไร้ข้อจำกัด
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
@@ -250,7 +341,10 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.academic_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_rt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rt_assessments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
@@ -284,9 +378,21 @@ DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
 DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
 CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Public All Access" ON public.academic_assessments;
-DROP POLICY IF EXISTS "Public All AcademicAssessments" ON public.academic_assessments;
-CREATE POLICY "Public All Access" ON public.academic_assessments FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_nt_assessments;
+DROP POLICY IF EXISTS "Public All AcademicNTAssessments" ON public.academic_nt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_rt_assessments;
+DROP POLICY IF EXISTS "Public All AcademicRTAssessments" ON public.academic_rt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_rt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.nt_assessments;
+DROP POLICY IF EXISTS "Public All NTAssessments" ON public.nt_assessments;
+CREATE POLICY "Public All Access" ON public.nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.rt_assessments;
+DROP POLICY IF EXISTS "Public All RTAssessments" ON public.rt_assessments;
+CREATE POLICY "Public All Access" ON public.rt_assessments FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. ให้สิทธิ์การใช้งาน DB แก่ anon และ authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
@@ -426,8 +532,11 @@ CREATE TABLE IF NOT EXISTS public.active_sessions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. สร้างตาราง academic_assessments (ข้อมูลผลการประเมิน NT/RT)
-CREATE TABLE IF NOT EXISTS public.academic_assessments (
+-- ลบตารางเดิม academic_assessments ที่รวมกันออก
+DROP TABLE IF EXISTS public.academic_assessments CASCADE;
+
+-- 9. สร้างตาราง academic_nt_assessments (ข้อมูลผลการประเมิน NT ชั้น ป.3)
+CREATE TABLE IF NOT EXISTS public.academic_nt_assessments (
     id TEXT PRIMARY KEY,
     order_num INT DEFAULT 0,
     school_id TEXT NOT NULL,
@@ -444,13 +553,97 @@ CREATE TABLE IF NOT EXISTS public.academic_assessments (
     total_quality TEXT DEFAULT 'พอใช้',
     academic_year TEXT NOT NULL DEFAULT '2567',
     test_type TEXT NOT NULL DEFAULT 'NT',
-    test_title TEXT,
+    test_title TEXT DEFAULT 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
     notes TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by TEXT
 );
 
--- 10. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
+-- ตาราง nt_assessments (Alias / Compatibility)
+CREATE TABLE IF NOT EXISTS public.nt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'NT',
+    test_title TEXT DEFAULT 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 10. สร้างตาราง academic_rt_assessments (ข้อมูลผลการประเมิน RT ชั้น ป.1)
+CREATE TABLE IF NOT EXISTS public.academic_rt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    reading_aloud_score DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_score DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_percentage DOUBLE PRECISION DEFAULT 0,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_quality TEXT DEFAULT 'พอใช้',
+    reading_comprehension_quality TEXT DEFAULT 'พอใช้',
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'RT',
+    test_title TEXT DEFAULT 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- ตาราง rt_assessments (Alias / Compatibility)
+CREATE TABLE IF NOT EXISTS public.rt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    reading_aloud_score DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_score DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_percentage DOUBLE PRECISION DEFAULT 0,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_quality TEXT DEFAULT 'พอใช้',
+    reading_comprehension_quality TEXT DEFAULT 'พอใช้',
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'RT',
+    test_title TEXT DEFAULT 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 11. ตั้งค่านโยบายการเข้าถึงข้อมูลแบบสาธารณะ (Public Access Policies)
 ALTER TABLE public.schools DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students_g DISABLE ROW LEVEL SECURITY;
@@ -459,7 +652,10 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.academic_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_nt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_rt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nt_assessments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rt_assessments DISABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
@@ -469,7 +665,10 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.academic_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_rt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rt_assessments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public All Access" ON public.schools;
 DROP POLICY IF EXISTS "Public All Schools" ON public.schools;
@@ -503,9 +702,21 @@ DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
 DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
 CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Public All Access" ON public.academic_assessments;
-DROP POLICY IF EXISTS "Public All AcademicAssessments" ON public.academic_assessments;
-CREATE POLICY "Public All Access" ON public.academic_assessments FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_nt_assessments;
+DROP POLICY IF EXISTS "Public All AcademicNTAssessments" ON public.academic_nt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_rt_assessments;
+DROP POLICY IF EXISTS "Public All AcademicRTAssessments" ON public.academic_rt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_rt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.nt_assessments;
+DROP POLICY IF EXISTS "Public All NTAssessments" ON public.nt_assessments;
+CREATE POLICY "Public All Access" ON public.nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.rt_assessments;
+DROP POLICY IF EXISTS "Public All RTAssessments" ON public.rt_assessments;
+CREATE POLICY "Public All Access" ON public.rt_assessments FOR ALL USING (true) WITH CHECK (true);
 
 -- สิทธิ์การเข้าถึงข้อมูลแบบสาธารณะ
 GRANT USAGE ON SCHEMA public TO anon, authenticated, postgres, service_role;
