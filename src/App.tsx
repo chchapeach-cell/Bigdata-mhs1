@@ -531,19 +531,25 @@ export default function App() {
             const finalStudentsG = mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools);
             setStudentGData(finalStudentsG);
 
-            const years = Array.from(new Set(mappedStudents.map(s => s.academicYear)));
+            const years = Array.from(new Set(mappedStudents.map(s => s.academicYear).filter(Boolean)));
             if (years.length > 0) {
               years.sort((a, b) => b.localeCompare(a));
               setAvailableYears(years);
-              if (years.includes(currentBEYear)) {
+              // Default to 2568 if available, or current year / latest
+              if (years.includes('2568')) {
+                setAcademicYear('2568');
+              } else if (years.includes(currentBEYear)) {
                 setAcademicYear(currentBEYear);
               } else {
                 setAcademicYear(years[0]);
               }
             }
 
+            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records across years ${years.join(', ')}`);
             setIsLoading(false);
             return;
+          } else {
+            console.warn('Supabase schools query returned empty or error:', suErr);
           }
         } catch (suEx) {
           console.warn('Notice reading from Supabase:', suEx);

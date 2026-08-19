@@ -878,24 +878,35 @@ export function getAcademicTableName(testType?: string): 'academic_nt_assessment
   return String(testType).toUpperCase() === 'RT' ? 'academic_rt_assessments' : 'academic_nt_assessments';
 }
 
-// Helper to upsert to Supabase with fallback to alternative table name
-async function supaUpsertWithFallback(primaryTable: string, fallbackTable: string, payload: any, onConflict = 'id') {
+// Helper to upsert to Supabase with fallback to alternative table names
+async function supaUpsertWithFallback(candidateTables: string[] | string, payload: any, onConflict = 'id') {
   if (!supabase || !isSupabaseConfigured()) return;
-  const { error } = await supabase.from(primaryTable).upsert(payload, { onConflict });
-  if (error) {
-    // If primary table doesn't exist, try fallback table name
-    if (error.code === '42P01' || error.message?.includes('does not exist')) {
-      console.warn(`Table "${primaryTable}" not found, trying "${fallbackTable}"...`);
-      const { error: fbErr } = await supabase.from(fallbackTable).upsert(payload, { onConflict });
-      if (fbErr) {
-        throw new Error(`ไม่พบตาราง "${primaryTable}" หรือ "${fallbackTable}" บน Supabase: ${fbErr.message}`);
+  
+  const tables = Array.isArray(candidateTables) ? candidateTables : [candidateTables];
+  let lastError: any = null;
+
+  for (const tbl of tables) {
+    try {
+      const { error } = await supabase.from(tbl).upsert(payload, { onConflict });
+      if (!error) {
+        return;
       }
-      return;
+      lastError = error;
+      console.warn(`Supabase upsert attempt on "${tbl}" notice:`, error.message, error.code);
+    } catch (e: any) {
+      lastError = e;
     }
-    if (error.code === '42501' || error.message?.includes('row-level security')) {
-      throw new Error(`ติดขัดสิทธิ์ Row-Level Security (RLS) บนตาราง ${primaryTable} ใน Supabase กรุณารันคำสั่ง SQL ปลดล็อกสิทธิ์ก่อน`);
+  }
+
+  if (lastError) {
+    console.error(`Supabase upsert failed across candidate tables [${tables.join(', ')}]:`, lastError);
+    if (lastError.code === '42501' || lastError.message?.includes('row-level security')) {
+      throw new Error(`ติดขัดสิทธิ์ Row-Level Security (RLS) บน Supabase กรุณารันคำสั่ง SQL ปลดล็อกสิทธิ์ในระบบ Supabase Dashboard`);
     }
-    throw new Error(`บันทึกลง Supabase ตาราง ${primaryTable} ไม่สำเร็จ: ${error.message}`);
+    if (lastError.code === 'PGRST205' || lastError.code === '42P01' || lastError.message?.includes('schema cache') || lastError.message?.includes('does not exist')) {
+      throw new Error(`ไม่พบตาราง ${tables[0]} บน Supabase (รหัส PGRST205) กรุณารันคำสั่ง SQL สร้างตารางใน Supabase Dashboard`);
+    }
+    throw new Error(`บันทึกลง Supabase ไม่สำเร็จ (${tables[0]}): ${lastError.message || 'Unknown error'}`);
   }
 }
 
@@ -908,55 +919,36 @@ export async function dbSaveNTRecord(record: AcademicRecord, updatedBy?: string)
   const now = new Date().toISOString();
   clearAppCache();
 
-  const payload: AcademicRecord = {
-    ...record,
-    id: docId,
-    testType: 'NT',
-    updatedAt: now,
-    updatedBy: updatedBy || record.updatedBy || 'Super Admin'
-  };
-
-  // 1. Supabase
+  // Supabase direct save
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const supaPayload = {
-        id: docId,
-        order_num: record.order || 0,
-        school_id: record.schoolId || '',
-        school_name: record.schoolName || '',
-        amphoe: record.amphoe || '',
-        math_score: Number(record.mathScore) || 0,
-        math_percentage: Number(record.mathPercentage) || 0,
-        thai_score: Number(record.thaiScore) || 0,
-        thai_percentage: Number(record.thaiPercentage) || 0,
-        total_score: Number(record.totalScore) || 0,
-        total_percentage: Number(record.totalPercentage) || 0,
-        math_quality: record.mathQuality || 'พอใช้',
-        thai_quality: record.thaiQuality || 'พอใช้',
-        total_quality: record.totalQuality || 'พอใช้',
-        academic_year: record.academicYear || '2567',
-        test_type: 'NT',
-        test_title: record.testTitle || 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
-        notes: record.notes || '',
-        updated_at: now,
-        updated_by: updatedBy || record.updatedBy || 'Admin'
-      };
+    const supaPayload = {
+      id: docId,
+      order_num: record.order || 0,
+      school_id: record.schoolId || '',
+      school_name: record.schoolName || '',
+      amphoe: record.amphoe || '',
+      math_score: Number(record.mathScore) || 0,
+      math_percentage: Number(record.mathPercentage) || 0,
+      thai_score: Number(record.thaiScore) || 0,
+      thai_percentage: Number(record.thaiPercentage) || 0,
+      total_score: Number(record.totalScore) || 0,
+      total_percentage: Number(record.totalPercentage) || 0,
+      math_quality: record.mathQuality || 'พอใช้',
+      thai_quality: record.thaiQuality || 'พอใช้',
+      total_quality: record.totalQuality || 'พอใช้',
+      academic_year: record.academicYear || '2567',
+      test_type: 'NT',
+      test_title: record.testTitle || 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+      notes: record.notes || '',
+      updated_at: now,
+      updated_by: updatedBy || record.updatedBy || 'Admin'
+    };
 
-      await supaUpsertWithFallback('academic_nt_assessments', 'nt_assessments', supaPayload);
-    } catch (supaErr: any) {
-      console.error('Supabase academic_nt_assessments exception:', supaErr);
-      throw supaErr;
-    }
+    await supaUpsertWithFallback(['nt_assessments', 'academic_nt_assessments', 'academic_assessments'], supaPayload);
+    return;
   }
 
-  // 2. Firestore fallback
-  try {
-    await setDoc(doc(db, 'academic_nt_assessments', docId), cleanForFirestore(payload), { merge: true });
-    await setDoc(doc(db, 'nt_assessments', docId), cleanForFirestore(payload), { merge: true });
-    await setDoc(doc(db, 'academic_assessments', docId), cleanForFirestore(payload), { merge: true });
-  } catch (fsErr) {
-    console.warn('Firestore academic_nt_assessments fallback notice:', fsErr);
-  }
+  throw new Error('กรุณาตั้งค่าเชื่อมต่อกับฐานข้อมูล Supabase ก่อนบันทึกข้อมูล');
 }
 
 export async function dbSaveNTRecords(
@@ -968,72 +960,44 @@ export async function dbSaveNTRecords(
   clearAppCache();
   onProgress?.(10, `กำลังเตรียมข้อมูล NT จำนวน ${records.length} รายการ...`);
 
-  // 1. Supabase (chunks of 50)
+  // Supabase direct batch save (chunks of 50)
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const supaRows = records.map(r => ({
-        id: r.id || `${r.schoolId || r.order}_${r.academicYear}_NT`,
-        order_num: r.order || 0,
-        school_id: r.schoolId || '',
-        school_name: r.schoolName || '',
-        amphoe: r.amphoe || '',
-        math_score: Number(r.mathScore) || 0,
-        math_percentage: Number(r.mathPercentage) || 0,
-        thai_score: Number(r.thaiScore) || 0,
-        thai_percentage: Number(r.thaiPercentage) || 0,
-        total_score: Number(r.totalScore) || 0,
-        total_percentage: Number(r.totalPercentage) || 0,
-        math_quality: r.mathQuality || 'พอใช้',
-        thai_quality: r.thaiQuality || 'พอใช้',
-        total_quality: r.totalQuality || 'พอใช้',
-        academic_year: r.academicYear || '2567',
-        test_type: 'NT',
-        test_title: r.testTitle || 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
-        notes: r.notes || '',
-        updated_at: new Date().toISOString(),
-        updated_by: updatedBy || 'Admin'
-      }));
+    const supaRows = records.map(r => ({
+      id: r.id || `${r.schoolId || r.order}_${r.academicYear}_NT`,
+      order_num: r.order || 0,
+      school_id: r.schoolId || '',
+      school_name: r.schoolName || '',
+      amphoe: r.amphoe || '',
+      math_score: Number(r.mathScore) || 0,
+      math_percentage: Number(r.mathPercentage) || 0,
+      thai_score: Number(r.thaiScore) || 0,
+      thai_percentage: Number(r.thaiPercentage) || 0,
+      total_score: Number(r.totalScore) || 0,
+      total_percentage: Number(r.totalPercentage) || 0,
+      math_quality: r.mathQuality || 'พอใช้',
+      thai_quality: r.thaiQuality || 'พอใช้',
+      total_quality: r.totalQuality || 'พอใช้',
+      academic_year: r.academicYear || '2567',
+      test_type: 'NT',
+      test_title: r.testTitle || 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+      notes: r.notes || '',
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy || 'Admin'
+    }));
 
-      const CHUNK_SIZE = 50;
-      for (let i = 0; i < supaRows.length; i += CHUNK_SIZE) {
-        const chunk = supaRows.slice(i, i + CHUNK_SIZE);
-        const chunkPct = 10 + Math.round(((i + chunk.length) / supaRows.length) * 40);
-        onProgress?.(chunkPct, `กำลังบันทึกลง Supabase (${Math.min(i + chunk.length, supaRows.length)}/${supaRows.length} รายการ)...`);
-        await supaUpsertWithFallback('academic_nt_assessments', 'nt_assessments', chunk);
-      }
-    } catch (supaErr) {
-      console.warn('Supabase dbSaveNTRecords notice:', supaErr);
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < supaRows.length; i += CHUNK_SIZE) {
+      const chunk = supaRows.slice(i, i + CHUNK_SIZE);
+      const chunkPct = 10 + Math.round(((i + chunk.length) / supaRows.length) * 85);
+      onProgress?.(chunkPct, `กำลังบันทึกลง Supabase (${Math.min(i + chunk.length, supaRows.length)}/${supaRows.length} รายการ)...`);
+      await supaUpsertWithFallback(['nt_assessments', 'academic_nt_assessments', 'academic_assessments'], chunk);
     }
+
+    onProgress?.(100, `บันทึกข้อมูล NT ${records.length} รายการลง Supabase สำเร็จเรียบร้อย`);
+    return;
   }
 
-  // 2. Firestore batch
-  try {
-    const batchSize = 300;
-    for (let i = 0; i < records.length; i += batchSize) {
-      const chunk = records.slice(i, i + batchSize);
-      const fsPct = 50 + Math.round(((i + chunk.length) / records.length) * 45);
-      onProgress?.(fsPct, `กำลังซิงค์ข้อมูล Firestore (${Math.min(i + chunk.length, records.length)}/${records.length} รายการ)...`);
-      const batch = writeBatch(db);
-      for (const record of chunk) {
-        const docId = record.id || `${record.schoolId || record.order}_${record.academicYear}_NT`;
-        const now = new Date().toISOString();
-        const payload: AcademicRecord = {
-          ...record,
-          id: docId,
-          testType: 'NT',
-          updatedAt: now,
-          updatedBy: updatedBy || record.updatedBy || 'Super Admin'
-        };
-        batch.set(doc(db, 'academic_nt_assessments', docId), cleanForFirestore(payload), { merge: true });
-        batch.set(doc(db, 'nt_assessments', docId), cleanForFirestore(payload), { merge: true });
-      }
-      await batch.commit();
-    }
-  } catch (fsErr) {
-    console.warn('Firestore dbSaveNTRecords batch write notice:', fsErr);
-  }
-
-  onProgress?.(100, `บันทึกข้อมูล NT ${records.length} รายการสำเร็จเรียบร้อย`);
+  throw new Error('กรุณาตั้งค่าเชื่อมต่อกับฐานข้อมูล Supabase ก่อนบันทึกข้อมูล');
 }
 
 export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
@@ -1060,45 +1024,33 @@ export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
     updatedBy: d.updated_by
   });
 
-  // 1. Supabase (try academic_nt_assessments, fallback nt_assessments)
+  // Supabase direct fetch
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const res = await supabase.from('academic_nt_assessments').select('*').order('order_num', { ascending: true });
-      if (!res.error && res.data && res.data.length > 0) {
-        return res.data.map(mapNTRow);
-      }
-      // Fallback
-      const fbRes = await supabase.from('nt_assessments').select('*').order('order_num', { ascending: true });
-      if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
-        return fbRes.data.map(mapNTRow);
-      }
-    } catch (supaErr) {
-      console.warn('Supabase dbFetchNTRecords warning:', supaErr);
-    }
-  }
+    const candidateTables = ['nt_assessments', 'academic_nt_assessments', 'academic_assessments'];
+    for (const tbl of candidateTables) {
+      try {
+        let query = supabase.from(tbl).select('*');
+        if (tbl === 'academic_assessments') {
+          query = query.eq('test_type', 'NT');
+        }
+        
+        let res = await query.order('order_num', { ascending: true });
+        if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
+          // If order_num column doesn't exist, query raw
+          res = await supabase.from(tbl).select('*');
+          if (tbl === 'academic_assessments') {
+            res = await supabase.from(tbl).select('*').eq('test_type', 'NT');
+          }
+        }
 
-  // 2. Firestore
-  try {
-    const [ntSnap, aliasSnap, legacySnap] = await Promise.allSettled([
-      getDocs(collection(db, 'academic_nt_assessments')),
-      getDocs(collection(db, 'nt_assessments')),
-      getDocs(collection(db, 'academic_assessments'))
-    ]);
-
-    if (ntSnap.status === 'fulfilled' && !ntSnap.value.empty) {
-      return ntSnap.value.docs.map(d => ({ ...d.data(), id: d.id, testType: 'NT' } as AcademicRecord)).sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (!res.error && res.data && res.data.length > 0) {
+          const mapped = res.data.map(mapNTRow);
+          return mapped.sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+      } catch (supaErr) {
+        console.warn(`Supabase dbFetchNTRecords from ${tbl} notice:`, supaErr);
+      }
     }
-    if (aliasSnap.status === 'fulfilled' && !aliasSnap.value.empty) {
-      return aliasSnap.value.docs.map(d => ({ ...d.data(), id: d.id, testType: 'NT' } as AcademicRecord)).sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
-    if (legacySnap.status === 'fulfilled' && !legacySnap.value.empty) {
-      return legacySnap.value.docs
-        .map(d => ({ ...d.data(), id: d.id } as AcademicRecord))
-        .filter(d => d.testType !== 'RT')
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
-  } catch (err) {
-    console.warn('Firestore dbFetchNTRecords warning:', err);
   }
 
   return [];
@@ -1112,15 +1064,8 @@ export async function dbDeleteNTRecord(id: string): Promise<void> {
       await supabase.from('nt_assessments').delete().eq('id', id);
       await supabase.from('academic_assessments').delete().eq('id', id);
     } catch (e) {
-      // ignore
+      console.warn('Supabase dbDeleteNTRecord error:', e);
     }
-  }
-  try {
-    await deleteDoc(doc(db, 'academic_nt_assessments', id));
-    await deleteDoc(doc(db, 'nt_assessments', id));
-    await deleteDoc(doc(db, 'academic_assessments', id));
-  } catch (e) {
-    // ignore
   }
 }
 
@@ -1132,51 +1077,31 @@ export async function dbDeleteNTRecordsByYear(academicYear: string): Promise<num
   if (supabase && isSupabaseConfigured()) {
     try {
       if (cleanYear) {
+        const { error, count: deletedCount } = await supabase
+          .from('nt_assessments')
+          .delete({ count: 'exact' })
+          .eq('academic_year', cleanYear);
+        if (!error && typeof deletedCount === 'number') count = deletedCount;
+        
         await Promise.allSettled([
           supabase.from('academic_nt_assessments').delete().eq('academic_year', cleanYear),
-          supabase.from('nt_assessments').delete().eq('academic_year', cleanYear),
           supabase.from('academic_assessments').delete().eq('academic_year', cleanYear).eq('test_type', 'NT')
         ]);
       } else {
+        const { error, count: deletedCount } = await supabase
+          .from('nt_assessments')
+          .delete({ count: 'exact' })
+          .neq('id', '');
+        if (!error && typeof deletedCount === 'number') count = deletedCount;
+
         await Promise.allSettled([
           supabase.from('academic_nt_assessments').delete().neq('id', ''),
-          supabase.from('nt_assessments').delete().neq('id', ''),
           supabase.from('academic_assessments').delete().eq('test_type', 'NT')
         ]);
       }
     } catch (e) {
       console.warn('Supabase dbDeleteNTRecordsByYear error:', e);
     }
-  }
-
-  try {
-    const deleteColl = async (collName: string) => {
-      const snap = await getDocs(collection(db, collName));
-      const toDeleteDocs: string[] = [];
-      snap.forEach((docSnap) => {
-        const d = docSnap.data();
-        const dYear = String(d.academicYear || '').trim();
-        const dType = d.testType || 'NT';
-        if ((!cleanYear || dYear === cleanYear) && dType !== 'RT') {
-          toDeleteDocs.push(docSnap.id);
-        }
-      });
-      const batchSize = 400;
-      for (let i = 0; i < toDeleteDocs.length; i += batchSize) {
-        const chunk = toDeleteDocs.slice(i, i + batchSize);
-        const batch = writeBatch(db);
-        for (const id of chunk) {
-          batch.delete(doc(db, collName, id));
-        }
-        await batch.commit();
-        count += chunk.length;
-      }
-    };
-    await deleteColl('academic_nt_assessments');
-    await deleteColl('nt_assessments');
-    await deleteColl('academic_assessments');
-  } catch (err) {
-    console.warn('Firestore dbDeleteNTRecordsByYear warning:', err);
   }
 
   return count;
@@ -1191,61 +1116,42 @@ export async function dbSaveRTRecord(record: AcademicRecord, updatedBy?: string)
   const now = new Date().toISOString();
   clearAppCache();
 
-  const payload: AcademicRecord = {
-    ...record,
-    id: docId,
-    testType: 'RT',
-    updatedAt: now,
-    updatedBy: updatedBy || record.updatedBy || 'Super Admin'
-  };
-
-  // 1. Supabase
+  // Supabase direct save
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const supaPayload = {
-        id: docId,
-        order_num: record.order || 0,
-        school_id: record.schoolId || '',
-        school_name: record.schoolName || '',
-        amphoe: record.amphoe || '',
-        reading_aloud_score: Number(record.mathScore) || 0,
-        reading_aloud_percentage: Number(record.mathPercentage) || 0,
-        reading_comprehension_score: Number(record.thaiScore) || 0,
-        reading_comprehension_percentage: Number(record.thaiPercentage) || 0,
-        math_score: Number(record.mathScore) || 0,
-        math_percentage: Number(record.mathPercentage) || 0,
-        thai_score: Number(record.thaiScore) || 0,
-        thai_percentage: Number(record.thaiPercentage) || 0,
-        total_score: Number(record.totalScore) || 0,
-        total_percentage: Number(record.totalPercentage) || 0,
-        reading_aloud_quality: record.mathQuality || 'พอใช้',
-        reading_comprehension_quality: record.thaiQuality || 'พอใช้',
-        math_quality: record.mathQuality || 'พอใช้',
-        thai_quality: record.thaiQuality || 'พอใช้',
-        total_quality: record.totalQuality || 'พอใช้',
-        academic_year: record.academicYear || '2567',
-        test_type: 'RT',
-        test_title: record.testTitle || 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
-        notes: record.notes || '',
-        updated_at: now,
-        updated_by: updatedBy || record.updatedBy || 'Admin'
-      };
+    const supaPayload = {
+      id: docId,
+      order_num: record.order || 0,
+      school_id: record.schoolId || '',
+      school_name: record.schoolName || '',
+      amphoe: record.amphoe || '',
+      reading_aloud_score: Number(record.mathScore) || 0,
+      reading_aloud_percentage: Number(record.mathPercentage) || 0,
+      reading_comprehension_score: Number(record.thaiScore) || 0,
+      reading_comprehension_percentage: Number(record.thaiPercentage) || 0,
+      math_score: Number(record.mathScore) || 0,
+      math_percentage: Number(record.mathPercentage) || 0,
+      thai_score: Number(record.thaiScore) || 0,
+      thai_percentage: Number(record.thaiPercentage) || 0,
+      total_score: Number(record.totalScore) || 0,
+      total_percentage: Number(record.totalPercentage) || 0,
+      reading_aloud_quality: record.mathQuality || 'พอใช้',
+      reading_comprehension_quality: record.thaiQuality || 'พอใช้',
+      math_quality: record.mathQuality || 'พอใช้',
+      thai_quality: record.thaiQuality || 'พอใช้',
+      total_quality: record.totalQuality || 'พอใช้',
+      academic_year: record.academicYear || '2567',
+      test_type: 'RT',
+      test_title: record.testTitle || 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+      notes: record.notes || '',
+      updated_at: now,
+      updated_by: updatedBy || record.updatedBy || 'Admin'
+    };
 
-      await supaUpsertWithFallback('academic_rt_assessments', 'rt_assessments', supaPayload);
-    } catch (supaErr: any) {
-      console.error('Supabase academic_rt_assessments exception:', supaErr);
-      throw supaErr;
-    }
+    await supaUpsertWithFallback(['rt_assessments', 'academic_rt_assessments', 'academic_assessments'], supaPayload);
+    return;
   }
 
-  // 2. Firestore fallback
-  try {
-    await setDoc(doc(db, 'academic_rt_assessments', docId), cleanForFirestore(payload), { merge: true });
-    await setDoc(doc(db, 'rt_assessments', docId), cleanForFirestore(payload), { merge: true });
-    await setDoc(doc(db, 'academic_assessments', docId), cleanForFirestore(payload), { merge: true });
-  } catch (fsErr) {
-    console.warn('Firestore academic_rt_assessments fallback notice:', fsErr);
-  }
+  throw new Error('กรุณาตั้งค่าเชื่อมต่อกับฐานข้อมูล Supabase ก่อนบันทึกข้อมูล');
 }
 
 export async function dbSaveRTRecords(
@@ -1257,78 +1163,50 @@ export async function dbSaveRTRecords(
   clearAppCache();
   onProgress?.(10, `กำลังเตรียมข้อมูล RT จำนวน ${records.length} รายการ...`);
 
-  // 1. Supabase (chunks of 50)
+  // Supabase direct batch save (chunks of 50)
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const supaRows = records.map(r => ({
-        id: r.id || `${r.schoolId || r.order}_${r.academicYear}_RT`,
-        order_num: r.order || 0,
-        school_id: r.schoolId || '',
-        school_name: r.schoolName || '',
-        amphoe: r.amphoe || '',
-        reading_aloud_score: Number(r.mathScore) || 0,
-        reading_aloud_percentage: Number(r.mathPercentage) || 0,
-        reading_comprehension_score: Number(r.thaiScore) || 0,
-        reading_comprehension_percentage: Number(r.thaiPercentage) || 0,
-        math_score: Number(r.mathScore) || 0,
-        math_percentage: Number(r.mathPercentage) || 0,
-        thai_score: Number(r.thaiScore) || 0,
-        thai_percentage: Number(r.thaiPercentage) || 0,
-        total_score: Number(r.totalScore) || 0,
-        total_percentage: Number(r.totalPercentage) || 0,
-        reading_aloud_quality: r.mathQuality || 'พอใช้',
-        reading_comprehension_quality: r.thaiQuality || 'พอใช้',
-        math_quality: r.mathQuality || 'พอใช้',
-        thai_quality: r.thaiQuality || 'พอใช้',
-        total_quality: r.totalQuality || 'พอใช้',
-        academic_year: r.academicYear || '2567',
-        test_type: 'RT',
-        test_title: r.testTitle || 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
-        notes: r.notes || '',
-        updated_at: new Date().toISOString(),
-        updated_by: updatedBy || 'Admin'
-      }));
+    const supaRows = records.map(r => ({
+      id: r.id || `${r.schoolId || r.order}_${r.academicYear}_RT`,
+      order_num: r.order || 0,
+      school_id: r.schoolId || '',
+      school_name: r.schoolName || '',
+      amphoe: r.amphoe || '',
+      reading_aloud_score: Number(r.mathScore) || 0,
+      reading_aloud_percentage: Number(r.mathPercentage) || 0,
+      reading_comprehension_score: Number(r.thaiScore) || 0,
+      reading_comprehension_percentage: Number(r.thaiPercentage) || 0,
+      math_score: Number(r.mathScore) || 0,
+      math_percentage: Number(r.mathPercentage) || 0,
+      thai_score: Number(r.thaiScore) || 0,
+      thai_percentage: Number(r.thaiPercentage) || 0,
+      total_score: Number(r.totalScore) || 0,
+      total_percentage: Number(r.totalPercentage) || 0,
+      reading_aloud_quality: r.mathQuality || 'พอใช้',
+      reading_comprehension_quality: r.thaiQuality || 'พอใช้',
+      math_quality: r.mathQuality || 'พอใช้',
+      thai_quality: r.thaiQuality || 'พอใช้',
+      total_quality: r.totalQuality || 'พอใช้',
+      academic_year: r.academicYear || '2567',
+      test_type: 'RT',
+      test_title: r.testTitle || 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+      notes: r.notes || '',
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy || 'Admin'
+    }));
 
-      const CHUNK_SIZE = 50;
-      for (let i = 0; i < supaRows.length; i += CHUNK_SIZE) {
-        const chunk = supaRows.slice(i, i + CHUNK_SIZE);
-        const chunkPct = 10 + Math.round(((i + chunk.length) / supaRows.length) * 40);
-        onProgress?.(chunkPct, `กำลังบันทึกลง Supabase (${Math.min(i + chunk.length, supaRows.length)}/${supaRows.length} รายการ)...`);
-        await supaUpsertWithFallback('academic_rt_assessments', 'rt_assessments', chunk);
-      }
-    } catch (supaErr) {
-      console.warn('Supabase dbSaveRTRecords notice:', supaErr);
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < supaRows.length; i += CHUNK_SIZE) {
+      const chunk = supaRows.slice(i, i + CHUNK_SIZE);
+      const chunkPct = 10 + Math.round(((i + chunk.length) / supaRows.length) * 85);
+      onProgress?.(chunkPct, `กำลังบันทึกลง Supabase (${Math.min(i + chunk.length, supaRows.length)}/${supaRows.length} รายการ)...`);
+      await supaUpsertWithFallback(['rt_assessments', 'academic_rt_assessments', 'academic_assessments'], chunk);
     }
+
+    onProgress?.(100, `บันทึกข้อมูล RT ${records.length} รายการลง Supabase สำเร็จเรียบร้อย`);
+    return;
   }
 
-  // 2. Firestore batch
-  try {
-    const batchSize = 300;
-    for (let i = 0; i < records.length; i += batchSize) {
-      const chunk = records.slice(i, i + batchSize);
-      const fsPct = 50 + Math.round(((i + chunk.length) / records.length) * 45);
-      onProgress?.(fsPct, `กำลังซิงค์ข้อมูล Firestore (${Math.min(i + chunk.length, records.length)}/${records.length} รายการ)...`);
-      const batch = writeBatch(db);
-      for (const record of chunk) {
-        const docId = record.id || `${record.schoolId || record.order}_${record.academicYear}_RT`;
-        const now = new Date().toISOString();
-        const payload: AcademicRecord = {
-          ...record,
-          id: docId,
-          testType: 'RT',
-          updatedAt: now,
-          updatedBy: updatedBy || record.updatedBy || 'Super Admin'
-        };
-        batch.set(doc(db, 'academic_rt_assessments', docId), cleanForFirestore(payload), { merge: true });
-        batch.set(doc(db, 'rt_assessments', docId), cleanForFirestore(payload), { merge: true });
-      }
-      await batch.commit();
-    }
-  } catch (fsErr) {
-    console.warn('Firestore dbSaveRTRecords batch write notice:', fsErr);
-  }
-
-  onProgress?.(100, `บันทึกข้อมูล RT ${records.length} รายการสำเร็จเรียบร้อย`);
+  throw new Error('กรุณาตั้งค่าเชื่อมต่อกับฐานข้อมูล Supabase ก่อนบันทึกข้อมูล');
 }
 
 export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
@@ -1355,45 +1233,33 @@ export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
     updatedBy: d.updated_by
   });
 
-  // 1. Supabase (try academic_rt_assessments, fallback rt_assessments)
+  // Supabase direct fetch
   if (supabase && isSupabaseConfigured()) {
-    try {
-      const res = await supabase.from('academic_rt_assessments').select('*').order('order_num', { ascending: true });
-      if (!res.error && res.data && res.data.length > 0) {
-        return res.data.map(mapRTRow);
-      }
-      // Fallback
-      const fbRes = await supabase.from('rt_assessments').select('*').order('order_num', { ascending: true });
-      if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
-        return fbRes.data.map(mapRTRow);
-      }
-    } catch (supaErr) {
-      console.warn('Supabase dbFetchRTRecords warning:', supaErr);
-    }
-  }
+    const candidateTables = ['rt_assessments', 'academic_rt_assessments', 'academic_assessments'];
+    for (const tbl of candidateTables) {
+      try {
+        let query = supabase.from(tbl).select('*');
+        if (tbl === 'academic_assessments') {
+          query = query.eq('test_type', 'RT');
+        }
+        
+        let res = await query.order('order_num', { ascending: true });
+        if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
+          // If order_num column doesn't exist, query raw
+          res = await supabase.from(tbl).select('*');
+          if (tbl === 'academic_assessments') {
+            res = await supabase.from(tbl).select('*').eq('test_type', 'RT');
+          }
+        }
 
-  // 2. Firestore
-  try {
-    const [rtSnap, aliasSnap, legacySnap] = await Promise.allSettled([
-      getDocs(collection(db, 'academic_rt_assessments')),
-      getDocs(collection(db, 'rt_assessments')),
-      getDocs(collection(db, 'academic_assessments'))
-    ]);
-
-    if (rtSnap.status === 'fulfilled' && !rtSnap.value.empty) {
-      return rtSnap.value.docs.map(d => ({ ...d.data(), id: d.id, testType: 'RT' } as AcademicRecord)).sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (!res.error && res.data && res.data.length > 0) {
+          const mapped = res.data.map(mapRTRow);
+          return mapped.sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+      } catch (supaErr) {
+        console.warn(`Supabase dbFetchRTRecords from ${tbl} notice:`, supaErr);
+      }
     }
-    if (aliasSnap.status === 'fulfilled' && !aliasSnap.value.empty) {
-      return aliasSnap.value.docs.map(d => ({ ...d.data(), id: d.id, testType: 'RT' } as AcademicRecord)).sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
-    if (legacySnap.status === 'fulfilled' && !legacySnap.value.empty) {
-      return legacySnap.value.docs
-        .map(d => ({ ...d.data(), id: d.id } as AcademicRecord))
-        .filter(d => d.testType === 'RT')
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
-  } catch (err) {
-    console.warn('Firestore dbFetchRTRecords warning:', err);
   }
 
   return [];
@@ -1407,15 +1273,8 @@ export async function dbDeleteRTRecord(id: string): Promise<void> {
       await supabase.from('rt_assessments').delete().eq('id', id);
       await supabase.from('academic_assessments').delete().eq('id', id);
     } catch (e) {
-      // ignore
+      console.warn('Supabase dbDeleteRTRecord error:', e);
     }
-  }
-  try {
-    await deleteDoc(doc(db, 'academic_rt_assessments', id));
-    await deleteDoc(doc(db, 'rt_assessments', id));
-    await deleteDoc(doc(db, 'academic_assessments', id));
-  } catch (e) {
-    // ignore
   }
 }
 
@@ -1427,51 +1286,31 @@ export async function dbDeleteRTRecordsByYear(academicYear: string): Promise<num
   if (supabase && isSupabaseConfigured()) {
     try {
       if (cleanYear) {
+        const { error, count: deletedCount } = await supabase
+          .from('rt_assessments')
+          .delete({ count: 'exact' })
+          .eq('academic_year', cleanYear);
+        if (!error && typeof deletedCount === 'number') count = deletedCount;
+
         await Promise.allSettled([
           supabase.from('academic_rt_assessments').delete().eq('academic_year', cleanYear),
-          supabase.from('rt_assessments').delete().eq('academic_year', cleanYear),
           supabase.from('academic_assessments').delete().eq('academic_year', cleanYear).eq('test_type', 'RT')
         ]);
       } else {
+        const { error, count: deletedCount } = await supabase
+          .from('rt_assessments')
+          .delete({ count: 'exact' })
+          .neq('id', '');
+        if (!error && typeof deletedCount === 'number') count = deletedCount;
+
         await Promise.allSettled([
           supabase.from('academic_rt_assessments').delete().neq('id', ''),
-          supabase.from('rt_assessments').delete().neq('id', ''),
           supabase.from('academic_assessments').delete().eq('test_type', 'RT')
         ]);
       }
     } catch (e) {
       console.warn('Supabase dbDeleteRTRecordsByYear error:', e);
     }
-  }
-
-  try {
-    const deleteColl = async (collName: string) => {
-      const snap = await getDocs(collection(db, collName));
-      const toDeleteDocs: string[] = [];
-      snap.forEach((docSnap) => {
-        const d = docSnap.data();
-        const dYear = String(d.academicYear || '').trim();
-        const dType = d.testType || 'RT';
-        if ((!cleanYear || dYear === cleanYear) && dType === 'RT') {
-          toDeleteDocs.push(docSnap.id);
-        }
-      });
-      const batchSize = 400;
-      for (let i = 0; i < toDeleteDocs.length; i += batchSize) {
-        const chunk = toDeleteDocs.slice(i, i + batchSize);
-        const batch = writeBatch(db);
-        for (const id of chunk) {
-          batch.delete(doc(db, collName, id));
-        }
-        await batch.commit();
-        count += chunk.length;
-      }
-    };
-    await deleteColl('academic_rt_assessments');
-    await deleteColl('rt_assessments');
-    await deleteColl('academic_assessments');
-  } catch (err) {
-    console.warn('Firestore dbDeleteRTRecordsByYear warning:', err);
   }
 
   return count;

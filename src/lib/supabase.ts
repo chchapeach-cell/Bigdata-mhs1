@@ -407,6 +407,95 @@ ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key;
 NOTIFY pgrst, 'reload schema';
 `;
 
+export const SUPABASE_NT_RT_SQL = `-- =============================================================
+-- คำสั่งสร้างตารางและปลดล็อกสิทธิ์สำหรับ NT (ป.3) และ RT (ป.1) บน Supabase
+-- คัดลอกคำสั่งทั้งหมดนี้ไปวางใน SQL Editor บน Supabase Dashboard แล้วกด Run
+-- =============================================================
+
+-- 1. สร้างตาราง nt_assessments (NT ป.3)
+CREATE TABLE IF NOT EXISTS public.nt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'NT',
+    test_title TEXT DEFAULT 'การประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 2. สร้างตาราง rt_assessments (RT ป.1)
+CREATE TABLE IF NOT EXISTS public.rt_assessments (
+    id TEXT PRIMARY KEY,
+    order_num INT DEFAULT 0,
+    school_id TEXT NOT NULL,
+    school_name TEXT NOT NULL,
+    amphoe TEXT,
+    reading_aloud_score DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_score DOUBLE PRECISION DEFAULT 0,
+    reading_comprehension_percentage DOUBLE PRECISION DEFAULT 0,
+    math_score DOUBLE PRECISION DEFAULT 0,
+    math_percentage DOUBLE PRECISION DEFAULT 0,
+    thai_score DOUBLE PRECISION DEFAULT 0,
+    thai_percentage DOUBLE PRECISION DEFAULT 0,
+    total_score DOUBLE PRECISION DEFAULT 0,
+    total_percentage DOUBLE PRECISION DEFAULT 0,
+    reading_aloud_quality TEXT DEFAULT 'พอใช้',
+    reading_comprehension_quality TEXT DEFAULT 'พอใช้',
+    math_quality TEXT DEFAULT 'พอใช้',
+    thai_quality TEXT DEFAULT 'พอใช้',
+    total_quality TEXT DEFAULT 'พอใช้',
+    academic_year TEXT NOT NULL DEFAULT '2567',
+    test_type TEXT NOT NULL DEFAULT 'RT',
+    test_title TEXT DEFAULT 'การประเมินความสามารถด้านการอ่านของผู้เรียน (RT) ชั้นประถมศึกษาปีที่ 1',
+    notes TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT
+);
+
+-- 3. ตารางสำรอง academic_nt_assessments และ academic_rt_assessments
+CREATE TABLE IF NOT EXISTS public.academic_nt_assessments (LIKE public.nt_assessments INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS public.academic_rt_assessments (LIKE public.rt_assessments INCLUDING ALL);
+
+-- 4. ตั้งค่า RLS และสิทธิ์การเข้าถึงแบบสมบูรณ์
+ALTER TABLE public.nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_nt_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.academic_rt_assessments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public All Access" ON public.nt_assessments;
+CREATE POLICY "Public All Access" ON public.nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.rt_assessments;
+CREATE POLICY "Public All Access" ON public.rt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_nt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_nt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public All Access" ON public.academic_rt_assessments;
+CREATE POLICY "Public All Access" ON public.academic_rt_assessments FOR ALL USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.nt_assessments TO anon, authenticated, postgres, service_role;
+GRANT ALL ON public.rt_assessments TO anon, authenticated, postgres, service_role;
+GRANT ALL ON public.academic_nt_assessments TO anon, authenticated, postgres, service_role;
+GRANT ALL ON public.academic_rt_assessments TO anon, authenticated, postgres, service_role;
+
+NOTIFY pgrst, 'reload schema';
+`;
+
 export const SUPABASE_SCHEMA_SQL = `-- 1. สร้างตาราง schools (ข้อมูลสถานศึกษา)
 CREATE TABLE IF NOT EXISTS public.schools (
     id TEXT PRIMARY KEY,
