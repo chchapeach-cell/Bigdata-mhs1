@@ -2583,7 +2583,7 @@ export default function AdminPanel({
                         <button
                           type="submit"
                           disabled={isUploading || previewData.length === 0}
-                          className="btn-cute bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                          className="btn-cute w-full sm:w-auto bg-[#FF8BA7] text-[#33272A] px-5 py-2.5 text-xs font-black flex justify-center items-center gap-1.5 disabled:opacity-50"
                         >
                           <Upload className="h-4.5 w-4.5" />
                           {isUploading ? 'กำลังประมวลผลและนำเข้า...' : 'นำเข้าไฟล์ข้อมูลสถิติลงระบบหลัก'}
@@ -4889,7 +4889,7 @@ export default function AdminPanel({
 
                   {/* 1. ระบบ Pop-up แจ้งเตือนผู้ใช้งานหนาแน่น */}
                   <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
                           <Activity className="h-4 w-4 text-rose-500" />
@@ -4992,7 +4992,7 @@ export default function AdminPanel({
                   </div>
 
                   {/* 2. เปิด/ปิด การดาวน์โหลดข้อมูล */}
-                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
                         เปิด/ปิด การดาวน์โหลดข้อมูลระบบทั้งหมด (Export Data)
@@ -5025,7 +5025,7 @@ export default function AdminPanel({
                   </div>
 
                   {/* 3. จำกัด 1 แอดมินต่อโรงเรียน */}
-                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
                         นโยบายจำกัด 1 แอดมินต่อ 1 โรงเรียน
@@ -5058,7 +5058,7 @@ export default function AdminPanel({
                   </div>
 
                   {/* 4. เปิด/ปิด การรับสมัครแอดมินโรงเรียน */}
-                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
                         ระบบเปิดรับสมัครแอดมินโรงเรียนใหม่
@@ -5091,7 +5091,7 @@ export default function AdminPanel({
                   </div>
 
                   {/* 5. เปิด/ปิด การแสดงผลเมนูติดต่อสื่อสาร */}
-                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-between gap-3 shadow-sm">
+                  <div className="p-4 bg-white dark:bg-[#1a1214] rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                     <div>
                       <p className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
                         <Phone className="h-4 w-4 text-emerald-500" />

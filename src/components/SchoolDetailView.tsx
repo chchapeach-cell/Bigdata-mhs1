@@ -10,7 +10,7 @@ import {
   Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
   Mail, ExternalLink, MessageCircle, Clock, History, UserCheck
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 interface SchoolDetailViewProps {
   school: School;
@@ -33,6 +33,8 @@ interface SchoolDetailViewProps {
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
 }
+
+const COLORS = ['#A0E7E5', '#FF8BA7', '#FFD3B6', '#FFAAA5', '#60A5FA', '#A78BFA', '#FBBF24', '#34D399', '#FB923C', '#F472B6', '#FCA5A5', '#818CF8', '#A7F3D0'];
 
 export default function SchoolDetailView({
   school,
@@ -2613,7 +2615,11 @@ export default function SchoolDetailView({
                     }}
                     itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
                   />
-                  <Bar dataKey="teachersCount" name="จำนวนครู (คน)" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="teachersCount" name="จำนวนครู (คน)" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[0, 4, 4, 0]}>
+                    {displayMajors.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
