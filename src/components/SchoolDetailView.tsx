@@ -1,24 +1,27 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject } from '../types';
-import { dbSaveSchool, dbDeleteSchool } from '../lib/dbAdapter';
+import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
+import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
+import { generateInitialAcademicRecords, determineQualityLevel, matchSchoolId } from '../utils/academicData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, Droplets,
   Users, GraduationCap, Grid, Edit2, Save, X, Upload, Image, AlertCircle, CheckCircle2, Loader2, TrendingUp,
   Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
-  Mail, ExternalLink, MessageCircle, Clock, History, UserCheck
+  Mail, ExternalLink, MessageCircle, Clock, History, UserCheck, Award, Calculator, HelpCircle, FileSpreadsheet, ChevronRight, BarChart3, ArrowRight
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 
 interface SchoolDetailViewProps {
   school: School;
   studentData: StudentData | null;
   allStudentData?: StudentData[];
   allStudentGData?: StudentGData[];
+  academicRecords?: AcademicRecord[];
   onBack: () => void;
   onNavigateToContact?: () => void;
+  onNavigateToAcademic?: () => void;
   userProfile: UserProfile | null;
   onRefreshData: () => Promise<void>;
   isDarkMode?: boolean;
@@ -41,8 +44,10 @@ export default function SchoolDetailView({
   studentData,
   allStudentData = [],
   allStudentGData = [],
+  academicRecords = [],
   onBack,
   onNavigateToContact,
+  onNavigateToAcademic,
   userProfile,
   onRefreshData,
   isDarkMode = false,
@@ -808,6 +813,196 @@ export default function SchoolDetailView({
     }
     return levels.length > 0 ? levels.join(", ") : "ไม่ระบุชั้นเรียน";
   }, [school, effectiveStudentData]);
+
+  // โหลดและประมวลผลข้อมูลผลสัมฤทธิ์ทางการศึกษา RT / NT ของโรงเรียนนี้
+  const [localAcademicRecords, setLocalAcademicRecords] = useState<AcademicRecord[]>(academicRecords || []);
+  const [selectedAcademicTestFilter, setSelectedAcademicTestFilter] = useState<'all' | 'RT' | 'NT'>('all');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear || academicYear || '2567');
+
+  useEffect(() => {
+    if (academicRecords && academicRecords.length > 0) {
+      setLocalAcademicRecords(academicRecords);
+    } else {
+      dbFetchAcademicRecords().then(recs => {
+        if (recs && recs.length > 0) {
+          setLocalAcademicRecords(recs);
+        } else {
+          setLocalAcademicRecords(generateInitialAcademicRecords([school], selectedYear || academicYear || '2567'));
+        }
+      }).catch(() => {
+        setLocalAcademicRecords(generateInitialAcademicRecords([school], selectedYear || academicYear || '2567'));
+      });
+    }
+  }, [academicRecords, school, selectedYear, academicYear]);
+
+  // กรองเฉพาะรายการของโรงเรียนนี้
+  const schoolAcademicRecords = useMemo(() => {
+    const list = localAcademicRecords && localAcademicRecords.length > 0
+      ? localAcademicRecords
+      : generateInitialAcademicRecords([school], selectedAcademicYear || selectedYear || academicYear || '2567');
+
+    const cleanSchoolName = (school.name || '').replace(/^(โรงเรียน|รร\.)/, '').trim();
+
+    return list.filter(r => {
+      if (r.schoolId && r.schoolId === school.id) return true;
+      const cleanRecName = (r.schoolName || '').replace(/^(โรงเรียน|รร\.)/, '').trim();
+      if (cleanRecName && cleanSchoolName && (cleanRecName === cleanSchoolName || cleanRecName.includes(cleanSchoolName) || cleanSchoolName.includes(cleanRecName))) {
+        return true;
+      }
+      const matched = matchSchoolId(r.schoolId, r.schoolName, r.amphoe, [school]);
+      return matched === school.id;
+    });
+  }, [localAcademicRecords, school, selectedAcademicYear, selectedYear, academicYear]);
+
+  // รายการปีการศึกษาที่มีข้อมูล RT/NT ของโรงเรียนนี้
+  const availableAcademicYears = useMemo<string[]>(() => {
+    const rawList = schoolAcademicRecords.map(r => String(r.academicYear || '').trim()).filter(Boolean);
+    const yrs: string[] = Array.from(new Set(rawList));
+    if (yrs.length === 0) {
+      return ['2567', '2568', '2566', '2565'];
+    }
+    return yrs.sort((a: string, b: string) => b.localeCompare(a));
+  }, [schoolAcademicRecords]);
+
+  // ซิงค์ปีการศึกษากับ selectedYear
+  useEffect(() => {
+    if (availableAcademicYears.includes(selectedYear)) {
+      setSelectedAcademicYear(selectedYear);
+    } else if (availableAcademicYears.length > 0 && !availableAcademicYears.includes(selectedAcademicYear)) {
+      setSelectedAcademicYear(availableAcademicYears[0]);
+    }
+  }, [selectedYear, availableAcademicYears]);
+
+  // ข้อมูล RT ของโรงเรียนนี้ตามปีการศึกษาที่เลือก
+  const currentRTRecord = useMemo(() => {
+    return schoolAcademicRecords.find(r => r.testType === 'RT' && String(r.academicYear).trim() === String(selectedAcademicYear).trim())
+      || schoolAcademicRecords.find(r => r.testType === 'RT') || null;
+  }, [schoolAcademicRecords, selectedAcademicYear]);
+
+  // ข้อมูล NT ของโรงเรียนนี้ตามปีการศึกษาที่เลือก
+  const currentNTRecord = useMemo(() => {
+    return schoolAcademicRecords.find(r => r.testType === 'NT' && String(r.academicYear).trim() === String(selectedAcademicYear).trim())
+      || schoolAcademicRecords.find(r => r.testType === 'NT') || null;
+  }, [schoolAcademicRecords, selectedAcademicYear]);
+
+  // Quality Badge Helper สำหรับ RT / NT
+  const renderQualityBadge = (quality?: QualityLevel | string, size: 'sm' | 'md' = 'sm') => {
+    const q = quality || 'พอใช้';
+    const isSm = size === 'sm';
+    const padding = isSm ? 'px-2.5 py-0.5 text-[10px]' : 'px-3 py-1 text-xs';
+    switch (q) {
+      case 'ดีมาก':
+        return (
+          <span className={`inline-flex items-center gap-1.5 rounded-full font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-2xs ${padding}`}>
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            ดีมาก
+          </span>
+        );
+      case 'ดี':
+        return (
+          <span className={`inline-flex items-center gap-1.5 rounded-full font-black bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-300 dark:border-blue-700 shadow-2xs ${padding}`}>
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            ดี
+          </span>
+        );
+      case 'พอใช้':
+        return (
+          <span className={`inline-flex items-center gap-1.5 rounded-full font-black bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs ${padding}`}>
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            พอใช้
+          </span>
+        );
+      case 'ปรับปรุง':
+      default:
+        return (
+          <span className={`inline-flex items-center gap-1.5 rounded-full font-black bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-700 shadow-2xs ${padding}`}>
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            ปรับปรุง
+          </span>
+        );
+    }
+  };
+
+  // Helper สำหรับสีแถบ Progress Bar
+  const getQualityProgressColor = (percentage: number) => {
+    if (percentage >= 70) return 'bg-emerald-500';
+    if (percentage >= 50) return 'bg-blue-500';
+    if (percentage >= 30) return 'bg-amber-500';
+    return 'bg-rose-500';
+  };
+
+  // กราฟเปรียบเทียบผลสัมฤทธิ์ RT / NT ของโรงเรียนนี้
+  const academicChartData = useMemo(() => {
+    const data: Array<{ name: string; percentage: number; score: number; maxScore: number; quality: string; test: string; color: string }> = [];
+
+    if (currentRTRecord && (selectedAcademicTestFilter === 'all' || selectedAcademicTestFilter === 'RT')) {
+      const qMath = currentRTRecord.mathQuality || determineQualityLevel(currentRTRecord.mathPercentage);
+      const qThai = currentRTRecord.thaiQuality || determineQualityLevel(currentRTRecord.thaiPercentage);
+      const qTotal = currentRTRecord.totalQuality || determineQualityLevel(currentRTRecord.totalPercentage);
+      data.push({
+        name: 'RT: อ่านออกเสียง',
+        percentage: Number((currentRTRecord.mathPercentage || 0).toFixed(2)),
+        score: currentRTRecord.mathScore || 0,
+        maxScore: 50,
+        quality: qMath,
+        test: 'RT',
+        color: '#A0E7E5'
+      });
+      data.push({
+        name: 'RT: อ่านรู้เรื่อง',
+        percentage: Number((currentRTRecord.thaiPercentage || 0).toFixed(2)),
+        score: currentRTRecord.thaiScore || 0,
+        maxScore: 50,
+        quality: qThai,
+        test: 'RT',
+        color: '#FF8BA7'
+      });
+      data.push({
+        name: 'RT: รวม 2 ด้าน',
+        percentage: Number((currentRTRecord.totalPercentage || 0).toFixed(2)),
+        score: currentRTRecord.totalScore || 0,
+        maxScore: 100,
+        quality: qTotal,
+        test: 'RT',
+        color: '#FFD3B6'
+      });
+    }
+
+    if (currentNTRecord && (selectedAcademicTestFilter === 'all' || selectedAcademicTestFilter === 'NT')) {
+      const qMath = currentNTRecord.mathQuality || determineQualityLevel(currentNTRecord.mathPercentage);
+      const qThai = currentNTRecord.thaiQuality || determineQualityLevel(currentNTRecord.thaiPercentage);
+      const qTotal = currentNTRecord.totalQuality || determineQualityLevel(currentNTRecord.totalPercentage);
+      data.push({
+        name: 'NT: คณิตศาสตร์',
+        percentage: Number((currentNTRecord.mathPercentage || 0).toFixed(2)),
+        score: currentNTRecord.mathScore || 0,
+        maxScore: 100,
+        quality: qMath,
+        test: 'NT',
+        color: '#60A5FA'
+      });
+      data.push({
+        name: 'NT: ภาษาไทย',
+        percentage: Number((currentNTRecord.thaiPercentage || 0).toFixed(2)),
+        score: currentNTRecord.thaiScore || 0,
+        maxScore: 100,
+        quality: qThai,
+        test: 'NT',
+        color: '#A78BFA'
+      });
+      data.push({
+        name: 'NT: รวม 2 ด้าน',
+        percentage: Number((currentNTRecord.totalPercentage || 0).toFixed(2)),
+        score: currentNTRecord.totalScore || 0,
+        maxScore: 100,
+        quality: qTotal,
+        test: 'NT',
+        color: '#FBBF24'
+      });
+    }
+
+    return data;
+  }, [currentRTRecord, currentNTRecord, selectedAcademicTestFilter]);
 
   // ฟังก์ชันดาวน์โหลด PDF สรุปข้อมูลโรงเรียนนี้
   const handleExportSchoolPdf = async () => {
@@ -2684,6 +2879,554 @@ export default function SchoolDetailView({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ส่วนแสดงผลสัมฤทธิ์ทางการศึกษา RT (ป.1) & NT (ป.3) ประจำโรงเรียนนี้ */}
+      {/* ========================================================================= */}
+      <div className="space-y-6 pt-2">
+        {/* หัวข้อหมวดผลสัมฤทธิ์ */}
+        <div className="card p-5 bg-gradient-to-r from-amber-500/10 via-rose-500/5 to-sky-500/10 dark:from-amber-950/40 dark:via-rose-950/20 dark:to-sky-950/40 border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-md">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-amber-400 dark:bg-amber-500 text-[#33272A] border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center shrink-0 shadow-sm">
+                <Award className="h-7 w-7 text-[#33272A]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    ผลสัมฤทธิ์ทางการศึกษา (RT & NT) - {school.name}
+                  </h2>
+                  <span className="bg-amber-400/30 text-amber-900 dark:text-amber-200 border border-amber-500/50 text-[10px] font-black px-2 py-0.5 rounded-full">
+                    สพป.แม่ฮ่องสอน เขต 1
+                  </span>
+                </div>
+                <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                  รายงานผลการประเมินความสามารถด้านการอ่าน (RT ชั้น ป.1) และการประเมินคุณภาพผู้เรียน (NT ชั้น ป.3)
+                </p>
+              </div>
+            </div>
+
+            {/* ส่วนควบคุม: เลือกปีการศึกษา และ กรองประเภท */}
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+              <div className="flex items-center gap-1.5 bg-white dark:bg-[#1e1518] px-2.5 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <GraduationCap className="h-4 w-4 text-amber-500" />
+                <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">ปี:</span>
+                <select
+                  value={selectedAcademicYear}
+                  onChange={(e) => setSelectedAcademicYear(e.target.value)}
+                  className="bg-transparent text-xs font-black text-[#33272A] dark:text-[#FFF9F5] outline-none cursor-pointer"
+                >
+                  {availableAcademicYears.map(yr => (
+                    <option key={yr} value={yr} className="dark:bg-[#1e1518]">ปีการศึกษา {yr}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ปุ่มสลับตัวกรอง RT / NT / ทั้งหมด */}
+              <div className="inline-flex rounded-xl p-1 bg-white/80 dark:bg-slate-800 border-2 border-[#33272A] dark:border-[#FFD3B6]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAcademicTestFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    selectedAcademicTestFilter === 'all'
+                      ? 'bg-[#33272A] text-white dark:bg-[#FF8BA7] dark:text-[#33272A] shadow-xs'
+                      : 'text-[#33272A]/70 dark:text-[#FFF9F5]/70 hover:text-[#33272A]'
+                  }`}
+                >
+                  ทั้งหมด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAcademicTestFilter('RT')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    selectedAcademicTestFilter === 'RT'
+                      ? 'bg-rose-500 text-white shadow-xs'
+                      : 'text-[#33272A]/70 dark:text-[#FFF9F5]/70 hover:text-rose-500'
+                  }`}
+                >
+                  RT (ป.1)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAcademicTestFilter('NT')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    selectedAcademicTestFilter === 'NT'
+                      ? 'bg-sky-500 text-white shadow-xs'
+                      : 'text-[#33272A]/70 dark:text-[#FFF9F5]/70 hover:text-sky-500'
+                  }`}
+                >
+                  NT (ป.3)
+                </button>
+              </div>
+
+              {/* ลิงก์ดูตารางรวมทั้งเขต */}
+              {onNavigateToAcademic && (
+                <button
+                  type="button"
+                  onClick={onNavigateToAcademic}
+                  className="inline-flex items-center gap-1 bg-[#FFF9F5] hover:bg-amber-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#33272A] dark:text-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] px-3 py-1.5 rounded-xl text-xs font-black transition-colors cursor-pointer"
+                  title="เปิดหน้าเมนูผลสัมฤทธิ์ทางการศึกษาเพื่อดูตารางจัดอันดับ 124 โรงเรียนทั้งเขต"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>ตาราง 124 รร. ทั้งเขต</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* สรุปคะแนนภาพรวม RT & NT (KPI Cards) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+            {/* กล่องสรุป RT ป.1 */}
+            <div className="bg-white/90 dark:bg-[#1e1518] p-3.5 rounded-2xl border-2 border-rose-200 dark:border-rose-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  <span className="text-[11px] font-black text-rose-700 dark:text-rose-300">
+                    RT ป.1 (รวม 2 ด้าน) ปี {selectedAcademicYear}
+                  </span>
+                </div>
+                <div className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                  {currentRTRecord ? `${currentRTRecord.totalPercentage.toFixed(2)}%` : '-'}
+                </div>
+                <div className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60 mt-0.5">
+                  {currentRTRecord ? `คะแนนรวม ${currentRTRecord.totalScore} คะแนน` : 'ไม่มีข้อมูล'}
+                </div>
+              </div>
+              <div className="text-right">
+                {currentRTRecord ? renderQualityBadge(currentRTRecord.totalQuality, 'md') : (
+                  <span className="text-[10px] font-bold text-gray-400">-</span>
+                )}
+              </div>
+            </div>
+
+            {/* กล่องสรุป NT ป.3 */}
+            <div className="bg-white/90 dark:bg-[#1e1518] p-3.5 rounded-2xl border-2 border-sky-200 dark:border-sky-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-sky-500" />
+                  <span className="text-[11px] font-black text-sky-700 dark:text-sky-300">
+                    NT ป.3 (รวม 2 ด้าน) ปี {selectedAcademicYear}
+                  </span>
+                </div>
+                <div className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                  {currentNTRecord ? `${currentNTRecord.totalPercentage.toFixed(2)}%` : '-'}
+                </div>
+                <div className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60 mt-0.5">
+                  {currentNTRecord ? `คะแนนรวม ${currentNTRecord.totalScore} คะแนน` : 'ไม่มีข้อมูล'}
+                </div>
+              </div>
+              <div className="text-right">
+                {currentNTRecord ? renderQualityBadge(currentNTRecord.totalQuality, 'md') : (
+                  <span className="text-[10px] font-bold text-gray-400">-</span>
+                )}
+              </div>
+            </div>
+
+            {/* กล่องเฉลี่ยรวมทุกการทดสอบ */}
+            <div className="bg-white/90 dark:bg-[#1e1518] p-3.5 rounded-2xl border-2 border-amber-200 dark:border-amber-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  <span className="text-[11px] font-black text-amber-700 dark:text-amber-300">
+                    คะแนนร้อยละเฉลี่ย RT & NT
+                  </span>
+                </div>
+                <div className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
+                  {(() => {
+                    const validPercentages: number[] = [];
+                    if (currentRTRecord) validPercentages.push(currentRTRecord.totalPercentage);
+                    if (currentNTRecord) validPercentages.push(currentNTRecord.totalPercentage);
+                    if (validPercentages.length === 0) return '-';
+                    const avg = validPercentages.reduce((a, b) => a + b, 0) / validPercentages.length;
+                    return `${avg.toFixed(2)}%`;
+                  })()}
+                </div>
+                <div className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60 mt-0.5">
+                  {schoolAcademicRecords.length} รายการบันทึกในระบบ
+                </div>
+              </div>
+              <div className="text-right">
+                {(() => {
+                  const validPercentages: number[] = [];
+                  if (currentRTRecord) validPercentages.push(currentRTRecord.totalPercentage);
+                  if (currentNTRecord) validPercentages.push(currentNTRecord.totalPercentage);
+                  if (validPercentages.length === 0) return null;
+                  const avg = validPercentages.reduce((a, b) => a + b, 0) / validPercentages.length;
+                  return renderQualityBadge(determineQualityLevel(avg), 'md');
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2 การ์ดแจกแจงรายละเอียด: RT (ป.1) และ NT (ป.3) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* การ์ดที่ 1: RT ชั้นประถมศึกษาปีที่ 1 */}
+          {(selectedAcademicTestFilter === 'all' || selectedAcademicTestFilter === 'RT') && (
+            <div className="card p-6 border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between border-b-2 border-rose-200 dark:border-rose-900/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-9 w-9 rounded-xl bg-rose-100 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-700 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                      <BookOpen className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                        การประเมินการอ่าน (RT) ชั้น ป.1
+                      </h3>
+                      <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">
+                        Reading Test | ประจำปีการศึกษา {selectedAcademicYear}
+                      </p>
+                    </div>
+                  </div>
+                  {currentRTRecord && renderQualityBadge(currentRTRecord.totalQuality, 'sm')}
+                </div>
+
+                {currentRTRecord ? (
+                  <div className="mt-5 space-y-4">
+                    {/* ด้านที่ 1: การอ่านออกเสียง */}
+                    <div className="bg-[#FFF9F5] dark:bg-[#1e1518] p-4 rounded-2xl border border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            ด้านที่ 1: การอ่านออกเสียง
+                          </span>
+                          <span className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">
+                            คะแนนดิบ: {currentRTRecord.mathScore} คะแนน (เต็ม 50)
+                          </span>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="text-base font-black text-rose-600 dark:text-rose-400">
+                            {currentRTRecord.mathPercentage.toFixed(2)}%
+                          </span>
+                          {renderQualityBadge(currentRTRecord.mathQuality, 'sm')}
+                        </div>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full mt-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getQualityProgressColor(currentRTRecord.mathPercentage)}`}
+                          style={{ width: `${Math.min(100, Math.max(0, currentRTRecord.mathPercentage))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* ด้านที่ 2: การอ่านรู้เรื่อง */}
+                    <div className="bg-[#FFF9F5] dark:bg-[#1e1518] p-4 rounded-2xl border border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            ด้านที่ 2: การอ่านรู้เรื่อง
+                          </span>
+                          <span className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">
+                            คะแนนดิบ: {currentRTRecord.thaiScore} คะแนน (เต็ม 50)
+                          </span>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="text-base font-black text-rose-600 dark:text-rose-400">
+                            {currentRTRecord.thaiPercentage.toFixed(2)}%
+                          </span>
+                          {renderQualityBadge(currentRTRecord.thaiQuality, 'sm')}
+                        </div>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full mt-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getQualityProgressColor(currentRTRecord.thaiPercentage)}`}
+                          style={{ width: `${Math.min(100, Math.max(0, currentRTRecord.thaiPercentage))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* สรุปคะแนนรวม 2 ด้าน */}
+                    <div className="bg-rose-50 dark:bg-rose-950/40 p-4 rounded-2xl border-2 border-rose-300 dark:border-rose-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-black text-rose-900 dark:text-rose-200 block">
+                          คะแนนเฉลี่ยรวม 2 ด้าน (RT รวม)
+                        </span>
+                        <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400">
+                          คะแนนรวม: {currentRTRecord.totalScore} / 100 คะแนน
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black text-rose-700 dark:text-rose-300">
+                          {currentRTRecord.totalPercentage.toFixed(2)}%
+                        </div>
+                        <div className="mt-0.5">
+                          {renderQualityBadge(currentRTRecord.totalQuality, 'sm')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 font-bold">
+                    <BookOpen className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-xs">ไม่พบข้อมูล RT ชั้น ป.1 ประจำปีการศึกษา {selectedAcademicYear}</p>
+                    <p className="text-[10px] mt-1 text-slate-400">ลองเลือกปีการศึกษาอื่นเพื่อดูผลประเมินย้อนหลัง</p>
+                  </div>
+                )}
+              </div>
+
+              {currentRTRecord?.notes && (
+                <div className="mt-4 pt-3 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/20 text-[10px] text-gray-500 dark:text-gray-400 italic">
+                  หมายเหตุ: {currentRTRecord.notes}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* การ์ดที่ 2: NT ชั้นประถมศึกษาปีที่ 3 */}
+          {(selectedAcademicTestFilter === 'all' || selectedAcademicTestFilter === 'NT') && (
+            <div className="card p-6 border-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col justify-between shadow-md">
+              <div>
+                <div className="flex items-center justify-between border-b-2 border-sky-200 dark:border-sky-900/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-9 w-9 rounded-xl bg-sky-100 dark:bg-sky-950/80 border border-sky-300 dark:border-sky-700 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                      <Calculator className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                        การประเมินคุณภาพผู้เรียน (NT) ชั้น ป.3
+                      </h3>
+                      <p className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
+                        National Test | ประจำปีการศึกษา {selectedAcademicYear}
+                      </p>
+                    </div>
+                  </div>
+                  {currentNTRecord && renderQualityBadge(currentNTRecord.totalQuality, 'sm')}
+                </div>
+
+                {currentNTRecord ? (
+                  <div className="mt-5 space-y-4">
+                    {/* ด้านที่ 1: ด้านคณิตศาสตร์ */}
+                    <div className="bg-[#FFF9F5] dark:bg-[#1e1518] p-4 rounded-2xl border border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            ด้านที่ 1: ด้านคณิตศาสตร์ (Mathematics)
+                          </span>
+                          <span className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">
+                            คะแนนดิบ: {currentNTRecord.mathScore} คะแนน (เต็ม 100)
+                          </span>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="text-base font-black text-sky-600 dark:text-sky-400">
+                            {currentNTRecord.mathPercentage.toFixed(2)}%
+                          </span>
+                          {renderQualityBadge(currentNTRecord.mathQuality, 'sm')}
+                        </div>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full mt-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getQualityProgressColor(currentNTRecord.mathPercentage)}`}
+                          style={{ width: `${Math.min(100, Math.max(0, currentNTRecord.mathPercentage))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* ด้านที่ 2: ด้านภาษาไทย */}
+                    <div className="bg-[#FFF9F5] dark:bg-[#1e1518] p-4 rounded-2xl border border-[#33272A]/10 dark:border-[#FFD3B6]/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] block">
+                            ด้านที่ 2: ด้านภาษาไทย (Thai Language)
+                          </span>
+                          <span className="text-[10px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60">
+                            คะแนนดิบ: {currentNTRecord.thaiScore} คะแนน (เต็ม 100)
+                          </span>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <span className="text-base font-black text-sky-600 dark:text-sky-400">
+                            {currentNTRecord.thaiPercentage.toFixed(2)}%
+                          </span>
+                          {renderQualityBadge(currentNTRecord.thaiQuality, 'sm')}
+                        </div>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2.5 rounded-full mt-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getQualityProgressColor(currentNTRecord.thaiPercentage)}`}
+                          style={{ width: `${Math.min(100, Math.max(0, currentNTRecord.thaiPercentage))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* สรุปคะแนนรวม 2 ด้าน */}
+                    <div className="bg-sky-50 dark:bg-sky-950/40 p-4 rounded-2xl border-2 border-sky-300 dark:border-sky-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-black text-sky-900 dark:text-sky-200 block">
+                          คะแนนเฉลี่ยรวม 2 ด้าน (NT รวม)
+                        </span>
+                        <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400">
+                          คะแนนรวม: {currentNTRecord.totalScore} คะแนน
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black text-sky-700 dark:text-sky-300">
+                          {currentNTRecord.totalPercentage.toFixed(2)}%
+                        </div>
+                        <div className="mt-0.5">
+                          {renderQualityBadge(currentNTRecord.totalQuality, 'sm')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 font-bold">
+                    <Calculator className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-xs">ไม่พบข้อมูล NT ชั้น ป.3 ประจำปีการศึกษา {selectedAcademicYear}</p>
+                    <p className="text-[10px] mt-1 text-slate-400">ลองเลือกปีการศึกษาอื่นเพื่อดูผลประเมินย้อนหลัง</p>
+                  </div>
+                )}
+              </div>
+
+              {currentNTRecord?.notes && (
+                <div className="mt-4 pt-3 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/20 text-[10px] text-gray-500 dark:text-gray-400 italic">
+                  หมายเหตุ: {currentNTRecord.notes}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* แผนภูมิแท่งเปรียบเทียบร้อยละผลสัมฤทธิ์แต่ละด้านของโรงเรียนนี้ */}
+        {academicChartData.length > 0 && (
+          <div className="card p-6 border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3 mb-4">
+              <div>
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4 text-amber-500" /> แผนภูมิเปรียบเทียบร้อยละผลสัมฤทธิ์ RT & NT ({school.name})
+                </h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                  ปีการศึกษา {selectedAcademicYear} (เส้นประแสดงเกณฑ์ดี 50% และเกณฑ์ดีมาก 70%)
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500"></span> &ge;70% ดีมาก
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-blue-500"></span> &ge;50% ดี
+                </span>
+              </div>
+            </div>
+
+            <div className="h-64 w-full text-[10px] font-bold">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={academicChartData} margin={{ top: 10, right: 20, left: -25, bottom: 25 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
+                  <XAxis dataKey="name" stroke={chartStroke} angle={-15} textAnchor="end" height={40} />
+                  <YAxis stroke={chartStroke} domain={[0, 100]} unit="%" />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '16px',
+                      border: `2px solid ${tooltipBorder}`,
+                      backgroundColor: tooltipBg,
+                      color: tooltipText,
+                      boxShadow: tooltipShadow,
+                    }}
+                    formatter={(val: any, name: any, item: any) => [
+                      `${val}% (${item.payload.quality}) - คะแนน ${item.payload.score}/${item.payload.maxScore}`,
+                      'ร้อยละผลประเมิน'
+                    ]}
+                  />
+                  <ReferenceLine y={50} stroke="#3b82f6" strokeDasharray="3 3" label={{ value: 'เกณฑ์ดี (50%)', position: 'insideTopLeft', fill: '#3b82f6', fontSize: 10, fontWeight: 'bold' }} />
+                  <ReferenceLine y={70} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'เกณฑ์ดีมาก (70%)', position: 'insideTopLeft', fill: '#10b981', fontSize: 10, fontWeight: 'bold' }} />
+                  <Bar dataKey="percentage" stroke={chartStroke} strokeWidth={2} radius={[6, 6, 0, 0]}>
+                    {academicChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ตารางประวัติผลสัมฤทธิ์ RT & NT ทุกปีการศึกษาของโรงเรียนนี้ */}
+        {schoolAcademicRecords.length > 0 && (
+          <div className="card p-6 border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3 mb-4">
+              <div>
+                <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-rose-500" /> ตารางประวัติผลสัมฤทธิ์ทางการศึกษาของ {school.name} ทุกปี
+                </h3>
+                <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+                  รวมข้อมูลประวัติผลการประเมิน RT และ NT ทั้งหมดที่บันทึกไว้ในฐานข้อมูล
+                </p>
+              </div>
+              <span className="text-[10px] font-black bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 px-3 py-1 rounded-full border border-rose-300 dark:border-rose-700 self-start sm:self-center">
+                รวม {schoolAcademicRecords.length} รายการประเมิน
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#FFF9F5] dark:bg-[#1e1518] border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
+                    <th className="py-2.5 px-3">ปีการศึกษา</th>
+                    <th className="py-2.5 px-3">การประเมิน</th>
+                    <th className="py-2.5 px-3">ด้านที่ 1</th>
+                    <th className="py-2.5 px-3">ด้านที่ 2</th>
+                    <th className="py-2.5 px-3">ผลรวม 2 ด้าน</th>
+                    <th className="py-2.5 px-3 text-center">ระดับคุณภาพ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800 font-bold text-[#33272A] dark:text-[#FFF9F5]">
+                  {schoolAcademicRecords.map((rec, idx) => {
+                    const isRT = rec.testType === 'RT';
+                    return (
+                      <tr key={idx} className="hover:bg-amber-500/5 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <span className="inline-flex items-center gap-1 font-black bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-700 px-2 py-0.5 rounded-lg text-[11px]">
+                            {rec.academicYear}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`inline-flex items-center gap-1 font-black px-2 py-0.5 rounded-lg text-[11px] ${
+                            isRT 
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                              : 'bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                          }`}>
+                            {isRT ? '📖 RT (ป.1)' : '🧮 NT (ป.3)'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-[11px]">
+                            <span className="text-gray-500 block text-[9px]">{isRT ? 'อ่านออกเสียง' : 'คณิตศาสตร์'}</span>
+                            <span className="font-black">{rec.mathPercentage.toFixed(2)}%</span>
+                            <span className="text-[10px] text-gray-400 ml-1">({rec.mathScore} คะแนน)</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-[11px]">
+                            <span className="text-gray-500 block text-[9px]">{isRT ? 'อ่านรู้เรื่อง' : 'ภาษาไทย'}</span>
+                            <span className="font-black">{rec.thaiPercentage.toFixed(2)}%</span>
+                            <span className="text-[10px] text-gray-400 ml-1">({rec.thaiScore} คะแนน)</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-[11px]">
+                            <span className="text-gray-500 block text-[9px]">รวม 2 ด้าน</span>
+                            <span className="font-black text-rose-600 dark:text-rose-400">{rec.totalPercentage.toFixed(2)}%</span>
+                            <span className="text-[10px] text-gray-400 ml-1">({rec.totalScore} คะแนน)</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {renderQualityBadge(rec.totalQuality, 'sm')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ส่วนจัดการข้อมูลห้องเรียนย่อยในพื้นที่ห่างไกล (อยู่ล่างสุด) */}

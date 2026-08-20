@@ -1,11 +1,12 @@
 import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle } from './types';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
 import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize, parseInitialData } from './utils/initialData';
+import { generateInitialAcademicRecords } from './utils/academicData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { dbFetchUserProfile } from './lib/dbAdapter';
+import { dbFetchUserProfile, dbFetchAcademicRecords } from './lib/dbAdapter';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowDataDownload: true,
@@ -81,6 +82,7 @@ export default function App() {
   const [schools, setSchools] = useState<School[]>(() => initialPreset.schools);
   const [studentData, setStudentData] = useState<StudentData[]>(() => initialPreset.students);
   const [studentGData, setStudentGData] = useState<StudentGData[]>(() => generateInitialStudentGData(initialPreset.schools));
+  const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>(() => generateInitialAcademicRecords(initialPreset.schools, '2567'));
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   
   // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
@@ -566,6 +568,15 @@ export default function App() {
               }
             }
 
+            try {
+              const acRecords = await dbFetchAcademicRecords();
+              if (acRecords && acRecords.length > 0) {
+                setAcademicRecords(acRecords);
+              }
+            } catch (acErr) {
+              console.warn('Notice reading academic records:', acErr);
+            }
+
             console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records across years ${years.join(', ')}`);
             setIsLoading(false);
             return;
@@ -760,10 +771,15 @@ export default function App() {
                 studentData={selectedSchoolStudent}
                 allStudentData={studentData}
                 allStudentGData={studentGData}
+                academicRecords={academicRecords}
                 onBack={() => setSelectedSchoolId(null)}
                 onNavigateToContact={() => {
                   setSelectedSchoolId(null);
                   setActiveTab('contact');
+                }}
+                onNavigateToAcademic={() => {
+                  setSelectedSchoolId(null);
+                  setActiveTab('academic');
                 }}
                 userProfile={userProfile}
                 onRefreshData={() => fetchAllData(true)}
