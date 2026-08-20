@@ -1,4 +1,7 @@
-import { School, StudentData } from '../types';
+import { School, StudentData, StudentGData } from '../types';
+import rawSchools from './schoolsData.json';
+import rawStudents from './studentsData.json';
+import rawStudentsG from './studentsGData.json';
 
 // พิกัดศูนย์กลางของแม่ฮ่องสอน เขต 1
 export const MAP_CENTER = { lat: 19.3021, lng: 97.9654 };
@@ -424,8 +427,67 @@ export const RAW_CSV_DATA = `58010000,สพป.แม่ฮ่องสอน �
 58010000,สพป.แม่ฮ่องสอน เขต 1,58010133,บ้านทุ่งยาว,0,0,0,0,7,5,12,1,14,12,26,1,21,17,38,2,8,13,21,1,9,6,15,1,9,12,21,1,9,12,21,1,14,13,27,1,10,7,17,1,59,63,122,6,22,6,28,1,16,8,24,1,9,8,17,1,47,22,69,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127,102,229,11
 58010000,สพป.แม่ฮ่องสอน เขต 1,58010152,บ้านปางมะผ้า,11,13,24,3,48,27,75,3,42,38,80,3,101,78,179,9,44,31,75,3,26,30,56,2,45,43,88,3,34,36,70,3,41,39,80,3,25,42,67,3,215,221,436,17,31,32,63,3,22,24,46,2,28,22,50,2,81,78,159,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,397,377,774,33`;
 
-// ฟังก์ชันแปลงข้อความ CSV ดิบให้กลายเป็นวัตถุ StudentData และ School
+// ฟังก์ชันแปลงข้อมูลตั้งต้นให้เป็นวัตถุ School และ StudentData (ครอบคลุมทั้ง 131 โรงเรียนในสังกัด)
 export function parseInitialData(academicYear: string = "2568"): { schools: School[], students: StudentData[] } {
+  if (rawSchools && Array.isArray(rawSchools) && rawSchools.length > 0) {
+    const schools: School[] = (rawSchools as any[]).map(s => ({
+      id: s.id,
+      name: s.name,
+      district: s.district || 'สพป.แม่ฮ่องสอน เขต 1',
+      amphoe: s.amphoe || 'เมืองแม่ฮ่องสอน',
+      networkGroup: s.network_group || 'กลุ่มเมือง 1',
+      internetType: s.internet_type || 'fiber',
+      electricity: s.electricity !== undefined ? s.electricity : true,
+      waterSystem: s.water_system || 'government',
+      waterSystemDetail: s.water_system_detail,
+      solarKw: s.solar_kw,
+      hasSolarBattery: s.has_solar_battery,
+      solarBatteryCapacity: s.solar_battery_capacity,
+      staffCount: s.staff_count ?? 0,
+      contractTeachersCount: s.contract_teachers_count ?? 0,
+      adminStaffCount: s.admin_staff_count ?? 0,
+      janitorCount: s.janitor_count ?? 0,
+      otherStaffCount: s.other_staff_count ?? 0,
+      majorSubjects: s.major_subjects || [],
+      majorSubjectsWithStaff: s.major_subjects_with_staff || [],
+      classrooms: s.classrooms || [],
+      directorName: s.director_name,
+      directorPhone: s.director_phone,
+      viceDirectorName: s.vice_director_name,
+      viceDirectorPhone: s.vice_director_phone,
+      viceDirectors: s.vice_directors || [],
+      schoolPhone: s.school_phone,
+      email: s.email,
+      facebook: s.facebook,
+      line: s.line,
+      website: s.website,
+      address: s.address,
+      imageUrl: s.image_url,
+      logoUrl: s.logo_url,
+      directorImageUrl: s.director_image_url,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      size: s.size || 'small',
+      isExpansion: s.is_expansion || false,
+      specialHighlights: s.special_highlights,
+      updatedAt: s.updated_at,
+      updatedBy: s.updated_by
+    }));
+
+    const students: StudentData[] = (rawStudents as any[]).map(st => ({
+      id: st.id,
+      schoolId: st.school_id,
+      schoolName: st.school_name,
+      academicYear: st.academic_year,
+      grades: st.grades || {},
+      totalMale: st.total_male,
+      totalFemale: st.total_female,
+      totalStudents: st.total_students
+    }));
+
+    return { schools, students };
+  }
+
   const lines = RAW_CSV_DATA.trim().split('\n');
   const schools: School[] = [];
   const students: StudentData[] = [];
@@ -439,7 +501,6 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
     const schoolId = parts[2];
     const schoolNameRaw = parts[3];
 
-    // แกะชั้นเรียนต่างๆ (ชาย, หญิง, รวม, ห้อง)
     // อนุบาล 1
     const k1_male = parseInt(parts[4]) || 0;
     const k1_female = parseInt(parts[5]) || 0;
@@ -490,10 +551,6 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
     const p6_rooms = parseInt(parts[43]) || 0;
 
     // มัธยม 1 - 3 (ม.ต้น)
-    // จากแถว CSV: ดัชนีม.1 ชาย คือ parts[48] หรือ parts[60] ตามลำดับ?
-    // ในข้อมูล: ดัชนี 48,49,50,51 จะเป็น ม.1 ชาย, ม.1 หญิง, รวม ม.1, ม.1 ห้อง
-    // ดัชนี 52,53,54,55 เป็น ม.2
-    // ดัชนี 56,57,58,59 เป็น ม.3
     const m1_male = parseInt(parts[48]) || 0;
     const m1_female = parseInt(parts[49]) || 0;
     const m1_total = parseInt(parts[50]) || 0;
@@ -509,14 +566,11 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
     const m3_total = parseInt(parts[58]) || 0;
     const m3_rooms = parseInt(parts[59]) || 0;
 
-    // คำนวณผลรวม ชาย หญิง ทั้งหมด (เฉพาะถึง ม.3 เท่านั้นตามเงื่อนไขผู้ใช้)
     const totalMale = k1_male + k2_male + k3_male + p1_male + p2_male + p3_male + p4_male + p5_male + p6_male + m1_male + m2_male + m3_male;
     const totalFemale = k1_female + k2_female + k3_female + p1_female + p2_female + p3_female + p4_female + p5_female + p6_female + m1_female + m2_female + m3_female;
     const totalStudents = totalMale + totalFemale;
 
-    // ตรวจสอบว่าเป็นโรงเรียนขยายโอกาสหรือไม่ (มีสอน ม.1 - ม.3)
     const isExpansion = (m1_total + m2_total + m3_total) > 0;
-
     const schoolPreset = SCHOOL_METADATA_PRESETS[schoolId] || { name: schoolNameRaw };
     const schoolName = schoolPreset.name;
 
@@ -554,10 +608,23 @@ export function parseInitialData(academicYear: string = "2568"): { schools: Scho
   return { schools, students };
 }
 
-// สร้างข้อมูลตั้งต้นรหัส G (เริ่มต้นเป็น 0 ทุกโรงเรียน กรณีไม่มีบันทึกข้อมูลจริง)
-export function generateInitialStudentGData(schools: School[]) {
+// สร้างข้อมูลตั้งต้นรหัส G
+export function generateInitialStudentGData(schools: School[]): StudentGData[] {
+  if (rawStudentsG && Array.isArray(rawStudentsG) && rawStudentsG.length > 0) {
+    return (rawStudentsG as any[]).map(sg => ({
+      id: sg.id,
+      schoolId: sg.school_id,
+      schoolName: sg.school_name,
+      academicYear: sg.academic_year,
+      totalGStudents: sg.total_g_students,
+      maleGCount: sg.male_g_count,
+      femaleGCount: sg.female_g_count,
+      notes: sg.notes
+    }));
+  }
+
   const years = ['2565', '2566', '2567', '2568'];
-  const gList: any[] = [];
+  const gList: StudentGData[] = [];
 
   schools.forEach((s) => {
     years.forEach((yr) => {

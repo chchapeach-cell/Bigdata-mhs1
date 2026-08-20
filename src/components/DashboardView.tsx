@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets } from 'lucide-react';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
@@ -39,12 +39,24 @@ export default function DashboardView({
 }: DashboardViewProps) {
   // รหัสโรงเรียนสำหรับแผนที่แบบโต้ตอบ
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string>('');
+  const [mapCenter, setMapCenter] = useState<[number, number]>([19.3021, 97.9654]);
+  const [mapZoom, setMapZoom] = useState<number>(10);
   
   // ตัวกรองอำเภอสำหรับแผนที่
   const [mapAmphoeFilter, setMapAmphoeFilter] = useState<string>('all');
   
   // ตัวกรองแผนที่สำหรับโครงสร้างพื้นฐาน (ไฟฟ้า, อินเทอร์เน็ต & ระบบน้ำประปา)
   const [mapInfraFilter, setMapInfraFilter] = useState<'all' | 'electricity' | 'fiber' | 'satellite' | 'sim' | 'none' | 'water_gov' | 'water_mountain' | 'water_none' | 'water_other'>('all');
+
+  const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipBg = isDarkMode ? '#2b2c37' : '#FFFFFE';
+  const tooltipBorder = isDarkMode ? '#4a3e42' : '#33272A';
+  const tooltipText = isDarkMode ? '#FFF9F5' : '#33272A';
+  const tooltipShadow = isDarkMode ? '0 4px 6px -1px rgba(0,0,0,0.5)' : '3px 3px 0px 0px #33272A';
+
+  const mapSchool = useMemo(() => {
+    return schools.find(s => s.id === selectedMapSchoolId);
+  }, [schools, selectedMapSchoolId]);
   
   // สถานะค้นหาวิชาเอกภาพรวม
   const [majorSearchQuery, setMajorSearchQuery] = useState<string>('');
@@ -267,30 +279,10 @@ export default function DashboardView({
     setDeferredPrompt(null);
   };
 
-  // กำหนดสไตล์กราฟตามโหมดมืด/สว่าง เพื่อความคมชัดในการอ่าน
-  const chartStroke = isDarkMode ? '#FFF9F5' : '#33272A';
-  const tooltipBg = isDarkMode ? '#1e1518' : '#FFF9F5';
-  const tooltipBorder = isDarkMode ? '#FFD3B6' : '#33272A';
-  const tooltipText = isDarkMode ? '#FFF9F5' : '#33272A';
-  const tooltipShadow = isDarkMode ? '4px 4px 0px #FFD3B6' : '4px 4px 0px #33272A';
-
-  // สถานะพิกัดและการซูมของแผนที่ PigeonMap
-  const [mapCenter, setMapCenter] = useState<[number, number]>([19.3021, 97.9654]);
-  const [mapZoom, setMapZoom] = useState<number>(10);
-
-  // คัดเลือกโรงเรียนสำหรับส่องพิกัดแผนที่ภาพรวม
-  const mapSchool = useMemo(() => {
-    return schools.find(s => s.id === selectedMapSchoolId) || null;
-  }, [schools, selectedMapSchoolId]);
-
-  // ตัวจัดการการเลือกโรงเรียนจาก Dropdown
   const handleSelectMapSchool = (id: string) => {
     setSelectedMapSchoolId(id);
     if (!id) {
-      if (mapAmphoeFilter === 'เมืองแม่ฮ่องสอน') {
-        setMapCenter([19.3021, 97.9654]);
-        setMapZoom(11);
-      } else if (mapAmphoeFilter === 'ขุนยวม') {
+      if (mapAmphoeFilter === 'ขุนยวม') {
         setMapCenter([18.8412, 97.9431]);
         setMapZoom(11);
       } else if (mapAmphoeFilter === 'ปาย') {
@@ -384,37 +376,20 @@ export default function DashboardView({
         counts[net] = { schoolCount: 0, studentCount: 0 };
       }
       counts[net].schoolCount++;
-
       const st = filteredStudents.find(sd => sd.schoolId === s.id);
       if (st) {
         counts[net].studentCount += (st.totalStudents || 0);
       }
     });
 
-    return Object.entries(counts)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.schoolCount - a.schoolCount);
+    return counts;
   }, [schools, filteredStudents]);
 
-  // สถิติเปรียบเทียบจำนวนนักเรียนทั้งหมดในแต่ละปีการศึกษา (ข้อ 3.2)
-  const yearlyStudentsData = useMemo(() => {
-    const yearlyCounts: Record<string, number> = {};
-    
-    studentData.forEach(s => {
-      if (!s.academicYear) return;
-      yearlyCounts[s.academicYear] = (yearlyCounts[s.academicYear] || 0) + s.totalStudents;
-    });
-    
-    return Object.entries(yearlyCounts)
-      .map(([year, total]) => ({ year: `ปีการศึกษา ${year}`, "นักเรียนรวม": total }))
-      .sort((a, b) => a.year.localeCompare(b.year));
-  }, [studentData]);
-
-  // สถิติจำนวนโรงเรียนจำแนกตามปี พ.ศ. (ปีการศึกษา)
-  const yearlySchoolsData = useMemo(() => {
+  // สถิติจำนวนโรงเรียนย้อนหลังแต่ละปีการศึกษา
+  const yearlySchoolCounts = useMemo(() => {
     const yearSchoolMap: Record<string, Set<string>> = {};
-    
-    // วนลูปสถิตินักเรียนดึงรหัสโรงเรียนที่มีข้อมูลในแต่ละปีการศึกษา
+
+    // เก็บรหัสโรงเรียนที่มีข้อมูลในแต่ละปีการศึกษา
     studentData.forEach(s => {
       if (!s.academicYear) return;
       if (!yearSchoolMap[s.academicYear]) {
@@ -422,7 +397,6 @@ export default function DashboardView({
       }
       yearSchoolMap[s.academicYear].add(s.schoolId);
     });
-
     // ถ้าปีการศึกษาไหนยังไม่มีใน studentData ให้แสดงจำนวนโรงเรียนทั้งหมด (fallback)
     availableYears.forEach(yr => {
       if (!yearSchoolMap[yr]) {
@@ -514,6 +488,31 @@ export default function DashboardView({
 
     return result;
   }, [filteredStudents]);
+
+  // สถิติแนวโน้มจำนวนนักเรียนรายปีการศึกษา
+  const yearlyStudentsData = useMemo(() => {
+    const yearTotals: Record<string, { male: number; female: number; total: number }> = {};
+
+    studentData.forEach(item => {
+      if (!item.academicYear) return;
+      if (!yearTotals[item.academicYear]) {
+        yearTotals[item.academicYear] = { male: 0, female: 0, total: 0 };
+      }
+      yearTotals[item.academicYear].male += (item.totalMale || 0);
+      yearTotals[item.academicYear].female += (item.totalFemale || 0);
+      yearTotals[item.academicYear].total += (item.totalStudents || 0);
+    });
+
+    return Object.entries(yearTotals)
+      .map(([yr, data]) => ({
+        year: `ปี ${yr}`,
+        academicYear: yr,
+        ชาย: data.male,
+        หญิง: data.female,
+        นักเรียนรวม: data.total
+      }))
+      .sort((a, b) => a.academicYear.localeCompare(b.academicYear));
+  }, [studentData]);
 
   // คำนวณสถิติวิชาเอกทั้งหมดรวมในระดับเขตพื้นที่ (จากทุกโรงเรียน)
   const aggregatedMajors = useMemo(() => {

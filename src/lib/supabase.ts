@@ -1,10 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Permanent Supabase configuration
-const env = (import.meta as any).env || {};
+const supabaseUrlEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : undefined;
+const supabaseKeyEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_ANON_KEY : undefined;
 
-export const SUPABASE_URL = env.VITE_SUPABASE_URL || 'https://frpjtkltipmwpevngdrp.supabase.co';
-export const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5wJwoIwcwvyjKBJsP1uMdg_x0xhwOB9';
+export const SUPABASE_URL = supabaseUrlEnv || 'https://frpjtkltipmwpevngdrp.supabase.co';
+export const SUPABASE_ANON_KEY = supabaseKeyEnv || 'sb_publishable_5wJwoIwcwvyjKBJsP1uMdg_x0xhwOB9';
 
 // Clean up any legacy localStorage keys to avoid any stale data/confusion
 try {
@@ -38,6 +39,19 @@ let cachedClient: SupabaseClient | null = null;
 let cachedUrl = '';
 let cachedKey = '';
 
+// Safe storage that won't throw if localStorage is denied (e.g. in iframes)
+const customStorage = {
+  getItem: (key: string) => {
+    try { return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null; } catch { return null; }
+  },
+  setItem: (key: string, value: string) => {
+    try { if (typeof window !== 'undefined') window.localStorage.setItem(key, value); } catch {}
+  },
+  removeItem: (key: string) => {
+    try { if (typeof window !== 'undefined') window.localStorage.removeItem(key); } catch {}
+  }
+};
+
 export const getSupabaseClient = (): SupabaseClient | null => {
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
@@ -51,7 +65,14 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   }
 
   try {
-    cachedClient = createClient(url, key);
+    cachedClient = createClient(url, key, {
+      auth: {
+        storage: customStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    });
     cachedUrl = url;
     cachedKey = key;
     return cachedClient;

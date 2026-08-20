@@ -1,7 +1,7 @@
 import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle } from './types';
-import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize } from './utils/initialData';
+import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize, parseInitialData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -76,15 +76,20 @@ export default function App() {
     setSelectedSchoolId(null); // เคลียร์สถานะการเลือกโรงเรียนรายบุคคลเพื่อเปิดหน้าตารางรายชื่อแบบกรอง
   };
   
-  // ข้อมูลสถิติหลัก
-  const [schools, setSchools] = useState<School[]>([]);
-  const [studentData, setStudentData] = useState<StudentData[]>([]);
-  const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
+  // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล)
+  const initialPreset = parseInitialData('2568');
+  const [schools, setSchools] = useState<School[]>(() => initialPreset.schools);
+  const [studentData, setStudentData] = useState<StudentData[]>(() => initialPreset.students);
+  const [studentGData, setStudentGData] = useState<StudentGData[]>(() => generateInitialStudentGData(initialPreset.schools));
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
+  
   // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
-  const currentBEYear = (new Date().getFullYear() + 543).toString();
-  const [academicYear, setAcademicYear] = useState<string>(currentBEYear);
-  const [availableYears, setAvailableYears] = useState<string[]>([currentBEYear]);
+  const currentBEYear = '2568';
+  const [academicYear, setAcademicYear] = useState<string>('2568');
+  const [availableYears, setAvailableYears] = useState<string[]>(() => {
+    const years = Array.from(new Set(initialPreset.students.map(s => s.academicYear).filter(Boolean)));
+    return years.length > 0 ? years.sort((a, b) => b.localeCompare(a)) : ['2568', '2567', '2566', '2565'];
+  });
   
   // จัดการผู้ใช้งาน
   const [user, setUser] = useState<any>(null);
@@ -99,22 +104,38 @@ export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(false);
   
   // สถานะการโหลดข้อมูล
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('theme');
-    return saved === 'dark';
+    try {
+      const saved = localStorage.getItem('theme');
+      return saved === 'dark';
+    } catch {
+      return false;
+    }
   });
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>(() => {
-    const saved = localStorage.getItem('font-size');
-    return (saved as 'small' | 'medium' | 'large' | 'xlarge') || 'medium';
+    try {
+      const saved = localStorage.getItem('font-size');
+      return (saved as 'small' | 'medium' | 'large' | 'xlarge') || 'medium';
+    } catch {
+      return 'medium';
+    }
   });
   const [themeStyle, setThemeStyle] = useState<ThemeStyle>(() => {
-    const saved = localStorage.getItem('app-theme-style');
-    return (saved as ThemeStyle) || 'pastel';
+    try {
+      const saved = localStorage.getItem('app-theme-style');
+      return (saved as ThemeStyle) || 'pastel';
+    } catch {
+      return 'pastel';
+    }
   });
   const [designStyle, setDesignStyle] = useState<DesignStyle>(() => {
-    const saved = localStorage.getItem('app-design-style');
-    return (saved as DesignStyle) || 'classic';
+    try {
+      const saved = localStorage.getItem('app-design-style');
+      return (saved as DesignStyle) || 'classic';
+    } catch {
+      return 'classic';
+    }
   });
 
   // จัดการระบบธีม Dark Mode / Light Mode และ Themes
