@@ -2563,20 +2563,20 @@ export default function AdminPanel({
                 <History className="h-4 w-4" />
                 <span>ประวัติดาวน์โหลด</span>
               </button>
+
+              <button
+                onClick={() => setAdminTab('activity_logs')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'activity_logs' 
+                    ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <span>LOG การแก้ไขข้อมูล</span>
+              </button>
             </>
           )}
-
-          <button
-            onClick={() => setAdminTab('activity_logs')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              adminTab === 'activity_logs' 
-                ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-            }`}
-          >
-            <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            <span>LOG การแก้ไขข้อมูล</span>
-          </button>
 
           <button
             onClick={() => setAdminTab('theme')}
@@ -3445,8 +3445,8 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* TAB: Activity Audit Logs (ประวัติการแก้ไขข้อมูลของแต่ละผู้ใช้งาน) */}
-          {adminTab === 'activity_logs' && (
+          {/* TAB: Activity Audit Logs (ประวัติการแก้ไขข้อมูลของแต่ละผู้ใช้งาน - เฉพาะ Super Admin) */}
+          {adminTab === 'activity_logs' && isSuperAdmin && (
             <UserActivityLogView
               currentUser={userProfile}
               schools={schools}

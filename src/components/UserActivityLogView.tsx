@@ -19,6 +19,16 @@ export const UserActivityLogView: React.FC<UserActivityLogViewProps> = ({
   schools,
   isSuperAdmin
 }) => {
+  if (!isSuperAdmin) {
+    return (
+      <div className="card p-8 text-center space-y-3 border-2 border-rose-400 bg-rose-50/50 dark:bg-rose-950/20">
+        <ShieldAlert className="h-10 w-10 text-rose-500 mx-auto" />
+        <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">เฉพาะผู้ดูแลระบบระดับสูง (Super Admin) เท่านั้น</h3>
+        <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">เมนูประวัติกิจกรรมและ LOG การแก้ไขข้อมูลสงวนสิทธิ์สำหรับ Super Admin ในการตรวจสอบและกำกับดูแลเท่านั้น</p>
+      </div>
+    );
+  }
+
   const [logs, setLogs] = useState<UserActivityLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
