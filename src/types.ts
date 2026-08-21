@@ -144,6 +144,21 @@ export interface DownloadLog {
   timestamp: any;
 }
 
+export interface UserActivityLog {
+  id?: string;
+  userId?: string;
+  userName: string;
+  userEmail: string;
+  userRole?: string; // 'super_admin' | 'school_admin' | 'guest'
+  schoolId?: string;
+  schoolName?: string;
+  actionType: 'update_school' | 'update_student' | 'update_student_g' | 'upload_file' | 'delete_data' | 'user_management' | 'system_settings' | 'academic_assessment' | 'other' | string;
+  actionTitle: string; // e.g. "แก้ไขข้อมูลโรงเรียน"
+  details?: string; // e.g. "ปรับปรุงข้อมูลระบบไฟฟ้า, บุคลากร 12 คน"
+  targetName?: string; // e.g. "โรงเรียนบ้านผาบ่อง"
+  timestamp: any;
+}
+
 export interface InfrastructureOption {
   id: string;
   label: string;

@@ -219,6 +219,22 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ตารางบันทึกประวัติการแก้ไขข้อมูลของผู้ใช้งาน (User Activity / Audit Logs)
+CREATE TABLE IF NOT EXISTS public.user_activity_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    user_role TEXT DEFAULT 'school_admin',
+    school_id TEXT,
+    school_name TEXT,
+    action_type TEXT NOT NULL,
+    action_title TEXT NOT NULL,
+    details TEXT,
+    target_name TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS public.active_sessions (
     uid TEXT PRIMARY KEY,
     email TEXT,
@@ -353,6 +369,7 @@ ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_activity_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_nt_assessments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_rt_assessments DISABLE ROW LEVEL SECURITY;
@@ -367,6 +384,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_nt_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_rt_assessments ENABLE ROW LEVEL SECURITY;
@@ -401,6 +419,10 @@ DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
 CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.user_activity_logs;
+DROP POLICY IF EXISTS "Public All UserActivityLogs" ON public.user_activity_logs;
+CREATE POLICY "Public All Access" ON public.user_activity_logs FOR ALL USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
 DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
 CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
@@ -430,7 +452,46 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, se
 -- 5. ปลดล็อกข้อจำกัด Email ซ้ำสะสม (Email Key constraint) ในตาราง users หากมีอยู่
 ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key;
 
--- 6. สั่งรีโหลด PostgREST Schema Cache ทันที
+-- 6. สร้าง Performance Indexes สำหรับเพิ่มความเร็วในการ Query
+CREATE INDEX IF NOT EXISTS idx_schools_amphoe ON public.schools (amphoe);
+CREATE INDEX IF NOT EXISTS idx_schools_network_group ON public.schools (network_group);
+CREATE INDEX IF NOT EXISTS idx_schools_size ON public.schools (size);
+CREATE INDEX IF NOT EXISTS idx_schools_is_expansion ON public.schools (is_expansion);
+CREATE INDEX IF NOT EXISTS idx_schools_name ON public.schools (name);
+
+CREATE INDEX IF NOT EXISTS idx_students_school_id ON public.students (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_academic_year ON public.students (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_school_year ON public.students (school_id, academic_year);
+
+CREATE INDEX IF NOT EXISTS idx_students_g_school_id ON public.students_g (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_g_academic_year ON public.students_g (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_g_school_year ON public.students_g (school_id, academic_year);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_school_id ON public.users (school_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON public.users (status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users (role);
+
+CREATE INDEX IF NOT EXISTS idx_active_sessions_last_active ON public.active_sessions (last_active_time);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_kicked ON public.active_sessions (kicked);
+
+CREATE INDEX IF NOT EXISTS idx_download_logs_timestamp ON public.download_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_download_logs_school_id ON public.download_logs (school_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_timestamp ON public.user_activity_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_email ON public.user_activity_logs (user_email);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_school_id ON public.user_activity_logs (school_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON public.user_activity_logs (action_type);
+
+CREATE INDEX IF NOT EXISTS idx_academic_nt_school_id ON public.academic_nt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_year ON public.academic_nt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_order ON public.academic_nt_assessments (order_num);
+
+CREATE INDEX IF NOT EXISTS idx_academic_rt_school_id ON public.academic_rt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_year ON public.academic_rt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_order ON public.academic_rt_assessments (order_num);
+
+-- 7. สั่งรีโหลด PostgREST Schema Cache ทันที
 NOTIFY pgrst, 'reload schema';
 `;
 
@@ -638,7 +699,23 @@ CREATE TABLE IF NOT EXISTS public.download_logs (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. สร้างตาราง active_sessions (การเข้าใช้งานปัจจุบัน)
+-- 8. สร้างตาราง user_activity_logs (ประวัติการแก้ไขข้อมูลและกิจกรรมผู้ใช้งาน)
+CREATE TABLE IF NOT EXISTS public.user_activity_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    user_role TEXT DEFAULT 'school_admin',
+    school_id TEXT,
+    school_name TEXT,
+    action_type TEXT NOT NULL,
+    action_title TEXT NOT NULL,
+    details TEXT,
+    target_name TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. สร้างตาราง active_sessions (การเข้าใช้งานปัจจุบัน)
 CREATE TABLE IF NOT EXISTS public.active_sessions (
     uid TEXT PRIMARY KEY,
     email TEXT,
@@ -657,7 +734,7 @@ CREATE TABLE IF NOT EXISTS public.active_sessions (
 -- ลบตารางเดิม academic_assessments ที่รวมกันออก
 DROP TABLE IF EXISTS public.academic_assessments CASCADE;
 
--- 9. สร้างตาราง academic_nt_assessments (ข้อมูลผลการประเมิน NT ชั้น ป.3)
+-- 10. สร้างตาราง academic_nt_assessments (ข้อมูลผลการประเมิน NT ชั้น ป.3)
 CREATE TABLE IF NOT EXISTS public.academic_nt_assessments (
     id TEXT PRIMARY KEY,
     order_num INT DEFAULT 0,
@@ -773,6 +850,7 @@ ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_activity_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_nt_assessments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_rt_assessments DISABLE ROW LEVEL SECURITY;
@@ -786,6 +864,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.download_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_nt_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_rt_assessments ENABLE ROW LEVEL SECURITY;
@@ -820,6 +899,10 @@ DROP POLICY IF EXISTS "Public All Access" ON public.download_logs;
 DROP POLICY IF EXISTS "Public All DownloadLogs" ON public.download_logs;
 CREATE POLICY "Public All Access" ON public.download_logs FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public All Access" ON public.user_activity_logs;
+DROP POLICY IF EXISTS "Public All UserActivityLogs" ON public.user_activity_logs;
+CREATE POLICY "Public All Access" ON public.user_activity_logs FOR ALL USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Public All Access" ON public.active_sessions;
 DROP POLICY IF EXISTS "Public All ActiveSessions" ON public.active_sessions;
 CREATE POLICY "Public All Access" ON public.active_sessions FOR ALL USING (true) WITH CHECK (true);
@@ -846,6 +929,107 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, postgres, servi
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, postgres, service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, postgres, service_role;
 
+-- 12. สร้าง Performance Indexes สำหรับเพิ่มความเร็วในการ Query และค้นหาข้อมูล
+CREATE INDEX IF NOT EXISTS idx_schools_amphoe ON public.schools (amphoe);
+CREATE INDEX IF NOT EXISTS idx_schools_network_group ON public.schools (network_group);
+CREATE INDEX IF NOT EXISTS idx_schools_size ON public.schools (size);
+CREATE INDEX IF NOT EXISTS idx_schools_is_expansion ON public.schools (is_expansion);
+CREATE INDEX IF NOT EXISTS idx_schools_name ON public.schools (name);
+
+CREATE INDEX IF NOT EXISTS idx_students_school_id ON public.students (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_academic_year ON public.students (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_school_year ON public.students (school_id, academic_year);
+
+CREATE INDEX IF NOT EXISTS idx_students_g_school_id ON public.students_g (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_g_academic_year ON public.students_g (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_g_school_year ON public.students_g (school_id, academic_year);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_school_id ON public.users (school_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON public.users (status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users (role);
+
+CREATE INDEX IF NOT EXISTS idx_active_sessions_last_active ON public.active_sessions (last_active_time);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_kicked ON public.active_sessions (kicked);
+
+CREATE INDEX IF NOT EXISTS idx_download_logs_timestamp ON public.download_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_download_logs_school_id ON public.download_logs (school_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_timestamp ON public.user_activity_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_email ON public.user_activity_logs (user_email);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_school_id ON public.user_activity_logs (school_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON public.user_activity_logs (action_type);
+
+CREATE INDEX IF NOT EXISTS idx_academic_nt_school_id ON public.academic_nt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_year ON public.academic_nt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_order ON public.academic_nt_assessments (order_num);
+
+CREATE INDEX IF NOT EXISTS idx_academic_rt_school_id ON public.academic_rt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_year ON public.academic_rt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_order ON public.academic_rt_assessments (order_num);
+
+NOTIFY pgrst, 'reload schema';
+`;
+
+export const SUPABASE_INDEXES_SQL = `-- =============================================================
+-- คำสั่งสร้าง Performance Indexes บน Supabase เพื่อเพิ่มความเร็วในการอ่านข้อมูล
+-- คัดลอกคำสั่งทั้งหมดนี้ไปวางใน SQL Editor บน Supabase Dashboard แล้วกด Run
+-- =============================================================
+
+-- 1. ตาราง schools (ข้อมูลสถานศึกษา)
+CREATE INDEX IF NOT EXISTS idx_schools_amphoe ON public.schools (amphoe);
+CREATE INDEX IF NOT EXISTS idx_schools_network_group ON public.schools (network_group);
+CREATE INDEX IF NOT EXISTS idx_schools_size ON public.schools (size);
+CREATE INDEX IF NOT EXISTS idx_schools_is_expansion ON public.schools (is_expansion);
+CREATE INDEX IF NOT EXISTS idx_schools_name ON public.schools (name);
+
+-- 2. ตาราง students (ข้อมูลนักเรียน)
+CREATE INDEX IF NOT EXISTS idx_students_school_id ON public.students (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_academic_year ON public.students (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_school_year ON public.students (school_id, academic_year);
+
+-- 3. ตาราง students_g (ข้อมูลนักเรียนตัว G)
+CREATE INDEX IF NOT EXISTS idx_students_g_school_id ON public.students_g (school_id);
+CREATE INDEX IF NOT EXISTS idx_students_g_academic_year ON public.students_g (academic_year);
+CREATE INDEX IF NOT EXISTS idx_students_g_school_year ON public.students_g (school_id, academic_year);
+
+-- 4. ตาราง users (ผู้ใช้งานและสิทธิ์)
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_school_id ON public.users (school_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON public.users (status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users (role);
+
+-- 5. ตาราง active_sessions (เซสชันผู้ใช้งาน)
+CREATE INDEX IF NOT EXISTS idx_active_sessions_last_active ON public.active_sessions (last_active_time);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_kicked ON public.active_sessions (kicked);
+
+-- 6. ตาราง download_logs (ประวัติการดาวน์โหลด)
+CREATE INDEX IF NOT EXISTS idx_download_logs_timestamp ON public.download_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_download_logs_school_id ON public.download_logs (school_id);
+
+-- 7. ตาราง user_activity_logs (ประวัติการแก้ไขข้อมูลของผู้ใช้งาน)
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_timestamp ON public.user_activity_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_email ON public.user_activity_logs (user_email);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_school_id ON public.user_activity_logs (school_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON public.user_activity_logs (action_type);
+
+-- 8. ตาราง academic_nt_assessments & nt_assessments (ผลประเมิน NT ป.3)
+CREATE INDEX IF NOT EXISTS idx_academic_nt_school_id ON public.academic_nt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_year ON public.academic_nt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_nt_order ON public.academic_nt_assessments (order_num);
+CREATE INDEX IF NOT EXISTS idx_nt_legacy_school_id ON public.nt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_nt_legacy_year ON public.nt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_nt_legacy_order ON public.nt_assessments (order_num);
+
+-- 9. ตาราง academic_rt_assessments & rt_assessments (ผลประเมิน RT ป.1)
+CREATE INDEX IF NOT EXISTS idx_academic_rt_school_id ON public.academic_rt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_year ON public.academic_rt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_academic_rt_order ON public.academic_rt_assessments (order_num);
+CREATE INDEX IF NOT EXISTS idx_rt_legacy_school_id ON public.rt_assessments (school_id);
+CREATE INDEX IF NOT EXISTS idx_rt_legacy_year ON public.rt_assessments (academic_year);
+CREATE INDEX IF NOT EXISTS idx_rt_legacy_order ON public.rt_assessments (order_num);
+
+-- สั่งอัปเดต Schema Cache
 NOTIFY pgrst, 'reload schema';
 `;
 

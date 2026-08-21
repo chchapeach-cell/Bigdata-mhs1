@@ -378,7 +378,7 @@ export default function App() {
         const minActiveTime = Date.now() - (3 * 60 * 1000);
         const { count } = await supabase
           .from('active_sessions')
-          .select('*', { count: 'exact', head: true })
+          .select('uid', { count: 'exact', head: true })
           .gt('last_active_time', minActiveTime)
           .eq('kicked', false);
 
@@ -445,11 +445,15 @@ export default function App() {
       // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
       if (supabase && isSupabaseConfigured()) {
         try {
-          // ดึงข้อมูลทั้งหมดพร้อมกันแบบคู่ขนาน (Parallel Requests) เพื่อความเร็วสูงสุด
+          // ดึงข้อมูลเฉพาะฟิลด์ที่จำเป็นแบบคู่ขนาน (Parallel Requests + Selected Fields) เพื่อลดขนาด payload และความเร็วสูงสุด
+          const schoolFields = 'id, name, district, amphoe, network_group, internet_type, electricity, water_system, water_system_detail, solar_kw, has_solar_battery, solar_battery_capacity, staff_count, contract_teachers_count, admin_staff_count, janitor_count, other_staff_count, major_subjects, major_subjects_with_staff, classrooms, director_name, director_phone, vice_director_name, vice_director_phone, vice_directors, school_phone, email, facebook, line, website, address, image_url, logo_url, director_image_url, latitude, longitude, size, is_expansion, special_highlights, updated_at, updated_by';
+          const studentFields = 'id, school_id, school_name, academic_year, grades, total_male, total_female, total_students';
+          const studentGFields = 'id, school_id, school_name, academic_year, total_g_students, male_g_count, female_g_count, notes';
+
           const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
-            supabase.from('schools').select('*').order('id', { ascending: true }),
-            supabase.from('students').select('*'),
-            supabase.from('students_g').select('*'),
+            supabase.from('schools').select(schoolFields).order('id', { ascending: true }),
+            supabase.from('students').select(studentFields),
+            supabase.from('students_g').select(studentGFields),
             supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
             dbFetchAcademicRecords().catch(() => [])
           ]);
@@ -458,7 +462,7 @@ export default function App() {
           const suErr = schoolsRes.error;
 
           if (!suErr && suSchools && suSchools.length > 0) {
-            const mappedSchools: School[] = suSchools.map(s => {
+            const mappedSchools: School[] = (suSchools as any[]).map(s => {
               const autoInfo = getAmphoeAndNetwork(s.id, s.name);
               const resolvedAmphoe = (s.amphoe && s.amphoe !== 'NULL' && String(s.amphoe).trim()) ? String(s.amphoe).trim() : autoInfo.amphoe;
               const resolvedNetworkGroup = (s.network_group && s.network_group !== 'NULL' && String(s.network_group).trim()) ? String(s.network_group).trim() : autoInfo.networkGroup;

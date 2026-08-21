@@ -55,7 +55,7 @@ export default function ActiveUserSessionMonitor({ currentUserProfile }: ActiveU
         try {
           const { data, error } = await supabase
             .from('active_sessions')
-            .select('*')
+            .select('uid, email, first_name, last_name, school_name, role, login_time, last_active_time, kicked')
             .gt('last_active_time', minActiveTime)
             .eq('kicked', false);
 

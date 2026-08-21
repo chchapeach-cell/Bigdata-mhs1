@@ -22,7 +22,7 @@ export async function checkActiveUsersConcurrency(profile: UserProfile): Promise
       const minActiveTime = now - THREE_MINUTES;
       const { data, error } = await supabase
         .from('active_sessions')
-        .select('*')
+        .select('uid, last_active_time, kicked')
         .gt('last_active_time', minActiveTime)
         .eq('kicked', false);
 

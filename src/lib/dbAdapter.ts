@@ -16,7 +16,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 
-import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog, AcademicRecord } from '../types';
+import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog, AcademicRecord, UserActivityLog } from '../types';
 
 // Helper to sanitize object before writing to Firestore
 function cleanForFirestore(obj: any): any {
@@ -307,11 +307,12 @@ export async function dbFetchUserProfile(uid: string, email?: string): Promise<U
   if (supabase && isSupabaseConfigured()) {
     try {
       let suUser: any = null;
-      const { data: byUid } = await supabase.from('users').select('*').eq('uid', uid).maybeSingle();
+      const userFields = 'uid, email, first_name, last_name, school_id, school_name, role, status, created_at';
+      const { data: byUid } = await supabase.from('users').select(userFields).eq('uid', uid).maybeSingle();
       if (byUid) {
         suUser = byUid;
       } else if (email) {
-        const { data: byEmail } = await supabase.from('users').select('*').eq('email', email).limit(1);
+        const { data: byEmail } = await supabase.from('users').select(userFields).eq('email', email).limit(1);
         if (byEmail && byEmail.length > 0) {
           suUser = byEmail[0];
         }
@@ -359,7 +360,8 @@ export async function dbFetchUserProfile(uid: string, email?: string): Promise<U
 export async function dbFetchUsersByStatus(status: 'pending' | 'approved' | 'all'): Promise<UserProfile[]> {
   if (supabase && isSupabaseConfigured()) {
     try {
-      let queryBuilder = supabase.from('users').select('*');
+      const userFields = 'uid, email, first_name, last_name, school_id, school_name, role, status, created_at';
+      let queryBuilder = supabase.from('users').select(userFields);
       if (status !== 'all') {
         queryBuilder = queryBuilder.eq('status', status);
       }
@@ -621,7 +623,8 @@ export async function dbMigrateUsersToSupabase(client?: any): Promise<number> {
 export async function dbFetchSystemStats(): Promise<any | null> {
   if (supabase && isSupabaseConfigured()) {
     try {
-      const { data, error } = await supabase.from('system_stats').select('*').eq('id', 'visitor_count').maybeSingle();
+      const statsFields = 'id, total_visits, today_visits, today_date, daily_visits, monthly_visits, yearly_visits, hourly_visits, updated_at';
+      const { data, error } = await supabase.from('system_stats').select(statsFields).eq('id', 'visitor_count').maybeSingle();
       if (!error && data) {
         return {
           totalVisits: Number(data.total_visits) || 0,
@@ -775,7 +778,8 @@ export async function dbMigrateSystemStatsToSupabase(client?: any): Promise<bool
 export async function dbFetchDownloadLogs(): Promise<DownloadLog[]> {
   if (supabase && isSupabaseConfigured()) {
     try {
-      const { data, error } = await supabase.from('download_logs').select('*').order('timestamp', { ascending: false }).limit(200);
+      const logFields = 'id, name, email, school_id, school_name, purpose, timestamp';
+      const { data, error } = await supabase.from('download_logs').select(logFields).order('timestamp', { ascending: false }).limit(200);
       if (!error && data) {
         return data.map((d: any) => ({
           id: d.id,
@@ -882,7 +886,8 @@ export async function dbCheckExistingSchoolAdmin(schoolId: string, excludeEmail:
 
   if (supabase && isSupabaseConfigured()) {
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('school_id', schoolId);
+      const userFields = 'uid, email, first_name, last_name, school_id, school_name, role, status, created_at';
+      const { data, error } = await supabase.from('users').select(userFields).eq('school_id', schoolId);
       if (!error && data && data.length > 0) {
         const dup = data.find((u: any) => 
           u.role === 'school_admin' && 
@@ -1086,9 +1091,10 @@ export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
   // Supabase direct fetch
   if (supabase && isSupabaseConfigured()) {
     const candidateTables = ['nt_assessments', 'academic_nt_assessments', 'academic_assessments'];
+    const ntFields = 'id, order_num, school_id, school_name, amphoe, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_at, updated_by';
     for (const tbl of candidateTables) {
       try {
-        let query = supabase.from(tbl).select('*');
+        let query = supabase.from(tbl).select(ntFields);
         if (tbl === 'academic_assessments') {
           query = query.eq('test_type', 'NT');
         }
@@ -1096,9 +1102,9 @@ export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
         let res = await query.order('order_num', { ascending: true });
         if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
           // If order_num column doesn't exist, query raw
-          res = await supabase.from(tbl).select('*');
+          res = await supabase.from(tbl).select(ntFields);
           if (tbl === 'academic_assessments') {
-            res = await supabase.from(tbl).select('*').eq('test_type', 'NT');
+            res = await supabase.from(tbl).select(ntFields).eq('test_type', 'NT');
           }
         }
 
@@ -1295,9 +1301,10 @@ export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
   // Supabase direct fetch
   if (supabase && isSupabaseConfigured()) {
     const candidateTables = ['rt_assessments', 'academic_rt_assessments', 'academic_assessments'];
+    const rtFields = 'id, order_num, school_id, school_name, amphoe, reading_aloud_score, reading_aloud_percentage, reading_comprehension_score, reading_comprehension_percentage, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, reading_aloud_quality, reading_comprehension_quality, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_at, updated_by';
     for (const tbl of candidateTables) {
       try {
-        let query = supabase.from(tbl).select('*');
+        let query = supabase.from(tbl).select(rtFields);
         if (tbl === 'academic_assessments') {
           query = query.eq('test_type', 'RT');
         }
@@ -1305,9 +1312,9 @@ export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
         let res = await query.order('order_num', { ascending: true });
         if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
           // If order_num column doesn't exist, query raw
-          res = await supabase.from(tbl).select('*');
+          res = await supabase.from(tbl).select(rtFields);
           if (tbl === 'academic_assessments') {
-            res = await supabase.from(tbl).select('*').eq('test_type', 'RT');
+            res = await supabase.from(tbl).select(rtFields).eq('test_type', 'RT');
           }
         }
 
@@ -1717,7 +1724,7 @@ export async function dbCleanCorruptStudentsG(): Promise<number> {
 
   if (supabase && isSupabaseConfigured()) {
     try {
-      const { data } = await supabase.from('students_g').select('*');
+      const { data } = await supabase.from('students_g').select('id, school_id, school_name');
       if (data) {
         for (const item of data) {
           if (!item.school_id || !item.school_name || item.school_name.includes('undefined')) {
@@ -1794,4 +1801,183 @@ export async function dbFetchSystemConfig(): Promise<SystemConfig | null> {
   }
 
   return null;
+}
+
+// -------------------------------------------------------------
+// 15. USER ACTIVITY / AUDIT LOGS (ประวัติการแก้ไขข้อมูลของผู้ใช้งาน)
+// -------------------------------------------------------------
+
+/**
+ * บันทึกประวัติการแก้ไข/ดำเนินกิจกรรมของผู้ใช้งานในระบบ (บันทึกลง Supabase โดยตรงแบบ Async Fire-and-Forget)
+ */
+export async function dbLogUserActivity(log: Omit<UserActivityLog, 'id' | 'timestamp'> & { timestamp?: any }): Promise<void> {
+  const now = new Date();
+  const timestampISO = now.toISOString();
+
+  // บันทึกลง Supabase โดยตรง
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const payload = {
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        user_id: log.userId || '',
+        user_name: log.userName || 'ผู้ใช้งาน',
+        user_email: (log.userEmail || '').trim().toLowerCase(),
+        user_role: log.userRole || 'school_admin',
+        school_id: log.schoolId || '',
+        school_name: log.schoolName || '',
+        action_type: log.actionType || 'other',
+        action_title: log.actionTitle || 'ดำเนินกิจกรรม',
+        details: log.details || '',
+        target_name: log.targetName || '',
+        timestamp: timestampISO,
+      };
+
+      const { error } = await supabase.from('user_activity_logs').insert([payload]);
+      if (error) {
+        console.warn('Supabase dbLogUserActivity warning:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase dbLogUserActivity exception:', e);
+    }
+  }
+}
+
+/**
+ * ดึงรายการประวัติกิจกรรมการแก้ไขข้อมูลจากฐานข้อมูล Supabase
+ */
+export async function dbFetchUserActivityLogs(options?: {
+  schoolId?: string;
+  userEmail?: string;
+  actionType?: string;
+  limitCount?: number;
+}): Promise<UserActivityLog[]> {
+  const limitCount = options?.limitCount || 300;
+
+  // ดึงจาก Supabase โดยตรง
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      let queryBuilder = supabase
+        .from('user_activity_logs')
+        .select('id, user_id, user_name, user_email, user_role, school_id, school_name, action_type, action_title, details, target_name, timestamp')
+        .order('timestamp', { ascending: false })
+        .limit(limitCount);
+
+      if (options?.schoolId && options.schoolId !== 'all') {
+        queryBuilder = queryBuilder.eq('school_id', options.schoolId);
+      }
+      if (options?.userEmail) {
+        queryBuilder = queryBuilder.ilike('user_email', `%${options.userEmail.trim()}%`);
+      }
+      if (options?.actionType && options.actionType !== 'all') {
+        queryBuilder = queryBuilder.eq('action_type', options.actionType);
+      }
+
+      const { data, error } = await queryBuilder;
+      if (!error && data) {
+        return data.map((d: any) => ({
+          id: d.id,
+          userId: d.user_id || '',
+          userName: d.user_name || '',
+          userEmail: d.user_email || '',
+          userRole: d.user_role || 'school_admin',
+          schoolId: d.school_id || '',
+          schoolName: d.school_name || '',
+          actionType: d.action_type || 'other',
+          actionTitle: d.action_title || '',
+          details: d.details || '',
+          targetName: d.target_name || '',
+          timestamp: d.timestamp ? new Date(d.timestamp) : new Date(),
+        }));
+      }
+      if (error) {
+        console.warn('Supabase dbFetchUserActivityLogs notice:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase dbFetchUserActivityLogs warning:', err);
+    }
+  }
+
+  return [];
+}
+
+/**
+ * ล้างข้อมูลบันทึกกิจกรรมเก่าที่เกินกว่า X วัน บนฐานข้อมูล Supabase (สำหรับ Super Admin จัดการพื้นที่)
+ */
+export async function dbPurgeOldUserActivityLogs(olderThanDays: number = 90): Promise<number> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+  const cutoffISO = cutoffDate.toISOString();
+  let deletedCount = 0;
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('user_activity_logs')
+        .delete()
+        .lt('timestamp', cutoffISO)
+        .select('id');
+      
+      if (!error && data) {
+        deletedCount = data.length;
+        console.log(`✅ Purged ${deletedCount} old user activity logs from Supabase`);
+        return deletedCount;
+      }
+      if (error) {
+        console.warn('Supabase dbPurgeOldUserActivityLogs notice:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase dbPurgeOldUserActivityLogs warning:', e);
+    }
+  }
+
+  return deletedCount;
+}
+
+/**
+ * ย้ายข้อมูลประวัติกิจกรรมผู้ใช้งาน (User Activity Logs) จาก Firestore เข้าสู่ Supabase
+ */
+export async function dbMigrateUserActivityLogsToSupabase(client?: any): Promise<number> {
+  const activeClient = client || supabase;
+  if (!activeClient) return 0;
+
+  try {
+    const snap = await getDocs(collection(db, 'user_activity_logs'));
+    if (snap.empty) return 0;
+
+    const rows = snap.docs.map(docSnap => {
+      const d = docSnap.data() as any;
+      return {
+        id: docSnap.id,
+        user_id: d.userId || '',
+        user_name: d.userName || 'ผู้ใช้งาน',
+        user_email: (d.userEmail || '').trim().toLowerCase(),
+        user_role: d.userRole || 'school_admin',
+        school_id: d.schoolId || '',
+        school_name: d.schoolName || '',
+        action_type: d.actionType || 'other',
+        action_title: d.actionTitle || 'ดำเนินกิจกรรม',
+        details: d.details || '',
+        target_name: d.targetName || '',
+        timestamp: safeToISOString(d.timestamp),
+      };
+    });
+
+    const batchSize = 50;
+    let totalMigrated = 0;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      const { error } = await activeClient.from('user_activity_logs').upsert(batch, { onConflict: 'id' });
+      if (!error) {
+        totalMigrated += batch.length;
+      } else {
+        console.warn('Supabase dbMigrateUserActivityLogsToSupabase batch notice:', error.message);
+      }
+    }
+
+    console.log(`✅ Migrated ${totalMigrated} user activity logs to Supabase`);
+    return totalMigrated;
+  } catch (err) {
+    console.error('dbMigrateUserActivityLogsToSupabase exception:', err);
+    return 0;
+  }
 }

@@ -143,5 +143,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSuperAdmin();
     }
+
+    // 10. User Activity Logs Collection (ประวัติการแก้ไขข้อมูลของผู้ใช้งาน)
+    match /user_activity_logs/{logId} {
+      allow create: if true;
+      allow read: if isSignedIn();
+      allow delete: if isSuperAdmin();
+    }
   }
 }

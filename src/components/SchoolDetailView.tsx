@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
-import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords } from '../lib/dbAdapter';
+import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { generateInitialAcademicRecords, determineQualityLevel, matchSchoolId } from '../utils/academicData';
@@ -277,6 +277,22 @@ export default function SchoolDetailView({
     }
     try {
       await dbDeleteSchool(school.id);
+      
+      if (userProfile) {
+        dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+          userEmail: userProfile.email || '',
+          userRole: userProfile.role || 'super_admin',
+          schoolId: school.id,
+          schoolName: school.name,
+          actionType: 'delete_data',
+          actionTitle: 'ลบโรงเรียนออกจากระบบ',
+          details: `ลบโรงเรียน "${school.name}" (รหัส ${school.id}) ออกจากระบบ`,
+          targetName: `${school.name} (${school.id})`
+        });
+      }
+
       alert(`ลบโรงเรียน "${school.name}" เรียบร้อยแล้ว`);
       await onRefreshData();
       onBack();
@@ -399,6 +415,21 @@ export default function SchoolDetailView({
         updatedBy: updaterName
       }, updaterName);
       
+      if (userProfile) {
+        dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+          userEmail: userProfile.email || '',
+          userRole: userProfile.role || 'school_admin',
+          schoolId: school.id,
+          schoolName: school.name,
+          actionType: 'update_school',
+          actionTitle: editingClassroom ? 'แก้ไขห้องเรียน/สาขาห่างไกล' : 'เพิ่มห้องเรียน/สาขาห่างไกล',
+          details: `${editingClassroom ? 'แก้ไข' : 'เพิ่ม'} ห้องเรียน/สาขา "${newClassroomObj.name}" ของ "${school.name}" (นักเรียน ${newClassroomObj.studentCount} คน, ครู ${newClassroomObj.staffCount} คน)`,
+          targetName: `${school.name} - ${newClassroomObj.name}`
+        });
+      }
+
       setClassrooms(updatedList);
       setIsClassroomModalOpen(false);
       setSuccessMsg('บันทึกข้อมูลเรียบร้อยแล้ว!');
@@ -417,6 +448,7 @@ export default function SchoolDetailView({
     if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้ออกจากโรงเรียนของคุณ?')) return;
 
     try {
+      const targetClassroom = (school.classrooms || []).find(c => c.id === classroomId);
       const updatedList = (school.classrooms || []).filter(c => c.id !== classroomId);
       const updaterName = userProfile?.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile?.email || 'แอดมิน');
       await dbSaveSchool({
@@ -426,6 +458,21 @@ export default function SchoolDetailView({
         updatedBy: updaterName
       }, updaterName);
       
+      if (userProfile) {
+        dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+          userEmail: userProfile.email || '',
+          userRole: userProfile.role || 'school_admin',
+          schoolId: school.id,
+          schoolName: school.name,
+          actionType: 'delete_data',
+          actionTitle: 'ลบห้องเรียน/สาขาห่างไกล',
+          details: `ลบห้องเรียน/สาขา "${targetClassroom?.name || classroomId}" ของ "${school.name}" ออก`,
+          targetName: `${school.name} - ${targetClassroom?.name || classroomId}`
+        });
+      }
+
       setClassrooms(updatedList);
       setSuccessMsg('ลบรายการเรียบร้อยแล้ว!');
       await onRefreshData();
@@ -622,6 +669,21 @@ export default function SchoolDetailView({
           ...cleanData,
           id: school.id,
         }, updaterName);
+
+        if (userProfile) {
+          dbLogUserActivity({
+            userId: userProfile.uid,
+            userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+            userEmail: userProfile.email || '',
+            userRole: userProfile.role || 'school_admin',
+            schoolId: school.id,
+            schoolName: school.name,
+            actionType: 'update_school',
+            actionTitle: 'แก้ไขข้อมูลโรงเรียน',
+            details: `แก้ไขข้อมูลทั่วไป/โครงสร้างพื้นฐานของ "${school.name}": ผอ. ${editDirectorName || '-'}, ครู ${editStaffCount} คน, ไฟฟ้า ${editElectricity}, เน็ต ${editInternetType}`,
+            targetName: `${school.name} (${school.id})`
+          });
+        }
       } catch (e) {
         console.error('Database operation failed');
       }

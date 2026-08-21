@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff } from 'lucide-react';
+import { Database, Copy, Check, ExternalLink, Download, Key, Server, RefreshCw, Send, CheckCircle, AlertTriangle, ShieldOff, Zap } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { dbMigrateUsersToSupabase, dbMigrateSystemStatsToSupabase, dbMigrateDownloadLogsToSupabase, dbMigrateAcademicAssessmentsToSupabase, dbFetchAcademicRecords } from '../lib/dbAdapter';
+import { supabase, isSupabaseConfigured, SUPABASE_SCHEMA_SQL, SUPABASE_FIX_RLS_SQL, SUPABASE_INDEXES_SQL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { dbMigrateUsersToSupabase, dbMigrateSystemStatsToSupabase, dbMigrateDownloadLogsToSupabase, dbMigrateAcademicAssessmentsToSupabase, dbMigrateUserActivityLogsToSupabase, dbFetchAcademicRecords } from '../lib/dbAdapter';
 
 interface SupabaseMigrationModalProps {
   isOpen: boolean;
@@ -23,6 +23,7 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
 }) => {
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [copiedRls, setCopiedRls] = useState(false);
+  const [copiedIndexes, setCopiedIndexes] = useState(false);
   const [supabaseUrl, setSupabaseUrl] = useState(SUPABASE_URL);
   const [supabaseKey, setSupabaseKey] = useState(SUPABASE_ANON_KEY);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -50,12 +51,30 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
     setTimeout(() => setCopiedRls(false), 3000);
   };
 
+  const handleCopyIndexes = () => {
+    navigator.clipboard.writeText(SUPABASE_INDEXES_SQL);
+    setCopiedIndexes(true);
+    setTimeout(() => setCopiedIndexes(false), 3000);
+  };
+
   const handleDownloadRlsSql = () => {
     const blob = new Blob([SUPABASE_FIX_RLS_SQL], { type: 'text/sql' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `supabase_unlock_rls_${new Date().getTime()}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadIndexesSql = () => {
+    const blob = new Blob([SUPABASE_INDEXES_SQL], { type: 'text/sql' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `supabase_performance_indexes_${new Date().getTime()}.sql`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -544,17 +563,19 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
 
       setMigrationProgress(95);
 
-      // 7. Sync System Stats & Download Logs
-      setMigrationStatus(`กำลังย้ายข้อมูลสถิติผู้เข้าชม (System Stats) และประวัติการดาวน์โหลดเอกสาร (Download Logs)...`);
+      // 7. Sync System Stats, Download Logs & User Activity Logs
+      setMigrationStatus(`กำลังย้ายข้อมูลสถิติผู้เข้าชม, ประวัติการดาวน์โหลด และประวัติกิจกรรมผู้ใช้ (Activity Logs)...`);
+      let migratedActivityLogs = 0;
       try {
         await dbMigrateSystemStatsToSupabase(activeClient);
         await dbMigrateDownloadLogsToSupabase(activeClient);
+        migratedActivityLogs = await dbMigrateUserActivityLogsToSupabase(activeClient);
       } catch (stErr) {
         console.warn('Stats/Logs migration warning:', stErr);
       }
 
       setMigrationProgress(100);
-      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ, ผลการประเมิน NT/RT ${migratedAcademicCount} รายการ, ผู้ใช้งาน ${migratedUsersCount} รายการ)`);
+      setMigrationStatus(`✅ ย้ายข้อมูลเข้า Supabase สำเร็จเรียบร้อยแล้ว! (โรงเรียน ${schools.length} แห่ง, นักเรียน ${studentData.length} รายการ, ผลการประเมิน NT/RT ${migratedAcademicCount} รายการ, ผู้ใช้งาน ${migratedUsersCount} รายการ, ประวัติกิจกรรม ${migratedActivityLogs} รายการ)`);
       setMigrationSuccess(true);
     } catch (err: any) {
       console.error('Migration error:', err);
@@ -654,6 +675,20 @@ export const SupabaseMigrationModal: React.FC<SupabaseMigrationModalProps> = ({
                 >
                   {copiedRls ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <ShieldOff className="w-3.5 h-3.5" />}
                   {copiedRls ? 'คัดลอกคำสั่งปลดล็อก RLS แล้ว!' : 'คัดลอก SQL ปลดล็อก RLS'}
+                </button>
+                <button
+                  onClick={handleCopyIndexes}
+                  className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                >
+                  {copiedIndexes ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Zap className="w-3.5 h-3.5 text-amber-300" />}
+                  {copiedIndexes ? 'คัดลอก SQL Indexes แล้ว!' : '⚡ คัดลอก SQL เพิ่มความเร็ว (Indexes)'}
+                </button>
+                <button
+                  onClick={handleDownloadIndexesSql}
+                  className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  โหลดไฟล์ SQL Indexes
                 </button>
                 <button
                   onClick={handleDownloadRlsSql}

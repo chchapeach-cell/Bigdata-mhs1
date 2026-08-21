@@ -13,7 +13,8 @@ import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
-import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
+import { UserActivityLogView } from './UserActivityLogView';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 
 interface AdminPanelProps {
@@ -545,7 +546,7 @@ export default function AdminPanel({
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [downloadLogs]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'settings' | 'theme'>(
+  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme'>(
     isSuperAdmin ? 'students_center' : 'schools'
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
@@ -642,6 +643,19 @@ export default function AdminPanel({
         totalStudents: Number(editStudentTotal),
       });
 
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId: editingStudentDataRecord.schoolId,
+        schoolName: editingStudentDataRecord.schoolName,
+        actionType: 'update_student',
+        actionTitle: 'แก้ไขข้อมูลสถิตินักเรียน',
+        details: `แก้ไขข้อมูลสถิตินักเรียนของ "${editingStudentDataRecord.schoolName}" ปี ${editingStudentDataRecord.academicYear}: ชาย ${editStudentMale} คน, หญิง ${editStudentFemale} คน, รวม ${editStudentTotal} คน`,
+        targetName: `${editingStudentDataRecord.schoolName} (${editingStudentDataRecord.academicYear})`
+      });
+
       setEditingStudentDataRecord(null);
       await onRefreshData();
     } catch (err: any) {
@@ -659,6 +673,20 @@ export default function AdminPanel({
     }
     try {
       await dbDeleteStudent(docId, String(record.schoolId), String(record.academicYear));
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId: record.schoolId,
+        schoolName: record.schoolName,
+        actionType: 'delete_data',
+        actionTitle: 'ลบข้อมูลสถิตินักเรียน',
+        details: `ลบข้อมูลสถิตินักเรียนของโรงเรียน "${record.schoolName}" ปีการศึกษา ${record.academicYear}`,
+        targetName: `${record.schoolName} (${record.academicYear})`
+      });
+
       await onRefreshData();
     } catch (err: any) {
       console.error('Failed to delete student record:', err);
@@ -688,6 +716,19 @@ export default function AdminPanel({
         femaleGCount: Number(editGFemale),
         totalGStudents: Number(editGTotal),
         notes: editGNotes.trim()
+      });
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId: editingGRecord.schoolId,
+        schoolName: editingGRecord.schoolName,
+        actionType: 'update_student_g',
+        actionTitle: 'แก้ไขข้อมูลนักเรียนตัว G',
+        details: `แก้ไขข้อมูลนักเรียนรหัส G ของ "${editingGRecord.schoolName}" ปี ${editingGRecord.academicYear}: ชาย ${editGMale} คน, หญิง ${editGFemale} คน, รวม ${editGTotal} คน (หมายเหตุ: ${editGNotes.trim() || '-'})`,
+        targetName: `${editingGRecord.schoolName} (${editingGRecord.academicYear})`
       });
 
       setEditingGRecord(null);
@@ -768,6 +809,19 @@ export default function AdminPanel({
         maleGCount: Number(gMaleCount) || 0,
         femaleGCount: Number(gFemaleCount) || 0,
         notes: gNotes.trim()
+      });
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'school_admin',
+        schoolId: targetId,
+        schoolName: sch?.name || targetId,
+        actionType: 'update_student_g',
+        actionTitle: 'บันทึกข้อมูลนักเรียนตัว G',
+        details: `บันทึกข้อมูลนักเรียนตัว G ของ "${sch?.name || targetId}" ปี ${gYear}: รวม ${gTotalCount} คน (ชาย ${gMaleCount}, หญิง ${gFemaleCount})`,
+        targetName: `${sch?.name || targetId} (${gYear})`
       });
 
       setGSuccess(`บันทึกข้อมูลนักเรียนรหัส G ของโรงเรียน "${sch?.name || targetId}" ปีการศึกษา ${gYear} สำเร็จแล้ว!`);
@@ -1112,6 +1166,17 @@ export default function AdminPanel({
       setGPreviewData([]);
       setGRawRows([]);
 
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'import_data',
+        actionTitle: 'นำเข้าข้อมูลนักเรียนตัว G จากไฟล์',
+        details: `นำเข้าข้อมูลนักเรียนตัว G ประจำปี ${gUploadYear} จำนวน ${count} รายการ สำเร็จ`,
+        targetName: `นักเรียนตัว G (ปี ${gUploadYear})`
+      });
+
       const fileInput = document.getElementById('g-upload-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
 
@@ -1150,6 +1215,17 @@ export default function AdminPanel({
       if (deletedCount === 0) {
         setDeleteGError(`ไม่พบข้อมูลนักเรียนตัว G ของปีการศึกษา ${year} ในฐานข้อมูล`);
       } else {
+        dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+          userEmail: userProfile.email || '',
+          userRole: userProfile.role || 'super_admin',
+          actionType: 'delete_data',
+          actionTitle: 'ลบข้อมูลนักเรียนตัว G ประจำปีการศึกษา',
+          details: `ลบข้อมูลนักเรียนตัว G ทั้งหมดของปีการศึกษา ${year} (จำนวน ${deletedCount} รายการ)`,
+          targetName: `นักเรียนตัว G ประจำปี ${year}`
+        });
+
         setDeleteGSuccess(`ลบข้อมูลนักเรียนตัว G ปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
         setDeleteGYear('');
         await onRefreshData();
@@ -1175,6 +1251,16 @@ export default function AdminPanel({
 
     try {
       const deletedCount = await dbCleanCorruptStudentsG();
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'delete_data',
+        actionTitle: 'ล้างข้อมูลปีการศึกษาที่ไม่ถูกต้อง',
+        details: `ล้างข้อมูลนักเรียนตัว G ที่มีปีการศึกษาไม่ถูกต้องออกจำนวน ${deletedCount} รายการ`,
+        targetName: 'ล้างข้อมูล Corrupt G Records'
+      });
       setDeleteGSuccess(`ล้างข้อมูลปีการศึกษาที่ไม่ถูกต้องสำเร็จแล้ว ทั้งหมด ${deletedCount} รายการ`);
       await onRefreshData();
     } catch (err: any) {
@@ -1200,6 +1286,20 @@ export default function AdminPanel({
       const docId2 = `${schoolId}_${academicYear}`;
       await dbDeleteStudentG(docId1, schoolId, academicYear);
       await dbDeleteStudentG(docId2, schoolId, academicYear);
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId,
+        schoolName,
+        actionType: 'delete_data',
+        actionTitle: 'ลบข้อมูลนักเรียนตัว G รายโรงเรียน',
+        details: `ลบข้อมูลนักเรียนตัว G ของ "${schoolName}" ปีการศึกษา ${academicYear}`,
+        targetName: `${schoolName} (${academicYear})`
+      });
+
       setGSuccess(`ลบข้อมูลนักเรียนตัว G ของ "${schoolName}" เรียบร้อยแล้ว`);
       await onRefreshData();
     } catch (e: any) {
@@ -1274,6 +1374,17 @@ export default function AdminPanel({
         });
       }
 
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'update_school',
+        actionTitle: 'เปลี่ยนชื่อกลุ่มเครือข่าย',
+        details: `เปลี่ยนชื่อกลุ่มเครือข่ายจาก "${oldName}" เป็น "${cleanNewName}" (อัปเดตโรงเรียน ${affectedSchools.length} แห่ง)`,
+        targetName: cleanNewName
+      });
+
       setRenameGroupSuccess(`เปลี่ยนชื่อกลุ่มเครือข่ายจาก "${oldName}" เป็น "${cleanNewName}" เรียบร้อยแล้ว (อัปเดตโรงเรียน ${affectedSchools.length} แห่ง)`);
       setEditingGroupOldName(null);
       await onRefreshData();
@@ -1331,6 +1442,18 @@ export default function AdminPanel({
         });
         updatedCount++;
       }
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'delete_data',
+        actionTitle: 'ล้างข้อมูลพื้นฐานและโครงสร้างทุกโรงเรียน',
+        details: `รีเซ็ตข้อมูลครู บุคลากร และโครงสร้างพื้นฐานของทุกโรงเรียน (${updatedCount} แห่ง) ให้เป็นค่าว่าง`,
+        targetName: 'ทุกโรงเรียนในระบบ'
+      });
+
       alert(`ล้างข้อมูลสำเร็จแล้วจำนวน ${updatedCount} โรงเรียน\nขณะนี้ข้อมูลต่างๆ เป็น 0 และค่าว่างเพื่อให้เจ้าหน้าที่กรอกข้อมูลใหม่แล้ว`);
       await onRefreshData();
     } catch (err: any) {
@@ -1385,6 +1508,19 @@ export default function AdminPanel({
 
       await dbSaveSchool(newSchoolObj);
 
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId: cleanId,
+        schoolName: newSchoolName.trim(),
+        actionType: 'create_school',
+        actionTitle: 'เพิ่มโรงเรียนใหม่',
+        details: `เพิ่มโรงเรียนใหม่: "${newSchoolName.trim()}" (รหัส: ${cleanId}, อำเภอ: ${newSchoolAmphoe})`,
+        targetName: `${newSchoolName.trim()} (${cleanId})`
+      });
+
       setAddSchoolSuccess(`เพิ่มโรงเรียน "${newSchoolName}" (รหัส ${cleanId}) เข้าสู่ระบบเรียบร้อยแล้ว!`);
       setNewSchoolId('');
       setNewSchoolName('');
@@ -1409,6 +1545,20 @@ export default function AdminPanel({
     }
     try {
       await dbDeleteSchool(schoolId);
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        schoolId,
+        schoolName,
+        actionType: 'delete_data',
+        actionTitle: 'ลบโรงเรียนออกจากระบบ',
+        details: `ลบโรงเรียน "${schoolName}" (รหัส ${schoolId}) ออกจากระบบอย่างถาวร`,
+        targetName: `${schoolName} (${schoolId})`
+      });
+
       alert(`ลบโรงเรียน "${schoolName}" เรียบร้อยแล้ว`);
       await onRefreshData();
     } catch (e: any) {
@@ -1586,6 +1736,18 @@ export default function AdminPanel({
         updatedAt: new Date()
       });
       await dbSaveSystemConfig(configData);
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'update_system',
+        actionTitle: 'บันทึกการตั้งค่าระบบ',
+        details: 'บันทึกและปรับปรุงนโยบายสิทธิ์ โครงสร้างพื้นฐาน และแบนเนอร์ส่วนหัวของระบบ',
+        targetName: 'การตั้งค่าระบบ (System Config)'
+      });
+
       setSettingsSuccess('บันทึกนโยบายระบบ โครงสร้างพื้นฐาน และแบนเนอร์หัวเว็บสำเร็จ!');
       await onRefreshData();
       setTimeout(() => setSettingsSuccess(''), 4000);
@@ -1613,6 +1775,18 @@ export default function AdminPanel({
       if (key && value !== undefined) {
         await dbSaveSystemConfig({ [key]: value });
       }
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'update_system',
+        actionTitle: 'สลับการตั้งค่านโยบายระบบ',
+        details: `เปลี่ยนการตั้งค่า "${key}" เป็น ${value ? 'เปิดใช้งาน (ON)' : 'ปิดใช้งาน (OFF)'}`,
+        targetName: key
+      });
+
       setSettingsSuccess('อัปเดตนโยบายระบบสำเร็จ!');
       setTimeout(() => setSettingsSuccess(''), 3000);
     } catch (e: any) {
@@ -1718,6 +1892,17 @@ export default function AdminPanel({
         return;
       }
 
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'delete_data',
+        actionTitle: 'ลบข้อมูลสถิตินักเรียนประจำปี',
+        details: `ลบข้อมูลสถิตินักเรียนของปีการศึกษา ${year} ทั้งหมด (${deletedCount} รายการ)`,
+        targetName: `สถิตินักเรียนปีการศึกษา ${year}`
+      });
+
       setDeleteSuccess(`ลบข้อมูลปีการศึกษา ${year} สำเร็จแล้ว (จำนวน ${deletedCount} รายการ)`);
       setDeleteYear('');
       await onRefreshData(); // รีเฟรชข้อมูลในแอป
@@ -1782,6 +1967,18 @@ export default function AdminPanel({
       if (status === 'approved') {
         loadApprovedUsers();
       }
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'user_management',
+        actionTitle: status === 'approved' ? 'อนุมัติสิทธิ์ผู้ใช้งาน' : 'ปฏิเสธคำขอสิทธิ์ผู้ใช้งาน',
+        details: `${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'} สิทธิ์ผู้ดูแลระบบโรงเรียนสำหรับบัญชี: ${email || uid}`,
+        targetName: email || uid
+      });
+
       alert(`อัปเดตสถานะของผู้สมัครเรียบร้อยแล้วเป็น: ${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}`);
     } catch (error) {
       console.error(error);
@@ -1795,6 +1992,18 @@ export default function AdminPanel({
       await dbDeleteUser(uid, email);
       setApprovedUsers(prev => prev.filter(u => u.uid !== uid && u.email !== email));
       setPendingUsers(prev => prev.filter(u => u.uid !== uid && u.email !== email));
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'super_admin',
+        actionType: 'user_management',
+        actionTitle: 'ลบบัญชีผู้ใช้งาน',
+        details: `ลบบัญชีผู้ใช้งานระบบ: ${email || uid}`,
+        targetName: email || uid
+      });
+
       alert('ลบผู้ใช้งานเรียบร้อยแล้ว');
     } catch (error) {
       console.error(error);
@@ -1895,6 +2104,20 @@ export default function AdminPanel({
         console.error('Database operation failed');
         throw e;
       }
+
+      dbLogUserActivity({
+        userId: userProfile.uid,
+        userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+        userEmail: userProfile.email || '',
+        userRole: userProfile.role || 'school_admin',
+        schoolId: targetId,
+        schoolName: editSchoolName || currentSchool?.name || targetId,
+        actionType: 'update_school',
+        actionTitle: 'แก้ไขข้อมูลทั่วไป/โครงสร้างพื้นฐานโรงเรียน',
+        details: `อัปเดตข้อมูลทั่วไป: ${editSchoolName}, บุคลากร ${editStaffCount} คน, ผอ. ${editDirectorName || '-'}, ไฟฟ้า ${editElectricity ? 'มี' : 'ไม่มี'}, เน็ต ${editInternet}`,
+        targetName: `${editSchoolName || currentSchool?.name || targetId}`
+      });
+
       setEditSuccess('บันทึกข้อมูลพื้นฐานโรงเรียน อำเภอ เครือข่าย และวิชาเอกพร้อมจำนวนครูเรียบร้อยแล้ว!');
       await onRefreshData();
     } catch (error) {
@@ -2162,6 +2385,18 @@ export default function AdminPanel({
           setUploadProgress(100);
           setUploadStatusText(`นำเข้าสถิตินักเรียนสำเร็จสมบูรณ์ ทั้งหมด ${processedCount} โรงเรียน!`);
           setUploadSuccess(`นำเข้าสถิตินักเรียนเรียบร้อยแล้ว จำนวน ${processedCount} โรงเรียน ประจำปีการศึกษา ${uploadYear}`);
+
+          dbLogUserActivity({
+            userId: userProfile.uid,
+            userName: userProfile.firstName ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim() : (userProfile.email || 'ผู้ดูแลระบบ'),
+            userEmail: userProfile.email || '',
+            userRole: userProfile.role || 'super_admin',
+            actionType: 'import_data',
+            actionTitle: 'นำเข้าสถิตินักเรียน Big Data จากไฟล์ Excel',
+            details: `นำเข้าสถิตินักเรียน Big Data ประจำปีการศึกษา ${uploadYear} จำนวน ${processedCount} โรงเรียน สำเร็จ`,
+            targetName: `Big Data นักเรียน (${uploadYear})`
+          });
+
           setPreviewData([]);
           await onRefreshData();
         } catch (err) {
@@ -2330,6 +2565,18 @@ export default function AdminPanel({
               </button>
             </>
           )}
+
+          <button
+            onClick={() => setAdminTab('activity_logs')}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              adminTab === 'activity_logs' 
+                ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+            }`}
+          >
+            <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <span>LOG การแก้ไขข้อมูล</span>
+          </button>
 
           <button
             onClick={() => setAdminTab('theme')}
@@ -3196,6 +3443,15 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB: Activity Audit Logs (ประวัติการแก้ไขข้อมูลของแต่ละผู้ใช้งาน) */}
+          {adminTab === 'activity_logs' && (
+            <UserActivityLogView
+              currentUser={userProfile}
+              schools={schools}
+              isSuperAdmin={isSuperAdmin}
+            />
           )}
 
           {adminTab === 'schools' && (
