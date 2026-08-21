@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { signOut } from 'firebase/auth';
 import { UserProfile } from '../types';
 import { ShieldAlert, Clock, LogOut, RefreshCw, Lock } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface InactivityLogoutHandlerProps {
   userProfile: UserProfile | null;
@@ -44,12 +45,28 @@ export default function InactivityLogoutHandler({
     setShowWarningModal(false);
     warningModalOpenRef.current = false;
     try {
-      await signOut(auth);
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut().catch(() => {});
+      }
+      await signOut(auth).catch(() => {});
       if (onLoggedOut) onLoggedOut();
     } catch (err) {
       console.error('Error signing out:', err);
     }
   };
+
+  // เมื่อผู้ใช้ล็อกอินเข้ามาใหม่ หรือโปรไฟล์เปลี่ยน ให้รีเซ็ตเวลากิจกรรมล่าสุดทันที
+  useEffect(() => {
+    if (userProfile) {
+      lastActivityRef.current = Date.now();
+      setShowWarningModal(false);
+      warningModalOpenRef.current = false;
+      setShowLoggedOutNoticeModal(false);
+    } else {
+      setShowWarningModal(false);
+      warningModalOpenRef.current = false;
+    }
+  }, [userProfile?.uid]);
 
   useEffect(() => {
     if (!userProfile) {
@@ -57,6 +74,9 @@ export default function InactivityLogoutHandler({
       warningModalOpenRef.current = false;
       return;
     }
+
+    // รีเซ็ตเวลาเริ่มต้นเซสชัน ณ ตอนที่ component เริ่มทำงานกับ userProfile นี้
+    lastActivityRef.current = Date.now();
 
     // ติดตั้ง Event Listeners ดักจับการเคลื่อนไหวของผู้ใช้งาน
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
@@ -85,6 +105,9 @@ export default function InactivityLogoutHandler({
         setShowWarningModal(false);
         warningModalOpenRef.current = false;
         
+        if (isSupabaseConfigured()) {
+          supabase.auth.signOut().catch(() => {});
+        }
         signOut(auth).then(() => {
           if (onLoggedOut) onLoggedOut();
           setShowLoggedOutNoticeModal(true);

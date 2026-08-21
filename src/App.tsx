@@ -445,7 +445,18 @@ export default function App() {
       // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
       if (supabase && isSupabaseConfigured()) {
         try {
-          const { data: suSchools, error: suErr } = await supabase.from('schools').select('*').order('id', { ascending: true });
+          // ดึงข้อมูลทั้งหมดพร้อมกันแบบคู่ขนาน (Parallel Requests) เพื่อความเร็วสูงสุด
+          const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
+            supabase.from('schools').select('*').order('id', { ascending: true }),
+            supabase.from('students').select('*'),
+            supabase.from('students_g').select('*'),
+            supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
+            dbFetchAcademicRecords().catch(() => [])
+          ]);
+
+          const suSchools = schoolsRes.data;
+          const suErr = schoolsRes.error;
+
           if (!suErr && suSchools && suSchools.length > 0) {
             const mappedSchools: School[] = suSchools.map(s => {
               const autoInfo = getAmphoeAndNetwork(s.id, s.name);
@@ -501,7 +512,7 @@ export default function App() {
               };
             });
 
-            const { data: suStudents } = await supabase.from('students').select('*');
+            const suStudents = studentsRes.data;
             let mappedStudents: StudentData[] = (suStudents || []).map(st => ({
               id: st.id,
               schoolId: st.school_id,
@@ -528,7 +539,7 @@ export default function App() {
               }));
             }
 
-            const { data: suStudentsG } = await supabase.from('students_g').select('*');
+            const suStudentsG = studentsGRes.data;
             const mappedStudentsG: StudentGData[] = (suStudentsG || []).map(sg => ({
               id: sg.id,
               schoolId: sg.school_id,
@@ -540,13 +551,8 @@ export default function App() {
               notes: sg.notes
             }));
 
-            try {
-              const { data: suSettings } = await supabase.from('settings').select('config').eq('id', 'system_config').single();
-              if (suSettings && suSettings.config) {
-                setSystemConfig(prev => ({ ...prev, ...suSettings.config }));
-              }
-            } catch (err) {
-              console.warn('Notice reading settings from Supabase:', err);
+            if (settingsRes && (settingsRes as any).data?.config) {
+              setSystemConfig(prev => ({ ...prev, ...(settingsRes as any).data.config }));
             }
 
             setSchools(mappedSchools);
@@ -568,16 +574,11 @@ export default function App() {
               }
             }
 
-            try {
-              const acRecords = await dbFetchAcademicRecords();
-              if (acRecords && acRecords.length > 0) {
-                setAcademicRecords(acRecords);
-              }
-            } catch (acErr) {
-              console.warn('Notice reading academic records:', acErr);
+            if (acRecords && acRecords.length > 0) {
+              setAcademicRecords(acRecords);
             }
 
-            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records across years ${years.join(', ')}`);
+            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records across years ${years.join(', ')}`);
             setIsLoading(false);
             return;
           } else {
