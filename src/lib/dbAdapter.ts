@@ -1,18 +1,20 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-
-const db = null as any;
-const doc = (...args: any[]) => null;
-const setDoc = async (...args: any[]) => null;
-const updateDoc = async (...args: any[]) => null;
-const deleteDoc = async (...args: any[]) => null;
-const getDoc = async (...args: any[]) => ({ exists: () => false, data: () => ({}) } as any);
-const getDocs = async (...args: any[]) => ({ empty: true, docs: [], forEach: () => {} } as any);
-const collection = (...args: any[]) => null;
-const query = (...args: any[]) => null;
-const where = (...args: any[]) => null;
-const orderBy = (...args: any[]) => null;
-const writeBatch = (...args: any[]) => ({ set: () => {}, update: () => {}, delete: () => {}, commit: async () => {} } as any);
-const addDoc = async (...args: any[]) => null;
+import { db } from '../firebase';
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  getDoc,
+  getDocs,
+  collection,
+  query,
+  where,
+  orderBy,
+  writeBatch,
+  addDoc,
+  onSnapshot
+} from 'firebase/firestore';
 
 import { School, StudentData, StudentGData, UserProfile, SystemConfig, DownloadLog, AcademicRecord } from '../types';
 
@@ -626,13 +628,15 @@ export async function dbFetchSystemStats(): Promise<any | null> {
           todayVisits: Number(data.today_visits) || 0,
           todayDate: data.today_date || '',
           dailyVisits: data.daily_visits || {},
+          monthlyVisits: data.monthly_visits || {},
+          yearlyVisits: data.yearly_visits || {},
+          hourlyVisits: data.hourly_visits || {},
           updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
         };
       }
     } catch (err) {
       console.warn('Supabase dbFetchSystemStats warning:', err);
     }
-    return null;
   }
 
   try {
@@ -648,6 +652,56 @@ export async function dbFetchSystemStats(): Promise<any | null> {
   return null;
 }
 
+export function dbSubscribeSystemStats(callback: (stats: any) => void): () => void {
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const channel = supabase
+        .channel('public:system_stats')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'system_stats' },
+          (payload: any) => {
+            if (payload && payload.new) {
+              const data = payload.new;
+              callback({
+                id: data.id || 'visitor_count',
+                totalVisits: Number(data.total_visits) || 0,
+                todayVisits: Number(data.today_visits) || 0,
+                todayDate: data.today_date || '',
+                dailyVisits: data.daily_visits || {},
+                monthlyVisits: data.monthly_visits || {},
+                yearlyVisits: data.yearly_visits || {},
+                hourlyVisits: data.hourly_visits || {},
+                updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (err) {
+      console.warn('Supabase dbSubscribeSystemStats realtime warning:', err);
+    }
+  }
+
+  try {
+    const docRef = doc(db, 'system_stats', 'visitor_count');
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      }
+    }, (err) => {
+      console.warn('Firestore dbSubscribeSystemStats onSnapshot warning:', err);
+    });
+  } catch (err) {
+    console.warn('dbSubscribeSystemStats setup warning:', err);
+    return () => {};
+  }
+}
+
 export async function dbSaveSystemStats(statsData: any): Promise<void> {
   const now = new Date().toISOString();
 
@@ -658,17 +712,19 @@ export async function dbSaveSystemStats(statsData: any): Promise<void> {
       today_visits: Number(statsData.todayVisits) || 0,
       today_date: statsData.todayDate || new Date().toISOString().split('T')[0],
       daily_visits: statsData.dailyVisits || {},
+      monthly_visits: statsData.monthlyVisits || {},
+      yearly_visits: statsData.yearlyVisits || {},
+      hourly_visits: statsData.hourlyVisits || {},
       updated_at: now,
     };
 
-    const { error } = await supabase.from('system_stats').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      if (error.code === '42501' || error.code === '42P01') {
-        console.warn('Supabase system_stats warning: Please run the SQL migration in Supabase to create the table and RLS policies.');
-      } else {
+    try {
+      const { error } = await supabase.from('system_stats').upsert(payload, { onConflict: 'id' });
+      if (error) {
         console.warn('Supabase dbSaveSystemStats warning:', error.message || error);
       }
-      return;
+    } catch (e) {
+      console.warn('Supabase dbSaveSystemStats exception:', e);
     }
     return;
   }
@@ -698,6 +754,9 @@ export async function dbMigrateSystemStatsToSupabase(client?: any): Promise<bool
       today_visits: Number(data.todayVisits) || 0,
       today_date: data.todayDate || new Date().toISOString().split('T')[0],
       daily_visits: data.dailyVisits || {},
+      monthly_visits: data.monthlyVisits || {},
+      yearly_visits: data.yearlyVisits || {},
+      hourly_visits: data.hourlyVisits || {},
       updated_at: new Date().toISOString(),
     };
 

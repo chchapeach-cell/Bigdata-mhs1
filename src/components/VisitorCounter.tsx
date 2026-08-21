@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, Users, Calendar, TrendingUp, BarChart3, RefreshCw, X, Clock } from 'lucide-react';
-import { dbSaveSystemStats, dbFetchSystemStats } from '../lib/dbAdapter';
+import { dbSaveSystemStats, dbFetchSystemStats, dbSubscribeSystemStats } from '../lib/dbAdapter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 
 interface VisitorData {
@@ -13,6 +13,14 @@ interface VisitorData {
   hourlyVisits?: { [key: string]: number }; // Key: "YYYY-MM-DD_HH"
 }
 
+// Helper to format local date string "YYYY-MM-DD" safely respecting local timezone
+const getLocalDateString = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function VisitorCounter() {
   const [totalVisits, setTotalVisits] = useState<number>(0);
   const [todayVisits, setTodayVisits] = useState<number>(0);
@@ -23,38 +31,40 @@ export default function VisitorCounter() {
   const [isResetting, setIsResetting] = useState<boolean>(false);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    let isMounted = true;
+    const now = new Date();
+    const todayStr = getLocalDateString(now); // "YYYY-MM-DD"
+    const monthStr = todayStr.slice(0, 7); // "YYYY-MM"
+    const yearStr = todayStr.slice(0, 4); // "YYYY"
+    const hourStr = String(now.getHours()).padStart(2, '0'); // "00".."23"
+    const hourlyKey = `${todayStr}_${hourStr}`;
+    const sessionKey = `mhs1_visited_${todayStr}`;
+
+    const syncStateFromData = (data: VisitorData | null) => {
+      if (!data || !isMounted) return;
+      setVisitorData(data);
+      setTotalVisits(data.totalVisits || 0);
+      if (data.dailyVisits && data.dailyVisits[todayStr] !== undefined) {
+        setTodayVisits(data.dailyVisits[todayStr]);
+      } else if (data.todayDate === todayStr && data.todayVisits !== undefined) {
+        setTodayVisits(data.todayVisits);
+      } else {
+        setTodayVisits(0);
+      }
+    };
 
     const trackAndFetchVisits = async () => {
-      const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
-      const monthStr = todayStr.slice(0, 7); // "YYYY-MM"
-      const yearStr = todayStr.slice(0, 4); // "YYYY"
-      const hourStr = String(now.getHours()).padStart(2, '0'); // "00".."23"
-      const hourlyKey = `${todayStr}_${hourStr}`;
-
-      const sessionKey = `mhs1_visited_${todayStr}`;
-
       try {
-        // Fetch visitor statistics via adapter (checks Supabase first, falls back to Firestore)
+        // 1. Initial fetch
         const stats = await dbFetchSystemStats().catch(() => null);
         if (stats) {
-          const data = stats as VisitorData;
-          setVisitorData(data);
-          setTotalVisits(data.totalVisits || 0);
-          if (data.dailyVisits && data.dailyVisits[todayStr]) {
-            setTodayVisits(data.dailyVisits[todayStr]);
-          } else if (data.todayDate === todayStr && data.todayVisits !== undefined) {
-            setTodayVisits(data.todayVisits);
-          } else {
-            setTodayVisits(0);
-          }
+          syncStateFromData(stats as VisitorData);
         }
 
-        // Increment visit count once per browser session
+        // 2. Increment visit count once per browser session
         if (!sessionStorage.getItem(sessionKey)) {
           sessionStorage.setItem(sessionKey, 'true');
-          const latestStats = await dbFetchSystemStats().catch(() => null);
+          const latestStats = (await dbFetchSystemStats().catch(() => null)) as VisitorData | null;
 
           if (!latestStats) {
             // Initialize fresh counter at 1 for the first visit
@@ -68,10 +78,11 @@ export default function VisitorCounter() {
               hourlyVisits: { [hourlyKey]: 1 }
             };
             await dbSaveSystemStats({ ...initData, updatedAt: new Date() }).catch(() => {});
-            setTotalVisits(1);
-            setTodayVisits(1);
+            if (isMounted) {
+              syncStateFromData(initData);
+            }
           } else {
-            const data = latestStats as VisitorData;
+            const data = latestStats;
             const currentDaily = data.dailyVisits || {};
             const currentMonthly = data.monthlyVisits || {};
             const currentYearly = data.yearlyVisits || {};
@@ -83,7 +94,7 @@ export default function VisitorCounter() {
             const newYearCount = (currentYearly[yearStr] || 0) + 1;
             const newHourCount = (currentHourly[hourlyKey] || 0) + 1;
 
-            const updatedStats = {
+            const updatedStats: VisitorData = {
               ...data,
               totalVisits: (data.totalVisits || 0) + 1,
               todayVisits: newTodayCount,
@@ -92,9 +103,11 @@ export default function VisitorCounter() {
               monthlyVisits: { ...currentMonthly, [monthStr]: newMonthCount },
               yearlyVisits: { ...currentYearly, [yearStr]: newYearCount },
               hourlyVisits: { ...currentHourly, [hourlyKey]: newHourCount },
-              updatedAt: new Date()
             };
-            await dbSaveSystemStats(updatedStats).catch(() => {});
+            await dbSaveSystemStats({ ...updatedStats, updatedAt: new Date() }).catch(() => {});
+            if (isMounted) {
+              syncStateFromData(updatedStats);
+            }
           }
         }
       } catch (_err) {
@@ -105,16 +118,24 @@ export default function VisitorCounter() {
           sessionStorage.setItem(localSessionKey, 'true');
           const newTotal = localTotal + 1;
           localStorage.setItem('mhs1_total_visits', String(newTotal));
-          setTotalVisits(newTotal);
+          if (isMounted) setTotalVisits(newTotal);
         } else {
-          setTotalVisits(localTotal);
+          if (isMounted) setTotalVisits(localTotal);
         }
       }
     };
 
     trackAndFetchVisits();
 
+    // Subscribe to live Firestore updates
+    const unsubscribe = dbSubscribeSystemStats((liveData) => {
+      if (liveData) {
+        syncStateFromData(liveData as VisitorData);
+      }
+    });
+
     return () => {
+      isMounted = false;
       if (unsubscribe) unsubscribe();
     };
   }, []);
@@ -126,7 +147,7 @@ export default function VisitorCounter() {
     }
     setIsResetting(true);
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getLocalDateString();
       const resetData: VisitorData = {
         totalVisits: 0,
         todayVisits: 0,
@@ -153,46 +174,47 @@ export default function VisitorCounter() {
   // Compute daily / hourly series for Line Chart
   const getDailyOrHourlyChartData = () => {
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = getLocalDateString(today);
 
     // If 1 Day selected -> show 24 hours breakdown for today
     if (chartRangeDays === 1) {
-      const data: { date: string; displayDate: string; visits: number }[] = [];
+      const data: { date: string; displayDate: string; timeRange: string; visits: number; hour: number }[] = [];
       const hourlyMap = visitorData?.hourlyVisits || {};
 
       for (let h = 0; h < 24; h++) {
         const hStr = String(h).padStart(2, '0');
         const hKey = `${todayStr}_${hStr}`;
-        const displayDate = `${hStr}:00 น.`;
+        const displayDate = `${hStr}:00`;
+        const timeRange = `${hStr}:00 - ${hStr}:59 น.`;
         
-        // If hourlyMap has records, use it; otherwise if it's the current hour and we have todayVisits, attribute it
-        let visits = hourlyMap[hKey] || 0;
-        if (visits === 0 && h === today.getHours() && todayVisits > 0 && Object.keys(hourlyMap).length === 0) {
-          visits = todayVisits;
-        }
+        // Exact hourly recorded visits from Supabase
+        const visits = hourlyMap[hKey] || 0;
 
         data.push({
           date: `${todayStr} ${hStr}:00`,
           displayDate,
-          visits
+          timeRange,
+          visits,
+          hour: h
         });
       }
       return data;
     }
 
     // Multiple days view
-    const data: { date: string; displayDate: string; visits: number }[] = [];
+    const data: { date: string; displayDate: string; timeRange: string; visits: number; hour?: number }[] = [];
     const dailyMap = visitorData?.dailyVisits || {};
 
     for (let i = chartRangeDays - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = getLocalDateString(d);
       const monthNamesTh = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
       const displayDate = `${d.getDate()} ${monthNamesTh[d.getMonth()]}`;
       data.push({
         date: dateStr,
         displayDate,
+        timeRange: `วันที่ ${d.getDate()} ${monthNamesTh[d.getMonth()]} ${d.getFullYear() + 543}`,
         visits: dailyMap[dateStr] || 0
       });
     }
@@ -219,7 +241,7 @@ export default function VisitorCounter() {
   };
 
   // Computed summary metrics
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateString();
   const currentMonthStr = todayStr.slice(0, 7);
   const currentYearStr = todayStr.slice(0, 4);
 
@@ -394,21 +416,50 @@ export default function VisitorCounter() {
             {activeTab === 'line' && (
               <div className="bg-white dark:bg-[#20171a] p-4 sm:p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-3">
                 <div className="flex justify-between items-center flex-wrap gap-2">
-                  <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                    {chartRangeDays === 1 ? <Clock className="h-4 w-4 text-[#FF8BA7]" /> : <TrendingUp className="h-4 w-4 text-[#FF8BA7]" />}
-                    {chartRangeDays === 1 
-                      ? 'กราฟเส้นแสดงจำนวนผู้เข้าชมรายชั่วโมง (24 ชั่วโมงของวันนี้)' 
-                      : `กราฟเส้นแสดงจำนวนผู้เข้าชมย้อนหลัง ${chartRangeDays} วัน`
-                    }
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    {chartRangeDays === 1 ? 'แกน X: ช่วงเวลา (นาฬิกา) | แกน Y: จำนวนผู้เข้าชม (คน)' : 'แกน X: วันที่ | แกน Y: จำนวนผู้เข้าชม (คน)'}
-                  </span>
+                  <div>
+                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                      {chartRangeDays === 1 ? <Clock className="h-4 w-4 text-[#FF8BA7]" /> : <TrendingUp className="h-4 w-4 text-[#FF8BA7]" />}
+                      {chartRangeDays === 1 
+                        ? 'กราฟแสดงจำนวนผู้เข้าชมรายชั่วโมง (24 ชั่วโมงของวันนี้)' 
+                        : `กราฟแสดงจำนวนผู้เข้าชมย้อนหลัง ${chartRangeDays} วัน`
+                      }
+                    </h4>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                      {chartRangeDays === 1 
+                        ? `จำแนกตามช่วงเวลาจริง (00:00 - 23:59 น.) รวมวันนี้: ${todayVisits.toLocaleString()} คน`
+                        : `จำแนกตามรายวัน รวมย้อนหลัง ${chartRangeDays} วัน: ${getDailyOrHourlyChartData().reduce((acc, c) => acc + c.visits, 0).toLocaleString()} คน`
+                      }
+                    </p>
+                  </div>
+
+                  {chartRangeDays === 1 && (
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      {(() => {
+                        const hourlyList = getDailyOrHourlyChartData();
+                        const maxVisit = Math.max(...hourlyList.map(item => item.visits), 0);
+                        const peakItem = hourlyList.find(item => item.visits === maxVisit && maxVisit > 0);
+                        const currentHourItem = hourlyList.find(item => item.hour === new Date().getHours());
+
+                        return (
+                          <>
+                            {peakItem && (
+                              <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg font-black text-[11px] flex items-center gap-1">
+                                🔥 สูงสุด: {peakItem.timeRange} ({peakItem.visits} คน)
+                              </span>
+                            )}
+                            <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded-lg font-black text-[11px] flex items-center gap-1">
+                              ⏰ ชม. นี้ ({currentHourItem?.displayDate || ''} น.): {currentHourItem?.visits || 0} คน
+                            </span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-72 w-full pt-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={getDailyOrHourlyChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart data={getDailyOrHourlyChartData()} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="visitorGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#FF8BA7" stopOpacity={0.6}/>
@@ -416,12 +467,37 @@ export default function VisitorCounter() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="displayDate" tick={{ fontSize: 10, fontWeight: 'bold' }} interval={chartRangeDays === 1 ? 1 : 0} />
+                      <XAxis 
+                        dataKey="displayDate" 
+                        tick={{ fontSize: 10, fontWeight: 'bold' }} 
+                        interval={chartRangeDays === 1 ? 1 : 0} 
+                      />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 'bold' }} />
                       <Tooltip 
-                        contentStyle={{ borderRadius: '12px', border: '2px solid #33272A', fontWeight: 'bold', fontSize: '12px' }}
-                        formatter={(val: any) => [`${val} คน`, 'ผู้เข้าชม']}
-                        labelFormatter={(label) => chartRangeDays === 1 ? `เวลา: ${label}` : `วันที่: ${label}`}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            const totalToday = Math.max(todayVisits, 1);
+                            const percent = ((data.visits / totalToday) * 100).toFixed(1);
+                            return (
+                              <div className="bg-white dark:bg-[#1e1518] p-3 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-lg text-xs space-y-1">
+                                <p className="font-black text-[#33272A] dark:text-[#FFF9F5] border-b pb-1 flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                                  {data.timeRange || data.displayDate}
+                                </p>
+                                <p className="text-blue-600 dark:text-blue-400 font-black text-sm">
+                                  ผู้เข้าชม: {data.visits.toLocaleString()} คน
+                                </p>
+                                {chartRangeDays === 1 && (
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                                    คิดเป็น {percent}% ของวันนี้
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
                       />
                       <Area 
                         type="monotone" 
@@ -430,7 +506,8 @@ export default function VisitorCounter() {
                         strokeWidth={3} 
                         fillOpacity={1} 
                         fill="url(#visitorGradient)" 
-                        activeDot={{ r: 6, stroke: '#33272A', strokeWidth: 2 }}
+                        dot={{ r: 2.5, fill: '#FF8BA7', stroke: '#33272A', strokeWidth: 1 }}
+                        activeDot={{ r: 6, stroke: '#33272A', strokeWidth: 2, fill: '#FF8BA7' }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -469,38 +546,67 @@ export default function VisitorCounter() {
             {/* TAB 3: DATA TABLE */}
             {activeTab === 'table' && (
               <div className="bg-white dark:bg-[#20171a] p-4 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] space-y-4">
-                <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-[#FFD3B6]" />
-                  ตารางสรุปสถิติผู้เข้าชม ({chartRangeDays === 1 ? 'รายชั่วโมงวันนี้' : `รายวันย้อนหลัง ${chartRangeDays} วัน`})
-                </h4>
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-[#FFD3B6]" />
+                    ตารางสรุปสถิติผู้เข้าชม ({chartRangeDays === 1 ? 'รายชั่วโมงของวันนี้' : `รายวันย้อนหลัง ${chartRangeDays} วัน`})
+                  </h4>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    {chartRangeDays === 1 ? 'แจกแจงละเอียด 24 ช่วงเวลา' : `รวม ${chartRangeDays} วัน`}
+                  </span>
+                </div>
 
-                <div className="overflow-x-auto max-h-60 rounded-xl border border-[#33272A]/20">
+                <div className="overflow-x-auto max-h-72 rounded-xl border border-[#33272A]/20">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-[#FFF9F5] dark:bg-[#2a1d21] text-[#33272A] dark:text-[#FFF9F5] font-black border-b border-[#33272A]/20">
+                    <thead className="bg-[#FFF9F5] dark:bg-[#2a1d21] text-[#33272A] dark:text-[#FFF9F5] font-black border-b border-[#33272A]/20 sticky top-0 z-10 shadow-sm">
                       <tr>
-                        <th className="p-2.5">{chartRangeDays === 1 ? 'ช่วงเวลา' : 'วันที่'}</th>
+                        <th className="p-2.5">{chartRangeDays === 1 ? 'ช่วงเวลา (นาฬิกา)' : 'วันที่'}</th>
                         <th className="p-2.5 text-center">จำนวนผู้เข้าชม (คน)</th>
+                        {chartRangeDays === 1 && <th className="p-2.5 text-center">สัดส่วน (%)</th>}
                         <th className="p-2.5 text-right">สถานะ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#33272A]/10 font-bold">
-                      {getDailyOrHourlyChartData().reverse().map((item) => (
-                        <tr key={item.date} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="p-2.5 font-mono">{item.displayDate} ({item.date.slice(0, 10)})</td>
-                          <td className="p-2.5 text-center font-black text-blue-600 dark:text-blue-400">
-                            {item.visits.toLocaleString()}
-                          </td>
-                          <td className="p-2.5 text-right">
-                            {item.date.includes(todayStr) ? (
-                              <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-black">
-                                วันนี้
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[10px]">-</span>
+                      {getDailyOrHourlyChartData().reverse().map((item) => {
+                        const isCurrentHour = chartRangeDays === 1 && item.hour === new Date().getHours();
+                        const isToday = item.date.includes(todayStr);
+                        const totalToday = Math.max(todayVisits, 1);
+                        const percent = ((item.visits / totalToday) * 100).toFixed(1);
+
+                        return (
+                          <tr 
+                            key={item.date} 
+                            className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                              isCurrentHour ? 'bg-blue-50/60 dark:bg-blue-950/20' : item.visits > 0 ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
+                            }`}
+                          >
+                            <td className="p-2.5 font-mono">
+                              <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">{item.timeRange || item.displayDate}</span>
+                            </td>
+                            <td className="p-2.5 text-center font-black text-blue-600 dark:text-blue-400 text-sm">
+                              {item.visits.toLocaleString()}
+                            </td>
+                            {chartRangeDays === 1 && (
+                              <td className="p-2.5 text-center font-mono text-slate-600 dark:text-slate-300">
+                                {item.visits > 0 ? `${percent}%` : '0%'}
+                              </td>
                             )}
-                          </td>
-                        </tr>
-                      ))}
+                            <td className="p-2.5 text-right">
+                              {isCurrentHour ? (
+                                <span className="bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border border-blue-300 px-2 py-0.5 rounded-full text-[10px] font-black">
+                                  ชั่วโมงนี้
+                                </span>
+                              ) : item.visits > 0 ? (
+                                <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-black">
+                                  {isToday && chartRangeDays > 1 ? 'วันนี้' : 'มีการเข้าชม'}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[10px]">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

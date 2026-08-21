@@ -200,8 +200,14 @@ CREATE TABLE IF NOT EXISTS public.system_stats (
     today_visits INT DEFAULT 0,
     today_date TEXT,
     daily_visits JSONB DEFAULT '{}'::jsonb,
+    monthly_visits JSONB DEFAULT '{}'::jsonb,
+    yearly_visits JSONB DEFAULT '{}'::jsonb,
+    hourly_visits JSONB DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS monthly_visits JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS yearly_visits JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS hourly_visits JSONB DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS public.download_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -612,8 +618,14 @@ CREATE TABLE IF NOT EXISTS public.system_stats (
     today_visits INT DEFAULT 0,
     today_date TEXT,
     daily_visits JSONB DEFAULT '{}'::jsonb,
+    monthly_visits JSONB DEFAULT '{}'::jsonb,
+    yearly_visits JSONB DEFAULT '{}'::jsonb,
+    hourly_visits JSONB DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS monthly_visits JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS yearly_visits JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.system_stats ADD COLUMN IF NOT EXISTS hourly_visits JSONB DEFAULT '{}'::jsonb;
 
 -- 7. สร้างตาราง download_logs (ประวัติการดาวน์โหลดเอกสาร)
 CREATE TABLE IF NOT EXISTS public.download_logs (
