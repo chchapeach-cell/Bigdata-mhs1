@@ -40,6 +40,19 @@ export const UserActivityLogView: React.FC<UserActivityLogViewProps> = ({
   const [purgeSuccessMessage, setPurgeSuccessMessage] = useState<string | null>(null);
   const [selectedLogForDetail, setSelectedLogForDetail] = useState<UserActivityLog | null>(null);
 
+  // Sorting state for Activity Logs
+  const [sortField, setSortField] = useState<'timestamp' | 'userName' | 'schoolName' | 'actionType'>('timestamp');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleToggleSort = (field: 'timestamp' | 'userName' | 'schoolName' | 'actionType') => {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortField(field);
+      setSortOrder(field === 'timestamp' ? 'desc' : 'asc');
+    }
+  };
+
   // Initial fetch
   const fetchLogs = async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setRefreshing(true);
@@ -160,9 +173,9 @@ export const UserActivityLogView: React.FC<UserActivityLogViewProps> = ({
     };
   };
 
-  // Filtered logs
+  // Filtered and sorted logs
   const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
+    const result = logs.filter(log => {
       // 1. Search term match
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
@@ -197,7 +210,26 @@ export const UserActivityLogView: React.FC<UserActivityLogViewProps> = ({
 
       return true;
     });
-  }, [logs, searchTerm, dateFilter]);
+
+    // Sorting
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'timestamp') {
+        const tA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp || 0).getTime();
+        const tB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp || 0).getTime();
+        cmp = (isNaN(tA) ? 0 : tA) - (isNaN(tB) ? 0 : tB);
+      } else if (sortField === 'userName') {
+        cmp = (a.userName || '').localeCompare(b.userName || '', 'th');
+      } else if (sortField === 'schoolName') {
+        cmp = (a.schoolName || '').localeCompare(b.schoolName || '', 'th');
+      } else if (sortField === 'actionType') {
+        cmp = (a.actionType || '').localeCompare(b.actionType || '');
+      }
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
+
+    return result;
+  }, [logs, searchTerm, dateFilter, sortField, sortOrder]);
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -508,10 +540,66 @@ export const UserActivityLogView: React.FC<UserActivityLogViewProps> = ({
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3.5 px-4 sm:px-6">วัน-เวลา</th>
-                  <th className="py-3.5 px-4">ผู้ดำเนินการ</th>
-                  <th className="py-3.5 px-4">สถานศึกษา</th>
-                  <th className="py-3.5 px-4">ประเภทกิจกรรม</th>
+                  <th className="py-3.5 px-4 sm:px-6">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort('timestamp')}
+                      className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer font-bold"
+                      title="คลิกเพื่อเรียงลำดับตามวัน-เวลา"
+                    >
+                      <span>วัน-เวลา</span>
+                      {sortField === 'timestamp' ? (
+                        sortOrder === 'desc' ? <ChevronDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> : <ChevronUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-3.5 px-4">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort('userName')}
+                      className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer font-bold"
+                      title="คลิกเพื่อเรียงลำดับตามผู้ดำเนินการ"
+                    >
+                      <span>ผู้ดำเนินการ</span>
+                      {sortField === 'userName' ? (
+                        sortOrder === 'desc' ? <ChevronDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> : <ChevronUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-3.5 px-4">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort('schoolName')}
+                      className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer font-bold"
+                      title="คลิกเพื่อเรียงลำดับตามสถานศึกษา"
+                    >
+                      <span>สถานศึกษา</span>
+                      {sortField === 'schoolName' ? (
+                        sortOrder === 'desc' ? <ChevronDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> : <ChevronUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-3.5 px-4">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort('actionType')}
+                      className="flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer font-bold"
+                      title="คลิกเพื่อเรียงลำดับตามประเภทกิจกรรม"
+                    >
+                      <span>ประเภทกิจกรรม</span>
+                      {sortField === 'actionType' ? (
+                        sortOrder === 'desc' ? <ChevronDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> : <ChevronUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-3.5 px-4 sm:px-6">รายละเอียดการแก้ไข</th>
                 </tr>
               </thead>

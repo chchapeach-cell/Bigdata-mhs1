@@ -3,7 +3,7 @@ import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import * as XLSX from 'xlsx';
@@ -391,6 +391,39 @@ export default function AdminPanel({
   const [manageSchoolSearchQuery, setManageSchoolSearchQuery] = useState<string>('');
   // State สำหรับกรองตามสถานะการอัปเดตข้อมูล (ทั้งหมด / เขียว / เหลือง / แดง)
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'green' | 'yellow' | 'red'>('all');
+  // State สำหรับการเรียงลำดับตารางโรงเรียน (Default เรียงตามประวัติอัปเดตล่าสุด desc)
+  const [schoolSortField, setSchoolSortField] = useState<'updatedAt' | 'id' | 'name' | 'amphoe' | 'staffCount'>('updatedAt');
+  const [schoolSortOrder, setSchoolSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleToggleSchoolSort = (field: 'updatedAt' | 'id' | 'name' | 'amphoe' | 'staffCount') => {
+    if (schoolSortField === field) {
+      setSchoolSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSchoolSortField(field);
+      setSchoolSortOrder(field === 'updatedAt' ? 'desc' : 'asc');
+    }
+  };
+
+  const getSchoolTimestampMs = (updatedAt: any): number => {
+    if (!updatedAt) return 0;
+    try {
+      if (typeof updatedAt === 'number') return updatedAt;
+      if (typeof updatedAt === 'string') {
+        const d = new Date(updatedAt);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      }
+      if (updatedAt && typeof updatedAt.toDate === 'function') {
+        return updatedAt.toDate().getTime();
+      }
+      if (updatedAt && typeof updatedAt.seconds === 'number') {
+        return updatedAt.seconds * 1000;
+      }
+      const d = new Date(updatedAt);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    } catch {
+      return 0;
+    }
+  };
 
   // ฟังก์ชันคำนวณและประมวลผลสถานะการอัปเดตข้อมูลล่าสุดของสถานศึกษา
   const getSchoolUpdateStatus = (updatedAt: any) => {
@@ -494,9 +527,9 @@ export default function AdminPanel({
     return counts;
   }, [manageableSchools]);
 
-  // กรองรายชื่อโรงเรียนตามคำค้นหาและสถานะสีที่กดเลือก
+  // กรองรายชื่อโรงเรียนตามคำค้นหาและสถานะสีที่กดเลือก พร้อมเรียงลำดับ (Sorting)
   const filteredManageableSchools = useMemo(() => {
-    let result = manageableSchools;
+    let result = [...manageableSchools];
 
     // กรองตามสีสถานะ
     if (selectedStatusFilter !== 'all') {
@@ -517,8 +550,31 @@ export default function AdminPanel({
       );
     }
 
+    // เรียงลำดับตามฟิลด์ที่เลือก
+    if (schoolSortField) {
+      result.sort((a, b) => {
+        let cmp = 0;
+        if (schoolSortField === 'updatedAt') {
+          const tA = getSchoolTimestampMs(a.updatedAt);
+          const tB = getSchoolTimestampMs(b.updatedAt);
+          cmp = tA - tB;
+        } else if (schoolSortField === 'id') {
+          cmp = (a.id || '').localeCompare(b.id || '', undefined, { numeric: true });
+        } else if (schoolSortField === 'name') {
+          cmp = (a.name || '').localeCompare(b.name || '', 'th');
+        } else if (schoolSortField === 'amphoe') {
+          const aText = `${a.amphoe || ''} ${a.networkGroup || ''}`;
+          const bText = `${b.amphoe || ''} ${b.networkGroup || ''}`;
+          cmp = aText.localeCompare(bText, 'th');
+        } else if (schoolSortField === 'staffCount') {
+          cmp = (Number(a.staffCount) || 0) - (Number(b.staffCount) || 0);
+        }
+        return schoolSortOrder === 'desc' ? -cmp : cmp;
+      });
+    }
+
     return result;
-  }, [manageableSchools, manageSchoolSearchQuery, selectedStatusFilter]);
+  }, [manageableSchools, manageSchoolSearchQuery, selectedStatusFilter, schoolSortField, schoolSortOrder]);
 
   // State สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
@@ -4351,11 +4407,93 @@ export default function AdminPanel({
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="bg-[#FFF9F5] dark:bg-[#1a1214] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
-                          <th className="p-3">รหัสโรงเรียน</th>
-                          <th className="p-3">ชื่อสถานศึกษา</th>
-                          <th className="p-3">อำเภอ / เครือข่าย</th>
-                          <th className="p-3 text-center">ประวัติอัปเดตล่าสุด</th>
-                          <th className="p-3 text-center">ครู (คน)</th>
+                          <th className="p-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolSort('id')}
+                              className="flex items-center gap-1.5 hover:text-[#FF8BA7] dark:hover:text-[#FFD3B6] transition-colors cursor-pointer text-left font-black"
+                              title="คลิกเพื่อเรียงลำดับตามรหัสโรงเรียน"
+                            >
+                              <span>รหัสโรงเรียน</span>
+                              {schoolSortField === 'id' ? (
+                                schoolSortOrder === 'desc' ? <ChevronDown className="h-3.5 w-3.5 text-[#FF8BA7]" /> : <ChevronUp className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="p-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolSort('name')}
+                              className="flex items-center gap-1.5 hover:text-[#FF8BA7] dark:hover:text-[#FFD3B6] transition-colors cursor-pointer text-left font-black"
+                              title="คลิกเพื่อเรียงลำดับตามชื่อสถานศึกษา"
+                            >
+                              <span>ชื่อสถานศึกษา</span>
+                              {schoolSortField === 'name' ? (
+                                schoolSortOrder === 'desc' ? <ChevronDown className="h-3.5 w-3.5 text-[#FF8BA7]" /> : <ChevronUp className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="p-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolSort('amphoe')}
+                              className="flex items-center gap-1.5 hover:text-[#FF8BA7] dark:hover:text-[#FFD3B6] transition-colors cursor-pointer text-left font-black"
+                              title="คลิกเพื่อเรียงลำดับตามอำเภอ / เครือข่าย"
+                            >
+                              <span>อำเภอ / เครือข่าย</span>
+                              {schoolSortField === 'amphoe' ? (
+                                schoolSortOrder === 'desc' ? <ChevronDown className="h-3.5 w-3.5 text-[#FF8BA7]" /> : <ChevronUp className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolSort('updatedAt')}
+                              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer font-black ${
+                                schoolSortField === 'updatedAt'
+                                  ? 'bg-[#FF8BA7]/20 border-[#FF8BA7] text-[#33272A] dark:text-[#FFF9F5] shadow-xs'
+                                  : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              title="คลิกเพื่อเรียงลำดับตามประวัติการอัปเดตล่าสุด (ล่าสุด/เก่าสุด)"
+                            >
+                              <span>ประวัติอัปเดตล่าสุด</span>
+                              {schoolSortField === 'updatedAt' ? (
+                                schoolSortOrder === 'desc' ? (
+                                  <span className="flex items-center gap-0.5 text-[10px] text-rose-600 dark:text-rose-400 font-extrabold">
+                                    <ChevronDown className="h-3.5 w-3.5" /> ล่าสุด
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 font-extrabold">
+                                    <ChevronUp className="h-3.5 w-3.5" /> เก่าสุด
+                                  </span>
+                                )
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchoolSort('staffCount')}
+                              className="inline-flex items-center justify-center gap-1 hover:text-[#FF8BA7] dark:hover:text-[#FFD3B6] transition-colors cursor-pointer font-black"
+                              title="คลิกเพื่อเรียงลำดับตามจำนวนครู"
+                            >
+                              <span>ครู (คน)</span>
+                              {schoolSortField === 'staffCount' ? (
+                                schoolSortOrder === 'desc' ? <ChevronDown className="h-3.5 w-3.5 text-[#FF8BA7]" /> : <ChevronUp className="h-3.5 w-3.5 text-[#FF8BA7]" />
+                              ) : (
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              )}
+                            </button>
+                          </th>
                           <th className="p-3 text-center">จัดการ</th>
                         </tr>
                       </thead>
