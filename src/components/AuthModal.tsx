@@ -227,8 +227,25 @@ export default function AuthModal({
           console.warn('Supabase signInWithPassword warning:', saErr);
         }
 
-        // อ่านโปรไฟล์ผู้ใช้จาก Supabase
-        profile = await dbFetchUserProfile(authenticatedUid, cleanEmail);
+        // ตรวจสอบ hardcoded super admin ก่อน
+        const isHardcodedSuperAdmin = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
+        if (isHardcodedSuperAdmin && authenticatedUid) {
+          profile = {
+            uid: authenticatedUid,
+            email: cleanEmail,
+            firstName: 'Super',
+            lastName: 'Admin',
+            schoolId: 'all',
+            schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
+            role: 'super_admin',
+            status: 'approved',
+            createdAt: new Date()
+          };
+          await dbSaveUser(profile).catch((err) => console.warn('RLS prevent insert fallback', err));
+        } else {
+          // อ่านโปรไฟล์ผู้ใช้จาก Supabase
+          profile = await dbFetchUserProfile(authenticatedUid, cleanEmail);
+        }
       }
 
       // 2. หากยังไม่พบโปรไฟล์ ให้ลองผ่าน Firebase Auth

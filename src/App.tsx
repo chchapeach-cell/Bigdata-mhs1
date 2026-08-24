@@ -209,7 +209,7 @@ export default function App() {
       return;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const handleSession = async (session: any) => {
       const currentUser = session?.user;
       setUser(currentUser);
       if (currentUser) {
@@ -250,6 +250,15 @@ export default function App() {
       } else {
         setUserProfile(null);
       }
+    };
+
+    // ดึงเซสชันตั้งต้นทันที
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      handleSession(session);
     });
 
     return () => subscription.unsubscribe();
@@ -685,6 +694,8 @@ export default function App() {
   // ออกจากระบบ
   const handleLogout = async () => {
     if (isSupabaseConfigured()) {
+      await supabase.auth.signOut().catch(() => {});
+    } else {
       await import('firebase/auth').then(({signOut}) => signOut(auth)).catch(() => {});
     }
     localStorage.removeItem('mhs_app_data_cache_v3');
