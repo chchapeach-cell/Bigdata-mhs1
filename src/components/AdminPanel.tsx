@@ -1970,29 +1970,33 @@ export default function AdminPanel({
     }
   };
 
-  // โหลดรายชื่อผู้รออนุมัติสิทธิ์ (เฉพาะ Super Admin)
-  const loadPendingUsers = async () => {
+  // โหลดรายชื่อผู้ใช้งานทั้งหมด (ทั้งคำร้องรออนุมัติและทะเบียนผู้ใช้งาน) รวดเร็วในครั้งเดียว (Single Query)
+  const loadUsersData = async () => {
     if (!isSuperAdmin) return;
     setIsLoadingUsers(true);
     try {
-      const list = await dbFetchUsersByStatus('pending');
-      setPendingUsers(list);
+      const allUsers = await dbFetchUsersByStatus('all');
+      const pending: UserProfile[] = [];
+      const approved: UserProfile[] = [];
+      for (const u of allUsers) {
+        if (u.status === 'pending') {
+          pending.push(u);
+        } else {
+          approved.push(u);
+        }
+      }
+      setPendingUsers(pending);
+      setApprovedUsers(approved);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch users:', e);
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
-  const loadApprovedUsers = async () => {
-    if (!isSuperAdmin) return;
-    try {
-      const list = await dbFetchUsersByStatus('approved');
-      setApprovedUsers(list);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // Aliases for compatibility
+  const loadPendingUsers = () => loadUsersData();
+  const loadApprovedUsers = () => loadUsersData();
 
   const loadDownloadLogs = async () => {
     if (!isSuperAdmin) return;
@@ -2006,12 +2010,12 @@ export default function AdminPanel({
 
   useEffect(() => {
     if (isSuperAdmin) {
-      dbRestoreKpyUser().then(() => {
-        loadPendingUsers();
-        loadApprovedUsers();
-      });
+      // โหลดข้อมูลผู้ใช้งาน บันทึกการดาวน์โหลด และการตั้งค่าระบบทันทีแบบคู่ขนาน (Parallel Non-blocking)
+      loadUsersData();
       loadDownloadLogs();
       loadSystemSettings();
+      // คืนค่าบัญชี kpy ในพื้นหลังโดยไม่บล็อกการแสดงผล
+      dbRestoreKpyUser().catch(console.warn);
     }
   }, [isSuperAdmin]);
 
@@ -3302,10 +3306,28 @@ export default function AdminPanel({
 
                 {/* ทะเบียนผู้ใช้งานทั้งหมด */}
                 <div className="card p-6 md:col-span-2">
-                  <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
-                    <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({filteredApprovedUsers.length})
-                  </h3>
+                  <div className="flex items-center justify-between gap-2 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
+                    <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                      <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({filteredApprovedUsers.length})
+                    </h3>
+                    <button
+                      type="button"
+                      disabled={isLoadingUsers}
+                      onClick={() => loadUsersData()}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] hover:bg-slate-50 dark:hover:bg-slate-800 text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 cursor-pointer shadow-[1px_1px_0px_#33272A] transition-colors disabled:opacity-50"
+                      title="รีเฟรชรายชื่อผู้ใช้งานทันที"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isLoadingUsers ? 'animate-spin text-[#FF8BA7]' : ''}`} />
+                      <span>{isLoadingUsers ? 'กำลังโหลด...' : 'รีเฟรช'}</span>
+                    </button>
+                  </div>
                   <div className="overflow-x-auto">
+                    {isLoadingUsers && approvedUsers.length === 0 ? (
+                      <div className="flex justify-center items-center p-12 text-[#33272A] dark:text-[#FFF9F5] text-xs font-black gap-2">
+                        <RefreshCw className="h-5 w-5 animate-spin text-[#A0E7E5]" />
+                        <span>กำลังดึงข้อมูลทะเบียนผู้ใช้งานจากฐานข้อมูล...</span>
+                      </div>
+                    ) : (
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b-2 border-[#33272A] dark:border-[#FFD3B6] text-[#33272A] dark:text-[#FFF9F5] font-black">
@@ -3365,6 +3387,7 @@ export default function AdminPanel({
                         )}
                       </tbody>
                     </table>
+                    )}
                   </div>
                 </div>
               </div>

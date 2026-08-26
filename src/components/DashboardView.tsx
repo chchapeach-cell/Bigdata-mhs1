@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
@@ -1353,18 +1353,25 @@ export default function DashboardView({
             <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-4 uppercase tracking-wider flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-[#FF8BA7]" /> แผนภูมิแสดง 10 อันดับวิชาเอกที่มีสัดส่วนครูผู้สอนสูงสุด
             </h4>
-            <div className="h-72 w-full text-xs font-bold">
+            <div className="h-[340px] sm:h-[380px] w-full text-xs font-bold">
               {aggregatedMajors.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={aggregatedMajors.slice(0, 10)}
                     layout="vertical"
-                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                    margin={{ top: 5, right: 45, left: 10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                     <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
                     <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" stroke={chartStroke} width={80} />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      stroke={chartStroke} 
+                      width={125} 
+                      interval={0}
+                      tick={{ fontSize: 11, fontWeight: 700 }}
+                    />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '16px',
@@ -1384,6 +1391,12 @@ export default function DashboardView({
                       strokeWidth={2} 
                       radius={[0, 4, 4, 0]}
                     >
+                      <LabelList 
+                        dataKey="teachersCount" 
+                        position="right" 
+                        style={{ fontSize: '11px', fontWeight: 'bold', fill: chartStroke }} 
+                        formatter={(val: any) => `${val} คน`} 
+                      />
                       {aggregatedMajors.slice(0, 10).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}

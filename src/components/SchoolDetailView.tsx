@@ -11,7 +11,7 @@ import {
   Database, Layers, Eye, RefreshCw, Trash2, Plus, Search, BookOpen, Sparkles, Navigation, Sun, FileText,
   Mail, ExternalLink, MessageCircle, Clock, History, UserCheck, Award, Calculator, HelpCircle, FileSpreadsheet, ChevronRight, BarChart3, ArrowRight
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine, LabelList } from 'recharts';
 
 interface SchoolDetailViewProps {
   school: School;
@@ -2854,14 +2854,21 @@ export default function SchoolDetailView({
             </p>
           </div>
 
-          <div className="h-72 w-full text-[10px] font-bold mt-4">
+          <div className="h-80 w-full text-[10px] font-bold mt-4">
             {displayMajors.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={displayMajors} layout="vertical" margin={{ top: 10, right: 15, left: 15, bottom: 5 }}>
+                <BarChart data={displayMajors} layout="vertical" margin={{ top: 10, right: 35, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
                   <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" stroke={chartStroke} width={75} />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    stroke={chartStroke} 
+                    width={110} 
+                    interval={0}
+                    tick={{ fontSize: 10, fontWeight: 700 }}
+                  />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
@@ -2873,6 +2880,12 @@ export default function SchoolDetailView({
                     itemStyle={{ fontSize: '11px', fontWeight: 'bold', color: tooltipText }}
                   />
                   <Bar dataKey="teachersCount" name="จำนวนครู (คน)" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[0, 4, 4, 0]}>
+                    <LabelList 
+                      dataKey="teachersCount" 
+                      position="right" 
+                      style={{ fontSize: '10px', fontWeight: 'bold', fill: chartStroke }} 
+                      formatter={(val: any) => `${val} คน`} 
+                    />
                     {displayMajors.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
