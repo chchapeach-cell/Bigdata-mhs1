@@ -275,7 +275,11 @@ export default function AcademicStatsView({
         const isFirstEverVisit = !localStorage.getItem('academic_records_initialized_flag');
         if (isFirstEverVisit) {
           const initial = generateInitialAcademicRecords(schools, academicYear || '2567');
-          await dbSaveAcademicRecords(initial, userProfile?.email || 'Super Admin');
+          try {
+            await dbSaveAcademicRecords(initial, userProfile?.email || 'Super Admin');
+          } catch (initErr) {
+            console.warn('Could not save initial academic records to DB (table might not exist yet):', initErr);
+          }
           localStorage.setItem('academic_records_initialized_flag', 'true');
           setRecords(initial);
         } else {

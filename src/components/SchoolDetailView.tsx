@@ -133,6 +133,7 @@ export default function SchoolDetailView({
   const [newMajorName, setNewMajorName] = useState('');
   const [newMajorCivilServants, setNewMajorCivilServants] = useState<number>(1);
   const [newMajorContractTeachers, setNewMajorContractTeachers] = useState<number>(0);
+  const [newMajorGovEmployee, setNewMajorGovEmployee] = useState<number>(0);
   const [editImageUrl, setEditImageUrl] = useState(school.imageUrl || '');
   const [editLatitude, setEditLatitude] = useState(school.latitude || 19.3);
   const [editLongitude, setEditLongitude] = useState(school.longitude || 97.9);
@@ -612,11 +613,13 @@ export default function SchoolDetailView({
       const updatedMajorsWithStaff: MajorSubject[] = editMajorsWithStaff.map(m => {
         const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
         const con = Number(m.contractTeachersCount) || 0;
+        const gov = Number(m.govEmployeeCount) || 0;
         return {
           name: m.name.trim(),
           civilServantsCount: civ,
           contractTeachersCount: con,
-          teachersCount: civ + con
+          govEmployeeCount: gov,
+          teachersCount: civ + con + gov
         };
       });
 
@@ -721,6 +724,10 @@ export default function SchoolDetailView({
 
   const totalContractTeachers = useMemo(() => {
     return displayMajors.reduce((sum, m) => sum + (Number(m.contractTeachersCount) || 0), 0);
+  }, [displayMajors]);
+
+  const totalGovEmployees = useMemo(() => {
+    return displayMajors.reduce((sum, m) => sum + (Number(m.govEmployeeCount) || 0), 0);
   }, [displayMajors]);
 
   // สร้างลิงก์แผนที่ Google Maps แบบ Embed Iframe ดึงจากละติจูดและลองจิจูดจริงของโรงเรียน
@@ -2211,7 +2218,7 @@ export default function SchoolDetailView({
                           />
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10px]">
                           <div className="space-y-0.5 bg-amber-50/50 dark:bg-amber-950/20 p-1.5 rounded border border-amber-200 dark:border-amber-800">
                             <span className="text-amber-900 dark:text-amber-300 font-bold block">🏛️ ข้าราชการ (คน)</span>
                             <input 
@@ -2220,6 +2227,17 @@ export default function SchoolDetailView({
                               value={newMajorCivilServants}
                               onChange={(e) => setNewMajorCivilServants(Math.max(0, parseInt(e.target.value) || 0))}
                               className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-1 text-xs font-black outline-none text-center"
+                            />
+                          </div>
+
+                          <div className="space-y-0.5 bg-emerald-50/50 dark:bg-emerald-950/20 p-1.5 rounded border border-emerald-200 dark:border-emerald-800">
+                            <span className="text-emerald-900 dark:text-emerald-300 font-bold block whitespace-nowrap overflow-hidden text-ellipsis">💼 พนง.ราช (คน)</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={newMajorGovEmployee}
+                              onChange={(e) => setNewMajorGovEmployee(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 p-1 text-xs font-black outline-none text-center"
                             />
                           </div>
 
@@ -2237,7 +2255,7 @@ export default function SchoolDetailView({
 
                         <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
                           <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                            ⚡ รวมวิชาเอกนี้: {(Number(newMajorCivilServants) || 0) + (Number(newMajorContractTeachers) || 0)} คน (คำนวณอัตโนมัติ)
+                            ⚡ รวมวิชาเอกนี้: {(Number(newMajorCivilServants) || 0) + (Number(newMajorContractTeachers) || 0) + (Number(newMajorGovEmployee) || 0)} คน
                           </span>
                           <button
                             type="button"
@@ -2252,15 +2270,18 @@ export default function SchoolDetailView({
                               }
                               const civ = Number(newMajorCivilServants) || 0;
                               const con = Number(newMajorContractTeachers) || 0;
+                              const gov = Number(newMajorGovEmployee) || 0;
                               setEditMajorsWithStaff(prev => [...prev, {
                                 name: newMajorName.trim(),
                                 civilServantsCount: civ,
                                 contractTeachersCount: con,
-                                teachersCount: civ + con
+                                govEmployeeCount: gov,
+                                teachersCount: civ + con + gov
                               }]);
                               setNewMajorName('');
                               setNewMajorCivilServants(1);
                               setNewMajorContractTeachers(0);
+                              setNewMajorGovEmployee(0);
                             }}
                             className="bg-[#A0E7E5] hover:opacity-90 border border-[#33272A] text-[#33272A] text-[10px] font-black px-3 py-1 rounded-md cursor-pointer shrink-0"
                           >
@@ -2293,7 +2314,7 @@ export default function SchoolDetailView({
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5 text-[10px]">
                                 <div className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-950/30 p-1 rounded">
                                   <span className="text-amber-900 dark:text-amber-200">🏛️ ข้าราชการ</span>
                                   <input
@@ -2305,10 +2326,28 @@ export default function SchoolDetailView({
                                       setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? {
                                         ...item,
                                         civilServantsCount: newCiv,
-                                        teachersCount: newCiv + (Number(item.contractTeachersCount) || 0)
+                                        teachersCount: newCiv + (Number(item.contractTeachersCount) || 0) + (Number(item.govEmployeeCount) || 0)
                                       } : item));
                                     }}
                                     className="w-10 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 p-0.5 text-center font-bold outline-none"
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between bg-emerald-50/60 dark:bg-emerald-950/30 p-1 rounded">
+                                  <span className="text-emerald-900 dark:text-emerald-200">💼 พนง.ราช</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={Number(m.govEmployeeCount) || 0}
+                                    onChange={(e) => {
+                                      const newGov = Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? {
+                                        ...item,
+                                        govEmployeeCount: newGov,
+                                        teachersCount: (item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0) + (Number(item.contractTeachersCount) || 0) + newGov
+                                      } : item));
+                                    }}
+                                    className="w-10 rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 p-0.5 text-center font-bold outline-none"
                                   />
                                 </div>
 
@@ -2323,7 +2362,7 @@ export default function SchoolDetailView({
                                       setEditMajorsWithStaff(prev => prev.map((item, i) => i === idx ? {
                                         ...item,
                                         contractTeachersCount: newCon,
-                                        teachersCount: (item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0) + newCon
+                                        teachersCount: (item.civilServantsCount !== undefined ? Number(item.civilServantsCount) : Number(item.teachersCount) || 0) + newCon + (Number(item.govEmployeeCount) || 0)
                                       } : item));
                                     }}
                                     className="w-10 rounded border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 p-0.5 text-center font-bold outline-none"
@@ -2343,15 +2382,15 @@ export default function SchoolDetailView({
                         displayMajors.map((m, idx) => {
                           const civ = m.civilServantsCount !== undefined ? Number(m.civilServantsCount) : Number(m.teachersCount) || 0;
                           const con = Number(m.contractTeachersCount) || 0;
-                          const total = m.teachersCount || (civ + con);
-                          let statusBadge = '';
-                          if (civ > 0 && con > 0) {
-                            statusBadge = ` (🏛️ข้าราชการ ${civ}, 📝อัตราจ้าง ${con})`;
-                          } else if (con > 0) {
-                            statusBadge = ` (📝อัตราจ้าง ${con})`;
-                          } else if (civ > 0) {
-                            statusBadge = ` (🏛️ข้าราชการ ${civ})`;
-                          }
+                          const gov = Number(m.govEmployeeCount) || 0;
+                          const total = m.teachersCount || (civ + con + gov);
+                          
+                          const badgeParts = [];
+                          if (civ > 0) badgeParts.push(`🏛️ข้าราชการ ${civ}`);
+                          if (gov > 0) badgeParts.push(`💼พนง.ราช ${gov}`);
+                          if (con > 0) badgeParts.push(`📝อัตราจ้าง ${con}`);
+                          
+                          const statusBadge = badgeParts.length > 0 ? ` (${badgeParts.join(', ')})` : '';
 
                           return (
                             <span key={idx} className="rounded-lg bg-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-0.5 text-[10px] font-bold text-[#33272A] dark:bg-slate-800 dark:text-[#FFF9F5] flex items-center gap-1 shadow-xs">
@@ -2365,12 +2404,17 @@ export default function SchoolDetailView({
                       )}
                     </div>
 
-                    {/* แสดงป้ายบอกจำนวนตามประเภทบุคลากรเฉพาะที่มี > 0 (ข้าราชการ, ครูอัตราจ้าง, ธุรการ, ภารโรง, บุคลากรอื่นๆ) */}
-                    {(totalCivilServants > 0 || totalContractTeachers > 0 || (school.adminStaffCount || 0) > 0 || (school.janitorCount || 0) > 0 || (school.otherStaffCount || 0) > 0) && (
+                    {/* แสดงป้ายบอกจำนวนตามประเภทบุคลากรเฉพาะที่มี > 0 (ข้าราชการ, ครูอัตราจ้าง, พนักงานราชการ, ธุรการ, ภารโรง, บุคลากรอื่นๆ) */}
+                    {(totalCivilServants > 0 || totalContractTeachers > 0 || totalGovEmployees > 0 || (school.adminStaffCount || 0) > 0 || (school.janitorCount || 0) > 0 || (school.otherStaffCount || 0) > 0) && (
                       <div className="flex flex-wrap gap-1.5 pt-1.5 border-t border-dashed border-gray-200 dark:border-gray-800">
                         {totalCivilServants > 0 && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:text-amber-200">
                             🏛️ ข้าราชการ: {totalCivilServants} คน
+                          </span>
+                        )}
+                        {totalGovEmployees > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[10px] font-bold text-emerald-900 dark:text-emerald-200">
+                            💼 พนักงานราช: {totalGovEmployees} คน
                           </span>
                         )}
                         {totalContractTeachers > 0 && (

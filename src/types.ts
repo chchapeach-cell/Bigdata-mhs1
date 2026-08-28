@@ -3,6 +3,7 @@ export interface MajorSubject {
   teachersCount: number; // จำนวนครูรวมในวิชาเอกนี้
   civilServantsCount?: number; // จำนวนข้าราชการครู
   contractTeachersCount?: number; // จำนวนครูอัตราจ้าง
+  govEmployeeCount?: number; // จำนวนพนักงานราชการ
 }
 
 export interface ViceDirectorItem {
