@@ -993,7 +993,7 @@ export default function DashboardView({
       {/* แผนภูมินักเรียนแยกชาย-หญิง ตามชั้นเรียน */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* แผนภูมิแท่งเปรียบเทียบ */}
-        <div className="lg:col-span-2 card p-6">
+        <div className="lg:col-span-2 card p-4 md:p-6 min-w-0">
           <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4">
             จำนวนนักเรียนชาย-หญิง แยกรายระดับชั้นเรียน (ไม่เกิน ม.3)
           </h3>
@@ -1634,7 +1634,7 @@ export default function DashboardView({
 
         <div className="grid gap-6 md:grid-cols-3">
           {/* ซีกซ้าย: รายชื่อโรงเรียนให้เลือกด่วน และแสดงข้อมูลสถานศึกษา */}
-          <div className="md:col-span-1 space-y-4 flex flex-col justify-between">
+          <div className="md:col-span-1 space-y-4 flex flex-col justify-between min-w-0">
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-[#33272A]/60 dark:text-[#FFF9F5]/60 uppercase flex items-center justify-between">
@@ -1809,7 +1809,7 @@ export default function DashboardView({
           </div>
 
           {/* ซีกขวา: แผนที่แบบโต้ตอบ PigeonMap */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 min-w-0">
             <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-white shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[360px] md:h-[420px]">
               <PigeonMap
                 center={mapCenter}

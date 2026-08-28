@@ -279,11 +279,11 @@ export default function Header({
       </nav>
 
       {/* Mobile & Tablet Bottom Tab Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-around items-center shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1e1518]/95 backdrop-blur-md border-t-2 border-[#33272A] dark:border-[#FFD3B6] px-2 py-2 flex justify-start sm:justify-around items-center gap-1 overflow-x-auto scrollbar-hide shadow-[0_-4px_12px_rgba(51,39,42,0.1)] pb-safe transition-colors duration-300">
         {/* Tab 1: ภาพรวม */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all ${
             activeTab === 'dashboard'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -296,7 +296,7 @@ export default function Header({
         {/* Tab 2: รายชื่อโรงเรียน */}
         <button
           onClick={() => setActiveTab('schools')}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all ${
             activeTab === 'schools'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -309,7 +309,7 @@ export default function Header({
         {/* Tab 3: ผลสัมฤทธิ์ทางการเรียน */}
         <button
           onClick={() => setActiveTab('academic')}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all ${
             activeTab === 'academic'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -322,7 +322,7 @@ export default function Header({
         {/* Tab 4: โครงสร้างพื้นฐาน */}
         <button
           onClick={() => setActiveTab('infrastructure')}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all ${
             activeTab === 'infrastructure'
               ? 'text-[#FF8BA7] scale-105 font-black'
               : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -336,7 +336,7 @@ export default function Header({
         {(userProfile?.role === 'super_admin' || systemConfig?.contactEnabled !== false) && (
           <button
             onClick={() => setActiveTab('contact')}
-            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all ${
+            className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all ${
               activeTab === 'contact'
                 ? 'text-[#FF8BA7] scale-105 font-black'
                 : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -351,7 +351,7 @@ export default function Header({
         {userProfile && (
           <button
             onClick={() => setActiveTab('admin')}
-            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all relative ${
+            className={`flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 transition-all relative ${
               activeTab === 'admin'
                 ? 'text-[#FF8BA7] scale-105 font-black'
                 : 'text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#33272A] dark:hover:text-[#FFF9F5]'
@@ -369,7 +369,7 @@ export default function Header({
         {userProfile ? (
           <button
             onClick={onLogout}
-            className="flex flex-col items-center justify-center gap-1 flex-1 py-1 text-rose-500/80 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 transition-all"
+            className="flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 text-rose-500/80 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 transition-all"
             title="ออกจากระบบ"
           >
             <LogOut className="h-5 w-5 stroke-2" />
@@ -378,7 +378,7 @@ export default function Header({
         ) : (
           <button
             onClick={onLoginClick}
-            className="flex flex-col items-center justify-center gap-1 flex-1 py-1 text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#FF8BA7] transition-all"
+            className="flex flex-col items-center justify-center gap-1 shrink-0 min-w-[60px] py-1 text-[#33272A]/60 dark:text-[#FFF9F5]/60 hover:text-[#FF8BA7] transition-all"
           >
             <LogIn className="h-5 w-5 stroke-2" />
             <span className="text-[10px] font-black">เข้าสู่ระบบ</span>

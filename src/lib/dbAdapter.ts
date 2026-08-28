@@ -963,12 +963,16 @@ async function supaUpsertWithFallback(candidateTables: string[] | string, payloa
   }
 
   if (lastError) {
+    const isMissingTable = lastError.code === 'PGRST205' || lastError.code === '42P01' || lastError.message?.includes('schema cache') || lastError.message?.includes('does not exist');
+    
+    if (isMissingTable) {
+      console.warn(`Supabase table not found [${tables.join(', ')}]:`, lastError.message);
+      throw new Error(`ไม่พบตาราง ${tables[0]} บน Supabase (รหัส PGRST205) กรุณารันคำสั่ง SQL สร้างตารางใน Supabase Dashboard`);
+    }
+
     console.error(`Supabase upsert failed across candidate tables [${tables.join(', ')}]:`, lastError);
     if (lastError.code === '42501' || lastError.message?.includes('row-level security')) {
       throw new Error(`ติดขัดสิทธิ์ Row-Level Security (RLS) บน Supabase กรุณารันคำสั่ง SQL ปลดล็อกสิทธิ์ในระบบ Supabase Dashboard`);
-    }
-    if (lastError.code === 'PGRST205' || lastError.code === '42P01' || lastError.message?.includes('schema cache') || lastError.message?.includes('does not exist')) {
-      throw new Error(`ไม่พบตาราง ${tables[0]} บน Supabase (รหัส PGRST205) กรุณารันคำสั่ง SQL สร้างตารางใน Supabase Dashboard`);
     }
     throw new Error(`บันทึกลง Supabase ไม่สำเร็จ (${tables[0]}): ${lastError.message || 'Unknown error'}`);
   }

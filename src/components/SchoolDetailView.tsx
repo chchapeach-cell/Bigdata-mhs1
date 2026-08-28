@@ -2231,7 +2231,7 @@ export default function SchoolDetailView({
                           </div>
 
                           <div className="space-y-0.5 bg-emerald-50/50 dark:bg-emerald-950/20 p-1.5 rounded border border-emerald-200 dark:border-emerald-800">
-                            <span className="text-emerald-900 dark:text-emerald-300 font-bold block whitespace-nowrap overflow-hidden text-ellipsis">💼 พนง.ราช (คน)</span>
+                            <span className="text-emerald-900 dark:text-emerald-300 font-bold block whitespace-nowrap overflow-hidden text-ellipsis">💼 พนักงานราชการ (คน)</span>
                             <input 
                               type="number"
                               min="0"
@@ -2334,7 +2334,7 @@ export default function SchoolDetailView({
                                 </div>
 
                                 <div className="flex items-center justify-between bg-emerald-50/60 dark:bg-emerald-950/30 p-1 rounded">
-                                  <span className="text-emerald-900 dark:text-emerald-200">💼 พนง.ราช</span>
+                                  <span className="text-emerald-900 dark:text-emerald-200">💼 พนักงานราชการ</span>
                                   <input
                                     type="number"
                                     min="0"
@@ -2387,7 +2387,7 @@ export default function SchoolDetailView({
                           
                           const badgeParts = [];
                           if (civ > 0) badgeParts.push(`🏛️ข้าราชการ ${civ}`);
-                          if (gov > 0) badgeParts.push(`💼พนง.ราช ${gov}`);
+                          if (gov > 0) badgeParts.push(`💼พนักงานราชการ ${gov}`);
                           if (con > 0) badgeParts.push(`📝อัตราจ้าง ${con}`);
                           
                           const statusBadge = badgeParts.length > 0 ? ` (${badgeParts.join(', ')})` : '';
@@ -2414,7 +2414,7 @@ export default function SchoolDetailView({
                         )}
                         {totalGovEmployees > 0 && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[10px] font-bold text-emerald-900 dark:text-emerald-200">
-                            💼 พนักงานราช: {totalGovEmployees} คน
+                            💼 พนักงานราชการ: {totalGovEmployees} คน
                           </span>
                         )}
                         {totalContractTeachers > 0 && (
@@ -2573,7 +2573,7 @@ export default function SchoolDetailView({
         </div>
 
         {/* แผนภูมิแสดงนักเรียน */}
-        <div className="lg:col-span-2 card p-6 flex flex-col justify-between">
+        <div className="lg:col-span-2 card p-4 md:p-6 flex flex-col justify-between min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3">
             <div>
               <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
@@ -2951,7 +2951,7 @@ export default function SchoolDetailView({
         </div>
 
         {/* ตารางข้อมูลนักเรียนแบบละเอียด */}
-        <div className="lg:col-span-2 card overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-2 card overflow-hidden flex flex-col justify-between min-w-0">
           <div>
             <div className="p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-[#FFF9F5] dark:bg-[#1e1518]">
               <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">ตารางวิเคราะห์สถิติจำนวนนักเรียนและห้องเรียนรายระดับชั้น</h3>

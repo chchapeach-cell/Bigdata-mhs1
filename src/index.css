@@ -1153,3 +1153,5 @@ html.dark .design-compact-grid .card,
   font-size: 0.75rem !important;
 }
 
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

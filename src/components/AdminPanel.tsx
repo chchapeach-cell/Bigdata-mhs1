@@ -2706,7 +2706,7 @@ export default function AdminPanel({
 
               {studentSubTab === 'bigdata' && (
                 <div className="grid gap-6 md:grid-cols-3 animate-fade-in min-w-0">
-                  <div className="md:col-span-1 flex flex-col gap-6">
+                  <div className="md:col-span-1 flex flex-col gap-6 min-w-0">
                     {/* ลบข้อมูลสถิตินักเรียนรายปีการศึกษา */}
                     <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10">
                       <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
@@ -2784,7 +2784,7 @@ export default function AdminPanel({
                   </div>
 
                   {/* อัปโหลดไฟล์ CSV / Excel */}
-                  <div className="card p-6 md:col-span-2">
+                  <div className="card p-4 md:p-6 md:col-span-2 min-w-0">
                     <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-2 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                       <Upload className="h-4.5 w-4.5 text-[#FF8BA7]" /> อัปโหลดข้อมูลจำนวนนักเรียน BIGDATA ของทั้งจังหวัด
                     </h3>
@@ -3011,7 +3011,7 @@ export default function AdminPanel({
               <div className="grid gap-6 md:grid-cols-3">
                 {/* ลบข้อมูลนักเรียนตัว G รายปีการศึกษา (เฉพาะ Super Admin) */}
                 {isSuperAdmin ? (
-                  <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10 md:col-span-1">
+                  <div className="card p-6 border-2 border-rose-500/30 bg-[#FFF9F5] dark:bg-rose-950/10 md:col-span-1 min-w-0">
                     <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                       <Trash2 className="h-4.5 w-4.5 text-rose-500" /> ลบข้อมูลนักเรียนตัว G ตามปีการศึกษา
                     </h3>
@@ -3118,7 +3118,7 @@ export default function AdminPanel({
                     )}
                   </div>
                 ) : (
-                  <div className="card p-6 border-2 border-slate-200 bg-slate-50 dark:bg-slate-900/30 dark:border-slate-800 md:col-span-1 flex flex-col justify-center items-center text-center">
+                  <div className="card p-6 border-2 border-slate-200 bg-slate-50 dark:bg-slate-900/30 dark:border-slate-800 md:col-span-1 min-w-0 flex flex-col justify-center items-center text-center">
                     <Trash2 className="h-8 w-8 text-slate-400 mb-2" />
                     <h3 className="text-xs font-black text-slate-600 dark:text-slate-300 mb-1">ลบข้อมูลนักเรียนตัว G</h3>
                     <p className="text-[10px] text-slate-400 font-bold">สิทธิ์ในการลบข้อมูลนักเรียนตัว G เป็นของ Super Admin เท่านั้น</p>
@@ -3126,7 +3126,7 @@ export default function AdminPanel({
                 )}
 
                 {/* อัปโหลดไฟล์ Excel / CSV รวมทุกโรงเรียนสำหรับนักเรียนตัว G */}
-                <div className="card p-6 md:col-span-2 space-y-4">
+                <div className="card p-4 md:p-6 md:col-span-2 min-w-0 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                     <div>
                       <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
@@ -3260,7 +3260,7 @@ export default function AdminPanel({
 
               <div className="grid gap-6 md:grid-cols-3">
                 {/* คำร้องรออนุมัติ */}
-                <div className="card p-6 md:col-span-1">
+                <div className="card p-4 md:p-6 md:col-span-1 min-w-0">
                   <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                     <UserCheck className="h-4.5 w-4.5 text-[#FF8BA7]" /> คำร้องสมัครสิทธิ์ ({filteredPendingUsers.length})
                   </h3>
@@ -3274,7 +3274,7 @@ export default function AdminPanel({
                         <div key={user.uid} className="p-3 bg-[#FFF9F5] dark:bg-slate-800 rounded-2xl border-2 border-[#33272A] text-xs space-y-2 font-bold shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6]">
                           <div>
                             <p className="font-black text-[#33272A] dark:text-[#FFF9F5]">{user.firstName} {user.lastName}</p>
-                            <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">{user.email}</p>
+                            <p className="text-[10px] text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold break-all">{user.email}</p>
                           </div>
                           <div className="bg-[#FFD3B6]/40 dark:bg-slate-900/60 p-2 rounded-xl border border-[#33272A]">
                             <p className="text-[10px] text-[#FF8BA7] font-black">สังกัดสมัครเป็นแอดมิน:</p>
@@ -3305,7 +3305,7 @@ export default function AdminPanel({
                 </div>
 
                 {/* ทะเบียนผู้ใช้งานทั้งหมด */}
-                <div className="card p-6 md:col-span-2">
+                <div className="card p-4 md:p-6 md:col-span-2 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-4 border-b-2 border-[#33272A] pb-3 dark:border-[#FFD3B6]">
                     <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
                       <Users className="h-4.5 w-4.5 text-[#A0E7E5]" /> ทะเบียนผู้ใช้งานในระบบ ({filteredApprovedUsers.length})
