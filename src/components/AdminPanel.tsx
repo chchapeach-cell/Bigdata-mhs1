@@ -14,6 +14,7 @@ import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
 import { UserActivityLogView } from './UserActivityLogView';
+import { SchoolSummaryDashboard } from './SchoolSummaryDashboard';
 import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 
@@ -602,7 +603,17 @@ export default function AdminPanel({
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [downloadLogs]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme'>(
+
+  // คำนวณจำนวนสถานศึกษาที่ยังไม่มีผู้ดูแลระบบ (School Admin)
+  const noAdminSchoolsCount = useMemo(() => {
+    const approvedSchoolIds = new Set(
+      approvedUsers
+        .filter(u => u.schoolId && u.schoolId !== 'all')
+        .map(u => u.schoolId)
+    );
+    return schools.filter(s => !approvedSchoolIds.has(s.id)).length;
+  }, [schools, approvedUsers]);
+  const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme'>(
     isSuperAdmin ? 'students_center' : 'schools'
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
@@ -2563,17 +2574,36 @@ export default function AdminPanel({
         {/* แถบนำทางเมนูหลัก - ปรับปรุงการแสดงผลบนมือถือให้เลื่อนซ้าย-ขวาได้ สะดวก ไม่ล้นจอ */}
         <div className="flex overflow-x-auto pb-1.5 gap-2 no-scrollbar min-w-0 max-w-full touch-pan-x">
           {isSuperAdmin && (
-            <button
-              onClick={() => setAdminTab('students_center')}
-              className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                adminTab === 'students_center' 
-                  ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
-              <span>ศูนย์ข้อมูลนักเรียน</span>
-            </button>
+            <>
+              <button
+                onClick={() => setAdminTab('students_center')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'students_center' 
+                    ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <GraduationCap className="h-4 w-4 text-rose-700 dark:text-rose-300" />
+                <span>ศูนย์ข้อมูลนักเรียน</span>
+              </button>
+
+              <button
+                onClick={() => setAdminTab('summary')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'summary' 
+                    ? 'bg-amber-400 text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <BarChart3 className="h-4 w-4 text-amber-950 dark:text-amber-300" />
+                <span>สรุปสถานะ &amp; ผู้ดูแล</span>
+                {noAdminSchoolsCount > 0 && (
+                  <span className="ml-1 bg-rose-500 text-white rounded-full px-1.5 py-0.5 text-[9px] font-black" title={`มี ${noAdminSchoolsCount} โรงเรียนที่ยังไม่มีผู้ดูแล`}>
+                    {noAdminSchoolsCount}
+                  </span>
+                )}
+              </button>
+            </>
           )}
 
           <button
@@ -2665,6 +2695,25 @@ export default function AdminPanel({
           )}
         </div>
       </div>
+
+          {/* TAB: School Summary & Admin Coverage Dashboard (เฉพาะ Super Admin) */}
+          {adminTab === 'summary' && isSuperAdmin && (
+            <SchoolSummaryDashboard
+              schools={schools}
+              approvedUsers={approvedUsers}
+              pendingUsers={pendingUsers}
+              onSelectSchool={onSelectSchool}
+              onNavigateToSchoolEdit={(schoolId) => {
+                setSelectedSchoolId(schoolId);
+                setAdminTab('schools');
+              }}
+              onNavigateToUserManagement={() => {
+                setAdminTab('users');
+              }}
+              onRefreshData={onRefreshData}
+              isSuperAdmin={isSuperAdmin}
+            />
+          )}
 
           {adminTab === 'students_center' && (
             isSuperAdmin ? (

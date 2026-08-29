@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { School, UserProfile, DownloadLog } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle } from 'lucide-react';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle, Clock, History } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
+import { getSchoolUpdateBadgeInfo } from '../utils/initialData';
 
 interface InfrastructureViewProps {
   schools: School[];
@@ -1418,18 +1419,27 @@ export default function InfrastructureView({
           <>
             {/* Mobile View Card List (md:hidden) - ไม่ต้องเลื่อนซ้ายขวา กดที่ชื่อโรงเรียนเข้าดูรายละเอียดได้เลย */}
             <div className="md:hidden space-y-2.5">
-              {filteredSchools.map((school) => (
-                <div
-                  key={school.id}
-                  onClick={() => onSelectSchool(school.id)}
-                  className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] hover:bg-[#FFF9F5] dark:hover:bg-[#261b1f] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between gap-3 group"
-                >
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors leading-tight">
-                        {school.name}
-                      </span>
-                    </div>
+              {filteredSchools.map((school) => {
+                const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
+                return (
+                  <div
+                    key={school.id}
+                    onClick={() => onSelectSchool(school.id)}
+                    className="p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] bg-white dark:bg-[#1e1518] shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] hover:bg-[#FFF9F5] dark:hover:bg-[#261b1f] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors leading-tight">
+                          {school.name}
+                        </span>
+                        <span 
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 shrink-0 ${updateInfo.badgeClass}`}
+                          title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                          <span>{updateInfo.shortLabel}</span>
+                        </span>
+                      </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       {/* ไฟฟ้า */}
@@ -1493,7 +1503,8 @@ export default function InfrastructureView({
                     <ChevronRight className="h-4 w-4" />
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Desktop View Table (hidden md:block) */}
@@ -1508,11 +1519,14 @@ export default function InfrastructureView({
                     <th className="p-3">อินเทอร์เน็ต</th>
                     <th className="p-3">น้ำประปา</th>
                     <th className="p-3">ครูวิชาเอก / บุคลากร</th>
+                    <th className="p-3 text-center">อัปเดตล่าสุด</th>
                     <th className="p-3 text-center">การจัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/10 font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                  {filteredSchools.map((school, index) => (
+                  {filteredSchools.map((school, index) => {
+                    const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
+                    return (
                     <tr 
                       key={school.id}
                       onClick={() => onSelectSchool(school.id)}
@@ -1595,6 +1609,15 @@ export default function InfrastructureView({
                         </div>
                       </td>
                       <td className="p-3 text-center">
+                        <span 
+                          className={`text-[10px] font-bold px-2 py-1 rounded-lg border inline-flex items-center gap-1.5 shadow-2xs ${updateInfo.badgeClass}`}
+                          title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                          <span>{updateInfo.shortLabel}</span>
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1608,7 +1631,8 @@ export default function InfrastructureView({
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

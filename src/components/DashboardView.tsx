@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
-import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets } from 'lucide-react';
-import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST } from '../utils/initialData';
+import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets, Clock, CheckCircle2 } from 'lucide-react';
+import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST, getSchoolUpdateBadgeInfo } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
 interface DashboardViewProps {
@@ -2345,25 +2345,36 @@ export default function DashboardView({
                   </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {filteredInfraSchools.map(school => (
-                      <div
-                        key={school.id}
-                        className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border-2 border-[#33272A]/20 dark:border-slate-800 space-y-2.5 hover:border-[#FF8BA7] transition-all flex flex-col justify-between"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] leading-snug">
-                              {school.name}
-                            </h4>
-                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 shrink-0">
-                              ขนาด{school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : 'ใหญ่'}
-                            </span>
+                    {filteredInfraSchools.map(school => {
+                      const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
+                      return (
+                        <div
+                          key={school.id}
+                          className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border-2 border-[#33272A]/20 dark:border-slate-800 space-y-2.5 hover:border-[#FF8BA7] transition-all flex flex-col justify-between"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] leading-snug">
+                                {school.name}
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 shrink-0">
+                                ขนาด{school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : 'ใหญ่'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <p className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-[#FF8BA7]" />
+                                อำเภอ{school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe} • รหัส {school.id}
+                              </p>
+                              <span 
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border inline-flex items-center gap-1 ${updateInfo.badgeClass}`}
+                                title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                                <span>{updateInfo.shortLabel}</span>
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-[#FF8BA7]" />
-                            อำเภอ{school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe} • รหัส {school.id}
-                          </p>
-                        </div>
 
                         {/* Electricity, Internet & Water Badges */}
                         <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold p-2 bg-[#FFF9F5] dark:bg-slate-950 rounded-xl">
@@ -2400,7 +2411,8 @@ export default function DashboardView({
                           </button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

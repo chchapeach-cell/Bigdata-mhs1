@@ -1,11 +1,11 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns, LayoutGrid, List } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns, LayoutGrid, List, Clock, CheckCircle2, History } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
-import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears, getSchoolUpdateBadgeInfo } from '../utils/initialData';
 
 interface SchoolListViewProps {
   schools: School[];
@@ -102,7 +102,7 @@ export default function SchoolListView({
   }, [schools]);
   
   // สถานะการจัดเรียงข้อมูล
-  const [sortField, setSortField] = useState<'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | null>(null);
+  const [sortField, setSortField] = useState<'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | 'updatedAt' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // สำหรับการดาวน์โหลดรายงาน
@@ -269,6 +269,18 @@ export default function SchoolListView({
       } else if (sortField === 'internetType') {
         valA = netOrder[a.internetType || ''] || 5;
         valB = netOrder[b.internetType || ''] || 5;
+      } else if (sortField === 'updatedAt') {
+        const getMs = (u: any) => {
+          if (!u) return 0;
+          try {
+            if (typeof u === 'string' || typeof u === 'number') return new Date(u).getTime() || 0;
+            if (u && typeof u.toDate === 'function') return u.toDate().getTime() || 0;
+            if (u && typeof u.seconds === 'number') return u.seconds * 1000;
+            return new Date(u).getTime() || 0;
+          } catch { return 0; }
+        };
+        valA = getMs(a.updatedAt);
+        valB = getMs(b.updatedAt);
       } else {
         valA = a[sortField];
         valB = b[sortField];
@@ -293,7 +305,7 @@ export default function SchoolListView({
   }, [filteredSchools, sortField, sortDirection]);
 
   // ฟังก์ชันสลับการจัดเรียง
-  const handleSort = (field: 'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType') => {
+  const handleSort = (field: 'id' | 'name' | 'amphoe' | 'size' | 'isExpansion' | 'staffCount' | 'studentCount' | 'internetType' | 'updatedAt') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -852,6 +864,19 @@ export default function SchoolListView({
                       ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
                     </div>
                   </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('updatedAt')}
+                    title="คลิกเพื่อจัดเรียงตามเวลาอัปเดตล่าสุด"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <Clock className="h-3 w-3 text-slate-500" />
+                      อัปเดตล่าสุด
+                      {sortField === 'updatedAt' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
                   <th className="p-3 text-right">จัดการ</th>
                 </tr>
               </thead>
@@ -862,6 +887,7 @@ export default function SchoolListView({
                       sortedSchools.map((school) => {
                         const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                         const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                        const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
                         return (
                           <motion.tr 
                             key={school.id}
@@ -983,6 +1009,22 @@ export default function SchoolListView({
                                  school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
                               </span>
                             </td>
+                            <td className="p-3 text-center">
+                              <span 
+                                className={`text-[11px] font-bold px-2 py-1 rounded-lg border inline-flex items-center gap-1.5 shadow-xs ${updateInfo.badgeClass}`}
+                                title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                                {updateInfo.iconType === 'check' ? (
+                                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                ) : updateInfo.iconType === 'clock' ? (
+                                  <Clock className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
+                                ) : (
+                                  <History className="h-3 w-3 shrink-0 text-slate-400" />
+                                )}
+                                <span>{updateInfo.shortLabel}</span>
+                              </span>
+                            </td>
                             <td className="p-3 text-right flex justify-end gap-1.5 items-center">
                               {(school.schoolPhone || school.directorPhone) && (
                                 <a
@@ -1045,6 +1087,7 @@ export default function SchoolListView({
                     {sortedSchools.map((school) => {
                       const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                       const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                      const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
                       return (
                         <motion.div 
                           key={school.id}
@@ -1066,11 +1109,28 @@ export default function SchoolListView({
                           }`}
                         >
                           <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                                รหัส: {school.id}
-                              </span>
-                              <div className="flex flex-wrap gap-1 justify-end">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                                  รหัส: {school.id}
+                                </span>
+                                {/* Badge แสดงเวลาล่าสุดที่มีการแก้ไขข้อมูล (Updated At) */}
+                                <span 
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 shadow-2xs transition-all ${updateInfo.badgeClass}`}
+                                  title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                                  {updateInfo.iconType === 'check' ? (
+                                    <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                  ) : updateInfo.iconType === 'clock' ? (
+                                    <Clock className="h-2.5 w-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                  ) : (
+                                    <History className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+                                  )}
+                                  <span>{updateInfo.shortLabel}</span>
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 justify-end shrink-0">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
                                   school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
                                   school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
@@ -1228,6 +1288,7 @@ export default function SchoolListView({
                   {sortedSchools.map((school) => {
                     const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                     const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                    const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
                     return (
                       <motion.div 
                         key={school.id}
@@ -1248,11 +1309,28 @@ export default function SchoolListView({
                         }`}
                       >
                         <div className="space-y-3">
-                          <div className="flex justify-between items-start">
-                            <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                              รหัส: {school.id}
-                            </span>
-                            <div className="flex flex-wrap gap-1 justify-end">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                                รหัส: {school.id}
+                              </span>
+                              {/* Badge แสดงเวลาล่าสุดที่มีการแก้ไขข้อมูล (Updated At) บนมือถือ */}
+                              <span 
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 shadow-2xs transition-all ${updateInfo.badgeClass}`}
+                                title={`${updateInfo.fullDateText}${updateInfo.updatedByText ? ' (' + updateInfo.updatedByText + ')' : ''}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${updateInfo.dotClass}`} />
+                                {updateInfo.iconType === 'check' ? (
+                                  <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                ) : updateInfo.iconType === 'clock' ? (
+                                  <Clock className="h-2.5 w-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                ) : (
+                                  <History className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+                                )}
+                                <span>{updateInfo.shortLabel}</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 justify-end shrink-0">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
                                 school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
                                 school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :

@@ -450,15 +450,11 @@ export default function App() {
       // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
       if (supabase && isSupabaseConfigured()) {
         try {
-          // ดึงข้อมูลเฉพาะฟิลด์ที่จำเป็นแบบคู่ขนาน (Parallel Requests + Selected Fields) เพื่อลดขนาด payload และความเร็วสูงสุด
-          const schoolFields = 'id, name, district, amphoe, network_group, internet_type, electricity, water_system, water_system_detail, solar_kw, has_solar_battery, solar_battery_capacity, staff_count, contract_teachers_count, admin_staff_count, janitor_count, other_staff_count, major_subjects, major_subjects_with_staff, classrooms, director_name, director_phone, vice_director_name, vice_director_phone, vice_directors, school_phone, email, facebook, line, website, address, image_url, logo_url, director_image_url, latitude, longitude, size, is_expansion, special_highlights, updated_at, updated_by';
-          const studentFields = 'id, school_id, school_name, academic_year, grades, total_male, total_female, total_students';
-          const studentGFields = 'id, school_id, school_name, academic_year, total_g_students, male_g_count, female_g_count, notes';
-
+          // ดึงข้อมูลทั้งหมดจาก Supabase แบบคู่ขนาน
           const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
-            supabase.from('schools').select(schoolFields).order('id', { ascending: true }),
-            supabase.from('students').select(studentFields),
-            supabase.from('students_g').select(studentGFields),
+            supabase.from('schools').select('*').order('id', { ascending: true }),
+            supabase.from('students').select('*'),
+            supabase.from('students_g').select('*'),
             supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
             dbFetchAcademicRecords().catch(() => [])
           ]);
@@ -466,11 +462,15 @@ export default function App() {
           const suSchools = schoolsRes.data;
           const suErr = schoolsRes.error;
 
+          if (suErr) {
+            console.warn('Supabase schools query warning:', suErr);
+          }
+
           if (!suErr && suSchools && suSchools.length > 0) {
             const mappedSchools: School[] = (suSchools as any[]).map(s => {
               const autoInfo = getAmphoeAndNetwork(s.id, s.name);
               const resolvedAmphoe = (s.amphoe && s.amphoe !== 'NULL' && String(s.amphoe).trim()) ? String(s.amphoe).trim() : autoInfo.amphoe;
-              const resolvedNetworkGroup = (s.network_group && s.network_group !== 'NULL' && String(s.network_group).trim()) ? String(s.network_group).trim() : autoInfo.networkGroup;
+              const resolvedNetworkGroup = (s.network_group && s.network_group !== 'NULL' && String(s.network_group).trim()) ? String(s.network_group).trim() : (s.networkGroup || autoInfo.networkGroup);
 
               return {
                 id: s.id,
@@ -478,20 +478,20 @@ export default function App() {
                 district: s.district || 'สพป.แม่ฮ่องสอน เขต 1',
                 amphoe: resolvedAmphoe,
                 networkGroup: resolvedNetworkGroup,
-                internetType: s.internet_type || 'fiber',
+                internetType: s.internet_type || s.internetType || 'fiber',
                 electricity: s.electricity !== undefined ? s.electricity : true,
-                waterSystem: s.water_system || 'government',
-                waterSystemDetail: s.water_system_detail,
-                solarKw: s.solar_kw,
-                hasSolarBattery: s.has_solar_battery,
-                solarBatteryCapacity: s.solar_battery_capacity,
-                staffCount: s.staff_count ?? 0,
+                waterSystem: s.water_system || s.waterSystem || 'government',
+                waterSystemDetail: s.water_system_detail || s.waterSystemDetail,
+                solarKw: s.solar_kw || s.solarKw,
+                hasSolarBattery: s.has_solar_battery ?? s.hasSolarBattery ?? false,
+                solarBatteryCapacity: s.solar_battery_capacity || s.solarBatteryCapacity,
+                staffCount: s.staff_count ?? s.staffCount ?? 0,
                 contractTeachersCount: s.contract_teachers_count ?? s.contractTeachersCount ?? 0,
                 adminStaffCount: s.admin_staff_count ?? s.adminStaffCount ?? 0,
                 janitorCount: s.janitor_count ?? s.janitorCount ?? 0,
                 otherStaffCount: s.other_staff_count ?? s.otherStaffCount ?? 0,
-                majorSubjects: s.major_subjects || [],
-                majorSubjectsWithStaff: s.major_subjects_with_staff || [],
+                majorSubjects: s.major_subjects || s.majorSubjects || [],
+                majorSubjectsWithStaff: s.major_subjects_with_staff || s.majorSubjectsWithStaff || [],
                 classrooms: s.classrooms || [],
                 directorName: s.director_name || s.directorName,
                 directorPhone: s.director_phone || s.directorPhone,
@@ -502,35 +502,35 @@ export default function App() {
                   : ((s.viceDirectorName || s.vice_director_name)
                     ? [{ id: 'vd-1', name: s.viceDirectorName || s.vice_director_name || '', phone: s.viceDirectorPhone || s.vice_director_phone || '' }]
                     : []),
-                schoolPhone: s.school_phone,
+                schoolPhone: s.school_phone || s.schoolPhone,
                 email: s.email,
                 facebook: s.facebook,
                 line: s.line,
                 website: s.website,
                 address: s.address,
-                imageUrl: s.image_url,
-                logoUrl: s.logo_url,
-                directorImageUrl: s.director_image_url,
+                imageUrl: s.image_url || s.imageUrl,
+                logoUrl: s.logo_url || s.logoUrl,
+                directorImageUrl: s.director_image_url || s.directorImageUrl,
                 latitude: s.latitude,
                 longitude: s.longitude,
                 size: s.size || 'small',
-                isExpansion: s.is_expansion || false,
-                specialHighlights: s.special_highlights,
-                updatedAt: s.updated_at,
-                updatedBy: s.updated_by
+                isExpansion: s.is_expansion ?? s.isExpansion ?? false,
+                specialHighlights: s.special_highlights || s.specialHighlights,
+                updatedAt: s.updated_at || s.updatedAt,
+                updatedBy: s.updated_by || s.updatedBy
               };
             });
 
             const suStudents = studentsRes.data;
             let mappedStudents: StudentData[] = (suStudents || []).map(st => ({
               id: st.id,
-              schoolId: st.school_id,
-              schoolName: st.school_name,
-              academicYear: st.academic_year,
+              schoolId: st.school_id || st.schoolId,
+              schoolName: st.school_name || st.schoolName,
+              academicYear: st.academic_year || st.academicYear,
               grades: st.grades || {},
-              totalMale: st.total_male,
-              totalFemale: st.total_female,
-              totalStudents: st.total_students
+              totalMale: st.total_male ?? st.totalMale ?? 0,
+              totalFemale: st.total_female ?? st.totalFemale ?? 0,
+              totalStudents: st.total_students ?? st.totalStudents ?? 0
             }));
 
             // หากตาราง students บน Supabase ยังไม่มีข้อมูล ให้สร้างโครงสร้างข้อมูลนักเรียนสำหรับทุกโรงเรียน
@@ -551,13 +551,13 @@ export default function App() {
             const suStudentsG = studentsGRes.data;
             const mappedStudentsG: StudentGData[] = (suStudentsG || []).map(sg => ({
               id: sg.id,
-              schoolId: sg.school_id,
-              schoolName: sg.school_name,
-              academicYear: sg.academic_year,
-              totalGStudents: sg.total_g_students,
-              maleGCount: sg.male_g_count,
-              femaleGCount: sg.female_g_count,
-              notes: sg.notes
+              schoolId: sg.school_id || sg.schoolId,
+              schoolName: sg.school_name || sg.schoolName,
+              academicYear: sg.academic_year || sg.academicYear,
+              totalGStudents: sg.total_g_students ?? sg.totalGStudents ?? 0,
+              maleGCount: sg.male_g_count ?? sg.maleGCount ?? 0,
+              femaleGCount: sg.female_g_count ?? sg.femaleGCount ?? 0,
+              notes: sg.notes || ''
             }));
 
             if (settingsRes && (settingsRes as any).data?.config) {
@@ -600,22 +600,29 @@ export default function App() {
 
             setAcademicRecords(acRecords || []);
 
-            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
+            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
             setIsLoading(false);
             return;
           } else {
             console.warn('Supabase schools query returned empty or error:', suErr);
+            setSchools([]);
+            setStudentData([]);
+            setStudentGData([]);
+            setAcademicRecords([]);
           }
         } catch (suEx) {
           console.warn('Notice reading from Supabase:', suEx);
+          setSchools([]);
+          setStudentData([]);
+          setStudentGData([]);
+          setAcademicRecords([]);
         }
+      } else {
+        setSchools([]);
+        setStudentData([]);
+        setStudentGData([]);
+        setAcademicRecords([]);
       }
-
-      // ถ้าเชื่อมต่อ Supabase ไม่ได้หรือไม่มีข้อมูล ให้ตั้งค่าเป็นว่างเปล่าตามความเป็นจริง
-      setSchools([]);
-      setStudentData([]);
-      setStudentGData([]);
-      setAcademicRecords([]);
 
     } catch (error) {
       console.warn('Notice fetching data:', error);

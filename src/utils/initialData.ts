@@ -375,6 +375,148 @@ export function getSchoolSizeLabel(size: School['size'] | string): string {
   }
 }
 
+export interface SchoolUpdateBadgeInfo {
+  status: 'recent' | 'moderate' | 'outdated' | 'none';
+  isRecent: boolean;
+  label: string;
+  shortLabel: string;
+  timeText: string;
+  fullDateText: string;
+  badgeClass: string;
+  dotClass: string;
+  iconType: 'check' | 'clock' | 'alert';
+  updatedByText?: string;
+  diffDays?: number;
+}
+
+// ฟังก์ชันแปลงข้อมูลสถานะและเวลาอัปเดตล่าสุดของโรงเรียน (Updated At / Verification Badge)
+export function getSchoolUpdateBadgeInfo(updatedAt?: any, updatedBy?: string): SchoolUpdateBadgeInfo {
+  if (!updatedAt) {
+    return {
+      status: 'none',
+      isRecent: false,
+      label: 'ยังไม่ยืนยันข้อมูล',
+      shortLabel: 'ยังไม่อัปเดต',
+      timeText: 'ไม่มีบันทึกเวลา',
+      fullDateText: 'ยังไม่มีการบันทึกเวลาอัปเดตข้อมูล',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+      dotClass: 'bg-slate-400',
+      iconType: 'alert',
+      updatedByText: updatedBy ? `ผู้แก้ไข: ${updatedBy}` : undefined
+    };
+  }
+
+  try {
+    let dateObj: Date;
+    if (typeof updatedAt === 'string') {
+      dateObj = new Date(updatedAt);
+    } else if (typeof updatedAt === 'number') {
+      dateObj = new Date(updatedAt);
+    } else if (updatedAt && typeof updatedAt.toDate === 'function') {
+      dateObj = updatedAt.toDate();
+    } else if (updatedAt && typeof updatedAt.seconds === 'number') {
+      dateObj = new Date(updatedAt.seconds * 1000);
+    } else {
+      dateObj = new Date(updatedAt);
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      return {
+        status: 'none',
+        isRecent: false,
+        label: 'ยังไม่ยืนยันข้อมูล',
+        shortLabel: 'ยังไม่อัปเดต',
+        timeText: 'ไม่มีบันทึกเวลา',
+        fullDateText: 'ยังไม่มีการบันทึกเวลาอัปเดตข้อมูล',
+        badgeClass: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+        dotClass: 'bg-slate-400',
+        iconType: 'alert',
+        updatedByText: updatedBy ? `ผู้แก้ไข: ${updatedBy}` : undefined
+      };
+    }
+
+    const now = new Date();
+    const diffMs = now.getTime() - dateObj.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    const day = dateObj.getDate();
+    const thaiMonthsShort = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ];
+    const thaiMonthsFull = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    const monthShort = thaiMonthsShort[dateObj.getMonth()];
+    const monthFull = thaiMonthsFull[dateObj.getMonth()];
+    const yearBE = dateObj.getFullYear() + 543;
+    const yearBEShort = String(yearBE).slice(-2);
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+
+    const formattedShortDate = `${day} ${monthShort} ${yearBEShort}`;
+    const fullDateText = `${day} ${monthFull} ${yearBE} เวลา ${hours}:${minutes} น.`;
+
+    if (diffDays <= 90) {
+      return {
+        status: 'recent',
+        isRecent: true,
+        label: `อัปเดตล่าสุด: ${formattedShortDate}`,
+        shortLabel: `ล่าสุด ${formattedShortDate}`,
+        timeText: formattedShortDate,
+        fullDateText,
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700/80',
+        dotClass: 'bg-emerald-500 animate-pulse',
+        iconType: 'check',
+        updatedByText: updatedBy ? `อัปเดตโดย: ${updatedBy}` : undefined,
+        diffDays
+      };
+    } else if (diffDays <= 210) {
+      return {
+        status: 'moderate',
+        isRecent: false,
+        label: `อัปเดตเมื่อ: ${formattedShortDate}`,
+        shortLabel: `${formattedShortDate}`,
+        timeText: formattedShortDate,
+        fullDateText,
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/80',
+        dotClass: 'bg-amber-500',
+        iconType: 'clock',
+        updatedByText: updatedBy ? `อัปเดตโดย: ${updatedBy}` : undefined,
+        diffDays
+      };
+    } else {
+      return {
+        status: 'outdated',
+        isRecent: false,
+        label: `อัปเดตนานแล้ว: ${formattedShortDate}`,
+        shortLabel: `ข้อมูลเก่า ${formattedShortDate}`,
+        timeText: formattedShortDate,
+        fullDateText,
+        badgeClass: 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-700/80',
+        dotClass: 'bg-rose-500',
+        iconType: 'alert',
+        updatedByText: updatedBy ? `อัปเดตโดย: ${updatedBy}` : undefined,
+        diffDays
+      };
+    }
+  } catch {
+    return {
+      status: 'none',
+      isRecent: false,
+      label: 'ยังไม่ยืนยันข้อมูล',
+      shortLabel: 'ยังไม่อัปเดต',
+      timeText: 'ไม่มีบันทึกเวลา',
+      fullDateText: 'ยังไม่มีการบันทึกเวลาอัปเดตข้อมูล',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+      dotClass: 'bg-slate-400',
+      iconType: 'alert',
+      updatedByText: updatedBy ? `ผู้แก้ไข: ${updatedBy}` : undefined
+    };
+  }
+}
+
 // ฟังก์ชันสร้างข้อมูลโรงเรียนสุ่ม/ตั้งต้นในกรณีไม่มีฐานข้อมูล
 export function generateDefaultSchool(id: string, nameRaw: string, studentCount: number, isExpansion: boolean): School {
   const metadata = SCHOOL_METADATA_PRESETS[id] || {
