@@ -1,15 +1,17 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
-import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns, LayoutGrid, List, Clock, CheckCircle2, History } from 'lucide-react';
+import { School, StudentData, DownloadLog, UserProfile, AcademicRecord, QualityLevel } from '../types';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns, LayoutGrid, List, Clock, CheckCircle2, History, Award, BookOpen, BarChart3, TrendingUp, Medal, Trophy, Percent, Layers, Printer, Calendar } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
 import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears, getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { generateInitialAcademicRecords, determineQualityLevel } from '../utils/academicData';
 
 interface SchoolListViewProps {
   schools: School[];
   studentData: StudentData[];
+  academicRecords?: AcademicRecord[];
   onSelectSchool: (id: string) => void;
   userProfile: UserProfile | null;
   initialFilters?: {
@@ -37,6 +39,7 @@ interface SchoolListViewProps {
 export default function SchoolListView({
   schools,
   studentData,
+  academicRecords = [],
   onSelectSchool,
   userProfile,
   initialFilters,
@@ -119,6 +122,86 @@ export default function SchoolListView({
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [highlightDiff, setHighlightDiff] = useState(true);
+  const [compareTab, setCompareTab] = useState<'all' | 'general' | 'academic'>('all');
+  const [compareAcademicYear, setCompareAcademicYear] = useState<string>(academicYear || getCurrentBEYear());
+  const [compareTestType, setCompareTestType] = useState<'all' | 'NT' | 'RT'>('all');
+
+  // ซิงค์ปีการศึกษาของโหมดเปรียบเทียบ
+  useEffect(() => {
+    if (academicYear) {
+      setCompareAcademicYear(academicYear);
+    }
+  }, [academicYear]);
+
+  // ประมวลผลชุดข้อมูลผลสัมฤทธิ์ทั้งหมด (ใช้จาก Props หรือ Generate Initial Fallback)
+  const effectiveAcademicRecords = useMemo<AcademicRecord[]>(() => {
+    if (academicRecords && academicRecords.length > 0) {
+      return academicRecords;
+    }
+    return generateInitialAcademicRecords(schools, academicYear || getCurrentBEYear());
+  }, [academicRecords, schools, academicYear]);
+
+  // รายการปีการศึกษาที่มีข้อมูลผลสัมฤทธิ์
+  const availableCompareYears = useMemo<string[]>(() => {
+    const fromRecords = effectiveAcademicRecords.map(r => String(r.academicYear || '').trim()).filter(Boolean);
+    const set = new Set([...(availableYears || []), ...fromRecords, academicYear || getCurrentBEYear()]);
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [effectiveAcademicRecords, availableYears, academicYear]);
+
+  // ฟังก์ชันค้นหาข้อมูลผลสัมฤทธิ์ของโรงเรียนตามประเภทการประเมินและปีการศึกษา
+  const getSchoolAcademicRecord = (schoolId: string, schoolName: string, testType: 'RT' | 'NT', year?: string) => {
+    const targetYear = year || compareAcademicYear;
+    const cleanSchoolName = (schoolName || '').replace(/^(โรงเรียน|รร\.)/, '').trim();
+    return effectiveAcademicRecords.find(r => {
+      const isYearMatch = String(r.academicYear || '').trim() === String(targetYear).trim();
+      const isTypeMatch = String(r.testType || '').toUpperCase() === testType;
+      if (!isYearMatch || !isTypeMatch) return false;
+      if (r.schoolId && r.schoolId === schoolId) return true;
+      const cleanRecName = (r.schoolName || '').replace(/^(โรงเรียน|รร\.)/, '').trim();
+      if (cleanRecName && cleanSchoolName && (cleanRecName === cleanSchoolName || cleanRecName.includes(cleanSchoolName) || cleanSchoolName.includes(cleanRecName))) {
+        return true;
+      }
+      return false;
+    }) || null;
+  };
+
+  // Render Quality Badge สำหรับผลสัมฤทธิ์
+  const renderQualityBadge = (quality?: QualityLevel | string, size: 'sm' | 'md' = 'sm') => {
+    const q = quality || 'พอใช้';
+    const isSm = size === 'sm';
+    const padding = isSm ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs';
+    switch (q) {
+      case 'ดีมาก':
+        return (
+          <span className={`inline-flex items-center gap-1 rounded-full font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-2xs ${padding}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            ดีมาก
+          </span>
+        );
+      case 'ดี':
+        return (
+          <span className={`inline-flex items-center gap-1 rounded-full font-black bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-300 dark:border-blue-700 shadow-2xs ${padding}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+            ดี
+          </span>
+        );
+      case 'พอใช้':
+        return (
+          <span className={`inline-flex items-center gap-1 rounded-full font-black bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs ${padding}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            พอใช้
+          </span>
+        );
+      case 'ปรับปรุง':
+      default:
+        return (
+          <span className={`inline-flex items-center gap-1 rounded-full font-black bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300 dark:border-rose-700 shadow-2xs ${padding}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            ปรับปรุง
+          </span>
+        );
+    }
+  };
 
   // รูปแบบการแสดงผลบน Desktop: 'grid' (การ์ด) หรือ 'table' (ตาราง)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -1664,19 +1747,40 @@ export default function SchoolListView({
             {/* Modal Header */}
             <div className="flex flex-wrap justify-between items-center gap-2 pb-3 md:pb-4 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-2xl bg-purple-500 border-2 border-[#33272A] p-2 text-white shadow-sm">
+                <div className="rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 border-2 border-[#33272A] p-2 text-white shadow-sm">
                   <Columns className="h-5 w-5 md:h-6 md:w-6" />
                 </div>
                 <div>
-                  <h3 className="text-base md:text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  <h3 className="text-base md:text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
                     เปรียบเทียบข้อมูลโรงเรียน ({compareSchools.length} แห่ง)
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                      รวมผลสัมฤทธิ์ RT & NT
+                    </span>
                   </h3>
                   <p className="text-[11px] md:text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-                    เปรียบเทียบข้อมูลพื้นฐาน สาธารณูปโภค ครู และนักเรียน ปีการศึกษา {academicYear || getCurrentBEYear()}
+                    เปรียบเทียบข้อมูลพื้นฐาน สาธารณูปโภค ครู นักเรียน และผลการประเมินทางการศึกษา
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Academic Year Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-[#33272A]/20 dark:border-[#FFD3B6]/20 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">ปีการศึกษา:</span>
+                  <select
+                    value={compareAcademicYear}
+                    onChange={(e) => setCompareAcademicYear(e.target.value)}
+                    className="bg-transparent font-black text-purple-700 dark:text-purple-300 text-xs focus:outline-none cursor-pointer"
+                  >
+                    {availableCompareYears.map(yr => (
+                      <option key={yr} value={yr} className="dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold">
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   onClick={() => setHighlightDiff(!highlightDiff)}
                   className={`px-3 py-1.5 rounded-xl border-2 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -1689,6 +1793,7 @@ export default function SchoolListView({
                   <Sparkles className={`h-3.5 w-3.5 ${highlightDiff ? 'text-amber-900 fill-amber-300' : ''}`} />
                   {highlightDiff ? 'กำลังเน้นจุดต่าง' : 'เน้นจุดต่าง'}
                 </button>
+
                 <button
                   onClick={() => setIsCompareModalOpen(false)}
                   className="p-1.5 md:p-2 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] hover:bg-rose-100 dark:hover:bg-rose-950 text-[#33272A] dark:text-[#FFF9F5] transition-colors"
@@ -1699,22 +1804,218 @@ export default function SchoolListView({
               </div>
             </div>
 
+            {/* Category Navigation Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 pb-1 border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                <button
+                  onClick={() => setCompareTab('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    compareTab === 'all'
+                      ? 'bg-purple-600 text-white shadow-[2px_2px_0px_#33272A]'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-950/40'
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  ทุกหมวดหมู่ (ทั้งหมด)
+                </button>
+                <button
+                  onClick={() => setCompareTab('general')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    compareTab === 'general'
+                      ? 'bg-[#FF8BA7] text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                  }`}
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  ข้อมูลทั่วไป & สาธารณูปโภค
+                </button>
+                <button
+                  onClick={() => setCompareTab('academic')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    compareTab === 'academic'
+                      ? 'bg-amber-400 text-[#33272A] border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A]'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                  }`}
+                >
+                  <Trophy className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
+                  ผลสัมฤทธิ์ทางการเรียน (RT/NT)
+                </button>
+              </div>
+
+              {(compareTab === 'academic' || compareTab === 'all') && (
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                  <span className="text-[10px] font-bold text-slate-500 px-1">ประเมิน:</span>
+                  <button
+                    onClick={() => setCompareTestType('all')}
+                    className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                      compareTestType === 'all'
+                        ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    onClick={() => setCompareTestType('NT')}
+                    className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                      compareTestType === 'NT'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    NT (ป.3)
+                  </button>
+                  <button
+                    onClick={() => setCompareTestType('RT')}
+                    className={`px-2 py-0.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                      compareTestType === 'RT'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    RT (ป.1)
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Mobile Scroll Hint */}
             <div className="md:hidden mt-2 px-3 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-[11px] font-bold text-purple-900 dark:text-purple-200 flex items-center justify-between">
               <span>👈 เลื่อนซ้าย-ขวาเพื่อดูโรงเรียนอื่นๆ</span>
               <span className="text-[10px] text-purple-600 dark:text-purple-300 font-mono">ตรึงหัวข้อไว้ซ้ายสุด</span>
             </div>
 
+            {/* Visual Academic Chart Summary (เมื่อเลือกแท็บผลสัมฤทธิ์) */}
+            {(compareTab === 'academic' || compareTab === 'all') && (
+              <div className="mt-3 p-3 bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-sky-50/60 dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-sky-950/30 rounded-xl border border-purple-200/70 dark:border-purple-800/50 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-purple-950 dark:text-purple-200">
+                    <BarChart3 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    แผนภูมิเปรียบเทียบร้อยละผลสัมฤทธิ์รายโรงเรียน (ปีการศึกษา {compareAcademicYear})
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    คะแนนเต็ม 100%
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* NT Bar Comparison */}
+                  {(compareTestType === 'all' || compareTestType === 'NT') && (
+                    <div className="p-2.5 bg-white dark:bg-[#1a1215] rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-2xs">
+                      <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Trophy className="h-3.5 w-3.5 text-indigo-500" /> การประเมิน NT (ป.3) รวม 2 ด้าน
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">คณิตฯ + ภาษาไทย</span>
+                      </div>
+                      <div className="space-y-2">
+                        {compareSchools.map((s, idx) => {
+                          const ntRec = getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear);
+                          const totalPct = ntRec ? Number(ntRec.totalPercentage || ntRec.totalScore || 0) : 0;
+                          const mathPct = ntRec ? Number(ntRec.mathPercentage || ntRec.mathScore || 0) : 0;
+                          const thaiPct = ntRec ? Number(ntRec.thaiPercentage || ntRec.thaiScore || 0) : 0;
+                          const barColors = [
+                            'bg-gradient-to-r from-purple-500 to-indigo-600',
+                            'bg-gradient-to-r from-sky-500 to-blue-600',
+                            'bg-gradient-to-r from-emerald-500 to-teal-600'
+                          ];
+                          return (
+                            <div key={s.id} className="text-xs">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                                  {s.name}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-black text-indigo-900 dark:text-indigo-200">
+                                    {ntRec ? `${totalPct.toFixed(2)}%` : 'ไม่มีข้อมูล'}
+                                  </span>
+                                  {ntRec && renderQualityBadge(ntRec.totalQuality, 'sm')}
+                                </div>
+                              </div>
+                              <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                                <div
+                                  className={`h-full transition-all duration-500 rounded-full ${barColors[idx % barColors.length]}`}
+                                  style={{ width: `${Math.min(100, Math.max(3, totalPct))}%` }}
+                                />
+                              </div>
+                              {ntRec && (
+                                <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium px-0.5">
+                                  <span>คณิต: {mathPct.toFixed(2)}%</span>
+                                  <span>ไทย: {thaiPct.toFixed(2)}%</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RT Bar Comparison */}
+                  {(compareTestType === 'all' || compareTestType === 'RT') && (
+                    <div className="p-2.5 bg-white dark:bg-[#1a1215] rounded-xl border border-emerald-100 dark:border-emerald-900/50 shadow-2xs">
+                      <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="h-3.5 w-3.5 text-emerald-500" /> การประเมิน RT (ป.1) รวม 2 ด้าน
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">อ่านออกเสียง + อ่านรู้เรื่อง</span>
+                      </div>
+                      <div className="space-y-2">
+                        {compareSchools.map((s, idx) => {
+                          const rtRec = getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear);
+                          const totalPct = rtRec ? Number(rtRec.totalPercentage || rtRec.totalScore || 0) : 0;
+                          const readAloudPct = rtRec ? Number(rtRec.mathPercentage || rtRec.mathScore || 0) : 0;
+                          const readCompPct = rtRec ? Number(rtRec.thaiPercentage || rtRec.thaiScore || 0) : 0;
+                          const barColors = [
+                            'bg-gradient-to-r from-emerald-500 to-teal-600',
+                            'bg-gradient-to-r from-amber-500 to-orange-600',
+                            'bg-gradient-to-r from-rose-500 to-pink-600'
+                          ];
+                          return (
+                            <div key={s.id} className="text-xs">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                                  {s.name}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-black text-emerald-900 dark:text-emerald-200">
+                                    {rtRec ? `${totalPct.toFixed(2)}%` : 'ไม่มีข้อมูล'}
+                                  </span>
+                                  {rtRec && renderQualityBadge(rtRec.totalQuality, 'sm')}
+                                </div>
+                              </div>
+                              <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                                <div
+                                  className={`h-full transition-all duration-500 rounded-full ${barColors[idx % barColors.length]}`}
+                                  style={{ width: `${Math.min(100, Math.max(3, totalPct))}%` }}
+                                />
+                              </div>
+                              {rtRec && (
+                                <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium px-0.5">
+                                  <span>อ่านออกเสียง: {readAloudPct.toFixed(2)}%</span>
+                                  <span>อ่านรู้เรื่อง: {readCompPct.toFixed(2)}%</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Modal Body / Comparison Table */}
             <div className="overflow-x-auto overflow-y-auto my-3 md:my-4 flex-1 rounded-xl border border-[#33272A]/20 dark:border-[#FFD3B6]/20">
               <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[600px]">
                 <thead>
                   <tr className="bg-purple-100 dark:bg-purple-950/90 text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6]">
-                    <th className="p-3 w-36 md:w-52 sticky left-0 z-20 bg-purple-100 dark:bg-purple-950 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
+                    <th className="p-3 w-40 md:w-56 sticky left-0 z-20 bg-purple-100 dark:bg-purple-950 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
                       หัวข้อข้อมูล
                     </th>
                     {compareSchools.map((sch) => (
-                      <th key={sch.id} className="p-3 min-w-[170px] md:min-w-[220px] text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                      <th key={sch.id} className="p-3 min-w-[180px] md:min-w-[240px] text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
                         <div className="flex flex-col items-center justify-between gap-1 h-full">
                           <span className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300">รหัส {sch.id}</span>
                           <span className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] line-clamp-2">{sch.name}</span>
@@ -1731,7 +2032,7 @@ export default function SchoolListView({
                 </thead>
                 <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 font-medium">
                   {(() => {
-                    // คำนวณความแตกต่างแต่ละหัวข้อ
+                    // คำนวณความแตกต่างด้านข้อมูลพื้นฐาน
                     const isDiffAmphoe = new Set(compareSchools.map(s => (s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe) + (s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup))).size > 1;
                     const isDiffSize = new Set(compareSchools.map(s => s.size)).size > 1;
                     const isDiffExpansion = new Set(compareSchools.map(s => s.isExpansion)).size > 1;
@@ -1742,6 +2043,29 @@ export default function SchoolListView({
                     const isDiffWater = new Set(compareSchools.map(s => s.waterSystem)).size > 1;
                     const isDiffMajors = new Set(compareSchools.map(s => (s.majorSubjects || s.majorSubjectsWithStaff?.map(m => m.name) || []).sort().join(','))).size > 1;
                     const isDiffPhone = new Set(compareSchools.map(s => s.schoolPhone || s.directorPhone || '')).size > 1;
+
+                    // คำนวณข้อมูลผลสัมฤทธิ์ NT & RT ของแต่ละโรงเรียน
+                    const schoolNTRecords = compareSchools.map(s => getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear));
+                    const schoolRTRecords = compareSchools.map(s => getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear));
+
+                    // ความแตกต่างของ NT
+                    const isDiffNTMath = new Set(schoolNTRecords.map(r => r ? Number(r.mathPercentage || r.mathScore || 0).toFixed(1) : 'none')).size > 1;
+                    const isDiffNTThai = new Set(schoolNTRecords.map(r => r ? Number(r.thaiPercentage || r.thaiScore || 0).toFixed(1) : 'none')).size > 1;
+                    const isDiffNTTotal = new Set(schoolNTRecords.map(r => r ? Number(r.totalPercentage || r.totalScore || 0).toFixed(1) : 'none')).size > 1;
+
+                    // ความแตกต่างของ RT
+                    const isDiffRTAloud = new Set(schoolRTRecords.map(r => r ? Number(r.mathPercentage || r.mathScore || 0).toFixed(1) : 'none')).size > 1;
+                    const isDiffRTComp = new Set(schoolRTRecords.map(r => r ? Number(r.thaiPercentage || r.thaiScore || 0).toFixed(1) : 'none')).size > 1;
+                    const isDiffRTTotal = new Set(schoolRTRecords.map(r => r ? Number(r.totalPercentage || r.totalScore || 0).toFixed(1) : 'none')).size > 1;
+
+                    // หาคะแนนสูงสุดในแต่ละวิชา (Top Scores)
+                    const maxNTMath = Math.max(...schoolNTRecords.map(r => r ? Number(r.mathPercentage || r.mathScore || 0) : -1));
+                    const maxNTThai = Math.max(...schoolNTRecords.map(r => r ? Number(r.thaiPercentage || r.thaiScore || 0) : -1));
+                    const maxNTTotal = Math.max(...schoolNTRecords.map(r => r ? Number(r.totalPercentage || r.totalScore || 0) : -1));
+
+                    const maxRTAloud = Math.max(...schoolRTRecords.map(r => r ? Number(r.mathPercentage || r.mathScore || 0) : -1));
+                    const maxRTComp = Math.max(...schoolRTRecords.map(r => r ? Number(r.thaiPercentage || r.thaiScore || 0) : -1));
+                    const maxRTTotal = Math.max(...schoolRTRecords.map(r => r ? Number(r.totalPercentage || r.totalScore || 0) : -1));
 
                     const getRowBg = (isDiff: boolean) => {
                       if (highlightDiff && isDiff) {
@@ -1759,242 +2083,582 @@ export default function SchoolListView({
 
                     return (
                       <>
-                        {/* อำเภอ & กลุ่มเครือข่าย */}
-                        <tr className={getRowBg(isDiffAmphoe)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffAmphoe)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>📍 อำเภอ / เครือข่าย</span>
-                              {highlightDiff && isDiffAmphoe && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => {
-                            const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe;
-                            const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup;
-                            return (
-                              <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                                <div className="font-bold">อ.{amp}</div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400">{net}</div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-
-                        {/* ขนาดโรงเรียน */}
-                        <tr className={getRowBg(isDiffSize)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffSize)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>📏 ขนาดโรงเรียน</span>
-                              {highlightDiff && isDiffSize && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] inline-block ${
-                                s.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
-                                s.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
-                                s.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFAAA5] text-[#33272A]'
-                              }`}>
-                                {getSchoolSizeLabel(s.size)}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* ประเภทสถานศึกษา */}
-                        <tr className={getRowBg(isDiffExpansion)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffExpansion)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>🏫 ประเภทสถานศึกษา</span>
-                              {highlightDiff && isDiffExpansion && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
-                                s.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                              }`}>
-                                {s.isExpansion ? 'ขยายโอกาส (ประถม-ม.3)' : 'ประถมศึกษา/อนุบาล'}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* จำนวนนักเรียนรวม */}
-                        <tr className={getRowBg(isDiffStudent)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStudent)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>👨‍🎓 จำนวนนักเรียนรวม</span>
-                              {highlightDiff && isDiffStudent && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <div className="text-base font-black text-[#FF8BA7]">{s.studentCount} คน</div>
-                              <div className="text-[11px] text-slate-500">ชาย {s.maleCount} / หญิง {s.femaleCount}</div>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* จำนวนครูและบุคลากร */}
-                        <tr className={getRowBg(isDiffStaff)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStaff)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>👩‍🏫 ครูและบุคลากร</span>
-                              {highlightDiff && isDiffStaff && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <div className="text-sm font-black">{s.staffCount} คน</div>
-                              <div className="text-[11px] text-slate-500">
-                                สัดส่วนครู:นร. {s.staffCount > 0 ? `1:${(s.studentCount / s.staffCount).toFixed(1)}` : '-'}
-                              </div>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* ระบบไฟฟ้า */}
-                        <tr className={getRowBg(isDiffElec)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffElec)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>⚡ ระบบไฟฟ้า</span>
-                              {highlightDiff && isDiffElec && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <span className={`text-xs font-bold px-2 py-1 rounded-md border inline-flex items-center gap-1 ${
-                                s.electricity === 'has_electric' || s.electricity === true
-                                  ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
-                                  : s.electricity === 'solar'
-                                  ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
-                                  : s.electricity === 'hybrid'
-                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
-                                  : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
-                              }`}>
-                                <Zap className="h-3 w-3 text-amber-500 fill-amber-400" />
-                                {s.electricity === 'has_electric' || s.electricity === true ? 'ไฟฟ้าถาวร' :
-                                 s.electricity === 'solar' ? 'โซลาร์เซลล์' :
-                                 s.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีระบบไฟฟ้า'}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* ระบบอินเทอร์เน็ต */}
-                        <tr className={getRowBg(isDiffInternet)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffInternet)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>🌐 ระบบอินเทอร์เน็ต</span>
-                              {highlightDiff && isDiffInternet && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 inline-flex items-center gap-1">
-                                <Globe className="h-3 w-3 text-sky-600" />
-                                {s.internetType === 'fiber' ? 'สายไฟเบอร์ (Fiber)' :
-                                 s.internetType === 'satellite' ? 'ดาวเทียม (Satellite)' :
-                                 s.internetType === 'sim' ? 'ซิมมือถือ (SIM 4G)' : 'ไม่มีอินเทอร์เน็ต'}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* ระบบน้ำประปา */}
-                        <tr className={getRowBg(isDiffWater)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffWater)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>💧 ระบบน้ำประปา</span>
-                              {highlightDiff && isDiffWater && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              <span className="text-xs font-bold px-2 py-1 rounded-md bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 inline-flex items-center gap-1">
-                                <Droplets className="h-3 w-3 text-blue-600" />
-                                {s.waterSystem === 'mountain' ? 'ประปาภูเขา' :
-                                 s.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
-                                 s.waterSystem === 'other' ? 'น้ำอื่นๆ / บาดาล' : 'ประปาภาครัฐ'}
-                              </span>
-                            </td>
-                          ))}
-                        </tr>
-
-                        {/* วิชาเอกที่มีครูสอน */}
-                        <tr className={getRowBg(isDiffMajors)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffMajors)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>🎓 ครูวิชาเอกที่มี</span>
-                              {highlightDiff && isDiffMajors && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => {
-                            const majors = s.majorSubjects || s.majorSubjectsWithStaff?.map(m => m.name) || [];
-                            return (
-                              <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                                {majors.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1 justify-center">
-                                    {majors.map((m, idx) => (
-                                      <span key={idx} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 dark:bg-purple-950 dark:text-purple-200">
-                                        เอก{m}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-slate-400 font-medium">ไม่ระบุวิชาเอก</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-
-                        {/* เบอร์โทรศัพท์ติดต่อ */}
-                        <tr className={getRowBg(isDiffPhone)}>
-                          <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffPhone)}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <span>📞 เบอร์โทรติดต่อ</span>
-                              {highlightDiff && isDiffPhone && (
-                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
-                              )}
-                            </div>
-                          </td>
-                          {compareSchools.map(s => (
-                            <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
-                              {(s.schoolPhone || s.directorPhone) ? (
-                                <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                                  {s.schoolPhone || s.directorPhone}
+                        {/* ========================================================================= */}
+                        {/* SECTION 1: ข้อมูลพื้นฐาน & กายภาพ */}
+                        {/* ========================================================================= */}
+                        {(compareTab === 'all' || compareTab === 'general') && (
+                          <>
+                            <tr className="bg-slate-200/80 dark:bg-slate-800/90 text-[#33272A] dark:text-[#FFF9F5] font-black">
+                              <td colSpan={compareSchools.length + 1} className="p-2.5 px-3 text-xs tracking-wide uppercase bg-slate-200 dark:bg-slate-800 border-y border-slate-300 dark:border-slate-700">
+                                <div className="flex items-center gap-1.5 text-purple-900 dark:text-purple-300">
+                                  <MapPin className="h-4 w-4" /> 🏢 ข้อมูลพื้นฐาน สาธารณูปโภค และบุคลากร
                                 </div>
-                              ) : (
-                                <span className="text-xs text-slate-400 font-medium">-</span>
-                              )}
-                            </td>
-                          ))}
-                        </tr>
+                              </td>
+                            </tr>
+
+                            {/* อำเภอ & กลุ่มเครือข่าย */}
+                            <tr className={getRowBg(isDiffAmphoe)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffAmphoe)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>📍 อำเภอ / เครือข่าย</span>
+                                  {highlightDiff && isDiffAmphoe && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const amp = s.amphoe || getAmphoeAndNetwork(s.id, s.name).amphoe;
+                                const net = s.networkGroup || getAmphoeAndNetwork(s.id, s.name).networkGroup;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    <div className="font-bold">อ.{amp}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">{net}</div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* ขนาดโรงเรียน */}
+                            <tr className={getRowBg(isDiffSize)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffSize)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>📏 ขนาดโรงเรียน</span>
+                                  {highlightDiff && isDiffSize && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] inline-block ${
+                                    s.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                                    s.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                                    s.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFAAA5] text-[#33272A]'
+                                  }`}>
+                                    {getSchoolSizeLabel(s.size)}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* ประเภทสถานศึกษา */}
+                            <tr className={getRowBg(isDiffExpansion)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffExpansion)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🏫 ประเภทสถานศึกษา</span>
+                                  {highlightDiff && isDiffExpansion && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                    s.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                  }`}>
+                                    {s.isExpansion ? 'ขยายโอกาส (ประถม-ม.3)' : 'ประถมศึกษา/อนุบาล'}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* จำนวนนักเรียนรวม */}
+                            <tr className={getRowBg(isDiffStudent)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStudent)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>👨‍🎓 จำนวนนักเรียนรวม</span>
+                                  {highlightDiff && isDiffStudent && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <div className="text-base font-black text-[#FF8BA7]">{s.studentCount} คน</div>
+                                  <div className="text-[11px] text-slate-500">ชาย {s.maleCount} / หญิง {s.femaleCount}</div>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* จำนวนครูและบุคลากร */}
+                            <tr className={getRowBg(isDiffStaff)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffStaff)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>👩‍🏫 ครูและบุคลากร</span>
+                                  {highlightDiff && isDiffStaff && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <div className="text-sm font-black">{s.staffCount} คน</div>
+                                  <div className="text-[11px] text-slate-500">
+                                    สัดส่วนครู:นร. {s.staffCount > 0 ? `1:${(s.studentCount / s.staffCount).toFixed(1)}` : '-'}
+                                  </div>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* ระบบไฟฟ้า */}
+                            <tr className={getRowBg(isDiffElec)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffElec)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>⚡ ระบบไฟฟ้า</span>
+                                  {highlightDiff && isDiffElec && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <span className={`text-xs font-bold px-2 py-1 rounded-md border inline-flex items-center gap-1 ${
+                                    s.electricity === 'has_electric' || s.electricity === true
+                                      ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                                      : s.electricity === 'solar'
+                                      ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                                      : s.electricity === 'hybrid'
+                                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                                  }`}>
+                                    <Zap className="h-3 w-3 text-amber-500 fill-amber-400" />
+                                    {s.electricity === 'has_electric' || s.electricity === true ? 'ไฟฟ้าถาวร' :
+                                     s.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                                     s.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีระบบไฟฟ้า'}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* ระบบอินเทอร์เน็ต */}
+                            <tr className={getRowBg(isDiffInternet)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffInternet)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🌐 ระบบอินเทอร์เน็ต</span>
+                                  {highlightDiff && isDiffInternet && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <span className="text-xs font-bold px-2 py-1 rounded-md bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 inline-flex items-center gap-1">
+                                    <Globe className="h-3 w-3 text-sky-600" />
+                                    {s.internetType === 'fiber' ? 'สายไฟเบอร์ (Fiber)' :
+                                     s.internetType === 'satellite' ? 'ดาวเทียม (Satellite)' :
+                                     s.internetType === 'sim' ? 'ซิมมือถือ (SIM 4G)' : 'ไม่มีอินเทอร์เน็ต'}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* ระบบน้ำประปา */}
+                            <tr className={getRowBg(isDiffWater)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffWater)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>💧 ระบบน้ำประปา</span>
+                                  {highlightDiff && isDiffWater && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  <span className="text-xs font-bold px-2 py-1 rounded-md bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 inline-flex items-center gap-1">
+                                    <Droplets className="h-3 w-3 text-blue-600" />
+                                    {s.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                                     s.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
+                                     s.waterSystem === 'other' ? 'น้ำอื่นๆ / บาดาล' : 'ประปาภาครัฐ'}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+
+                            {/* วิชาเอกที่มีครูสอน */}
+                            <tr className={getRowBg(isDiffMajors)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffMajors)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🎓 ครูวิชาเอกที่มี</span>
+                                  {highlightDiff && isDiffMajors && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const majors = s.majorSubjects || s.majorSubjectsWithStaff?.map(m => m.name) || [];
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {majors.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1 justify-center">
+                                        {majors.map((m, idx) => (
+                                          <span key={idx} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 dark:bg-purple-950 dark:text-purple-200">
+                                            เอก{m}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่ระบุวิชาเอก</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* เบอร์โทรศัพท์ติดต่อ */}
+                            <tr className={getRowBg(isDiffPhone)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffPhone)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>📞 เบอร์โทรติดต่อ</span>
+                                  {highlightDiff && isDiffPhone && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => (
+                                <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                  {(s.schoolPhone || s.directorPhone) ? (
+                                    <div className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                                      {s.schoolPhone || s.directorPhone}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 font-medium">-</span>
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          </>
+                        )}
+
+                        {/* ========================================================================= */}
+                        {/* SECTION 2: ผลสัมฤทธิ์ทางการเรียน NT (ป.3) */}
+                        {/* ========================================================================= */}
+                        {(compareTab === 'all' || compareTab === 'academic') && (compareTestType === 'all' || compareTestType === 'NT') && (
+                          <>
+                            <tr className="bg-indigo-100/90 dark:bg-indigo-950/80 text-indigo-950 dark:text-indigo-200 font-black">
+                              <td colSpan={compareSchools.length + 1} className="p-2.5 px-3 text-xs tracking-wide bg-indigo-100 dark:bg-indigo-950 border-y-2 border-indigo-300 dark:border-indigo-800">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <Trophy className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                    <span>ผลการประเมินคุณภาพผู้เรียน (NT) ชั้นประถมศึกษาปีที่ 3 • ปีการศึกษา {compareAcademicYear}</span>
+                                  </div>
+                                  <span className="text-[10px] font-normal text-indigo-700 dark:text-indigo-300 bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded-md">
+                                    เกณฑ์มาตรฐาน สพฐ.
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* NT ด้านคณิตศาสตร์ */}
+                            <tr className={getRowBg(isDiffNTMath)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffNTMath)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🔢 NT: ด้านคณิตศาสตร์</span>
+                                  {highlightDiff && isDiffNTMath && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear);
+                                const pct = rec ? Number(rec.mathPercentage || rec.mathScore || 0) : null;
+                                const isTop = pct !== null && maxNTMath > 0 && pct === maxNTMath;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-base font-black font-mono text-indigo-700 dark:text-indigo-300">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 font-black text-[9px] flex items-center gap-0.5 shadow-2xs">
+                                              👑 สูงสุด
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-24 mx-auto h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-indigo-500 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.mathQuality || determineQualityLevel(pct))}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* NT ด้านภาษาไทย */}
+                            <tr className={getRowBg(isDiffNTThai)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffNTThai)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🇹🇭 NT: ด้านภาษาไทย</span>
+                                  {highlightDiff && isDiffNTThai && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear);
+                                const pct = rec ? Number(rec.thaiPercentage || rec.thaiScore || 0) : null;
+                                const isTop = pct !== null && maxNTThai > 0 && pct === maxNTThai;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-base font-black font-mono text-purple-700 dark:text-purple-300">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 font-black text-[9px] flex items-center gap-0.5 shadow-2xs">
+                                              👑 สูงสุด
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-24 mx-auto h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-purple-500 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.thaiQuality || determineQualityLevel(pct))}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* NT คะแนนรวม 2 ด้าน */}
+                            <tr className={`${getRowBg(isDiffNTTotal)} bg-indigo-50/50 dark:bg-indigo-950/30 font-bold`}>
+                              <td className={`p-3 font-extrabold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffNTTotal)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-indigo-950 dark:text-indigo-200">🌟 NT: รวม 2 ด้าน</span>
+                                  {highlightDiff && isDiffNTTotal && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear);
+                                const pct = rec ? Number(rec.totalPercentage || rec.totalScore || 0) : null;
+                                const isTop = pct !== null && maxNTTotal > 0 && pct === maxNTTotal;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-lg font-black font-mono text-indigo-900 dark:text-indigo-100">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950 font-black text-[10px] flex items-center gap-1 shadow-xs border border-amber-500/50">
+                                              🏆 อันดับ 1
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-28 mx-auto h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.totalQuality || determineQualityLevel(pct), 'md')}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </>
+                        )}
+
+                        {/* ========================================================================= */}
+                        {/* SECTION 3: ผลสัมฤทธิ์ทางการเรียน RT (ป.1) */}
+                        {/* ========================================================================= */}
+                        {(compareTab === 'all' || compareTab === 'academic') && (compareTestType === 'all' || compareTestType === 'RT') && (
+                          <>
+                            <tr className="bg-emerald-100/90 dark:bg-emerald-950/80 text-emerald-950 dark:text-emerald-200 font-black">
+                              <td colSpan={compareSchools.length + 1} className="p-2.5 px-3 text-xs tracking-wide bg-emerald-100 dark:bg-emerald-950 border-y-2 border-emerald-300 dark:border-emerald-800">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    <span>ผลการประเมินความสามารถด้านการอ่าน (RT) ชั้นประถมศึกษาปีที่ 1 • ปีการศึกษา {compareAcademicYear}</span>
+                                  </div>
+                                  <span className="text-[10px] font-normal text-emerald-700 dark:text-emerald-300 bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded-md">
+                                    เกณฑ์มาตรฐาน สพฐ.
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* RT ด้านการอ่านออกเสียง */}
+                            <tr className={getRowBg(isDiffRTAloud)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffRTAloud)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>🗣️ RT: ด้านการอ่านออกเสียง</span>
+                                  {highlightDiff && isDiffRTAloud && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear);
+                                const pct = rec ? Number(rec.mathPercentage || rec.mathScore || 0) : null;
+                                const isTop = pct !== null && maxRTAloud > 0 && pct === maxRTAloud;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-base font-black font-mono text-emerald-700 dark:text-emerald-300">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 font-black text-[9px] flex items-center gap-0.5 shadow-2xs">
+                                              👑 สูงสุด
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-24 mx-auto h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-emerald-500 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.mathQuality || determineQualityLevel(pct))}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* RT ด้านการอ่านรู้เรื่อง */}
+                            <tr className={getRowBg(isDiffRTComp)}>
+                              <td className={`p-3 font-bold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffRTComp)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span>📖 RT: ด้านการอ่านรู้เรื่อง</span>
+                                  {highlightDiff && isDiffRTComp && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear);
+                                const pct = rec ? Number(rec.thaiPercentage || rec.thaiScore || 0) : null;
+                                const isTop = pct !== null && maxRTComp > 0 && pct === maxRTComp;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-base font-black font-mono text-teal-700 dark:text-teal-300">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 font-black text-[9px] flex items-center gap-0.5 shadow-2xs">
+                                              👑 สูงสุด
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-24 mx-auto h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-teal-500 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.thaiQuality || determineQualityLevel(pct))}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* RT คะแนนรวม 2 ด้าน */}
+                            <tr className={`${getRowBg(isDiffRTTotal)} bg-emerald-50/50 dark:bg-emerald-950/30 font-bold`}>
+                              <td className={`p-3 font-extrabold sticky left-0 z-10 border-r-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 shadow-[2px_0_5px_rgba(0,0,0,0.06)] ${getCellBg(isDiffRTTotal)}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-emerald-950 dark:text-emerald-200">🌟 RT: รวม 2 ด้าน</span>
+                                  {highlightDiff && isDiffRTTotal && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-amber-500 text-white shrink-0">ต่างกัน</span>
+                                  )}
+                                </div>
+                              </td>
+                              {compareSchools.map(s => {
+                                const rec = getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear);
+                                const pct = rec ? Number(rec.totalPercentage || rec.totalScore || 0) : null;
+                                const isTop = pct !== null && maxRTTotal > 0 && pct === maxRTTotal;
+                                return (
+                                  <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-[#FFD3B6]/10 last:border-none">
+                                    {pct !== null ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-lg font-black font-mono text-emerald-900 dark:text-emerald-100">
+                                            {pct.toFixed(2)}%
+                                          </span>
+                                          {isTop && (
+                                            <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950 font-black text-[10px] flex items-center gap-1 shadow-xs border border-amber-500/50">
+                                              🏆 อันดับ 1
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="w-28 mx-auto h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full"
+                                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                          />
+                                        </div>
+                                        <div>{renderQualityBadge(rec?.totalQuality || determineQualityLevel(pct), 'md')}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium">ไม่มีข้อมูล</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </>
+                        )}
                       </>
                     );
                   })()}
                 </tbody>
               </table>
             </div>
+
+            {/* Comparative Insights Footer Note */}
+            {(compareTab === 'academic' || compareTab === 'all') && (
+              <div className="mb-2 p-2.5 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="font-bold">สรุปผลการเปรียบเทียบ:</span>
+                  <span>
+                    ข้อมูลผลสัมฤทธิ์ทางการเรียนดึงจากฐานข้อมูลผลการประเมิน RT ป.1 และ NT ป.3 สพป.แม่ฮ่องสอน เขต 1 (ปีการศึกษา {compareAcademicYear})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 font-bold text-[10px]">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> ดีมาก (≥70%)</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> ดี (≥50%)</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> พอใช้ (≥30%)</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> ปรับปรุง (&lt;30%)</span>
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
             <div className="flex justify-between items-center pt-3 border-t-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 shrink-0">

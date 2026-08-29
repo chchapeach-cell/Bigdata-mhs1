@@ -1012,6 +1012,7 @@ export default function App() {
                   <SchoolListView
                     schools={schools}
                     studentData={studentData}
+                    academicRecords={academicRecords}
                     userProfile={userProfile}
                     onSelectSchool={(id) => setSelectedSchoolId(id)}
                     initialFilters={initialFilters}
