@@ -370,6 +370,22 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
 
   const isConnectedToSupabase = isSupabaseConfigured();
 
+  if (!isSuperAdmin) {
+    return (
+      <div className="card p-8 text-center bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A]">
+        <div className="mx-auto w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 flex items-center justify-center text-rose-600 dark:text-rose-400 mb-3">
+          <ShieldAlert className="h-6 w-6" />
+        </div>
+        <h3 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5]">
+          จำกัดสิทธิ์เฉพาะผู้ดูแลระบบระดับสูง (Super Admin)
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-bold">
+          เมนูบันทึกประวัติกิจกรรมและการแก้ไขข้อมูล (Audit Logs) สามารถเข้าถึงและตรวจสอบได้เฉพาะ Super Admin เท่านั้น
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in" id="user-activity-log-view-container">
       {/* Header & Overview Stats */}

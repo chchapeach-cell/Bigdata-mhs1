@@ -36,6 +36,7 @@ interface AdminPanelProps {
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
   onSelectSchool?: (id: string) => void;
+  initialAdminTab?: 'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme';
 }
 
 export default function AdminPanel({
@@ -55,7 +56,8 @@ export default function AdminPanel({
   academicYear,
   setAcademicYear,
   availableYears,
-  onSelectSchool
+  onSelectSchool,
+  initialAdminTab
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin' || userProfile.email === 'tamrri@gmail.com' || userProfile.email === 'ch.chapeach@gmail.com';
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -614,14 +616,28 @@ export default function AdminPanel({
     return schools.filter(s => !approvedSchoolIds.has(s.id)).length;
   }, [schools, approvedUsers]);
   const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme'>(
-    isSuperAdmin ? 'students_center' : 'schools'
+    initialAdminTab || (isSuperAdmin ? 'students_center' : 'schools')
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
   const [isQuotaDrawerOpen, setIsQuotaDrawerOpen] = useState<boolean>(false);
 
-  // ป้องกันกรณีแอดมินโรงเรียนเข้าถึงเมนูศูนย์ข้อมูลนักเรียน
+  // รองรับการเปิดแท็บที่ระบุจากภายนอก (เช่น การแจ้งเตือนผู้สมัครใหม่ -> แท็บจัดการสิทธิ์)
   useEffect(() => {
-    if (!isSuperAdmin && adminTab === 'students_center') {
+    if (initialAdminTab) {
+      setAdminTab(initialAdminTab);
+    }
+  }, [initialAdminTab]);
+
+  // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม และตั้งค่าระบบ)
+  useEffect(() => {
+    if (!isSuperAdmin && (
+      adminTab === 'students_center' || 
+      adminTab === 'summary' || 
+      adminTab === 'users' || 
+      adminTab === 'logs' || 
+      adminTab === 'activity_logs' || 
+      adminTab === 'settings'
+    )) {
       setAdminTab('schools');
     }
   }, [isSuperAdmin, adminTab]);
@@ -2653,20 +2669,20 @@ export default function AdminPanel({
                 <History className="h-4 w-4" />
                 <span>ประวัติดาวน์โหลด</span>
               </button>
+
+              <button
+                onClick={() => setAdminTab('activity_logs')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'activity_logs' 
+                    ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <span>LOG การแก้ไขข้อมูล (Activity Log)</span>
+              </button>
             </>
           )}
-
-          <button
-            onClick={() => setAdminTab('activity_logs')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              adminTab === 'activity_logs' 
-                ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-            }`}
-          >
-            <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            <span>{isSuperAdmin ? 'LOG การแก้ไขข้อมูล (Activity Log)' : 'ประวัติกิจกรรม (Activity Log)'}</span>
-          </button>
 
           <button
             onClick={() => setAdminTab('theme')}
@@ -3573,8 +3589,8 @@ export default function AdminPanel({
             </div>
           )}
 
-          {/* TAB: Activity Audit Logs (ประวัติการแก้ไขข้อมูลของแต่ละผู้ใช้งาน - Supabase Audit Logs) */}
-          {adminTab === 'activity_logs' && (
+          {/* TAB: Activity Audit Logs (ประวัติการแก้ไขข้อมูลของแต่ละผู้ใช้งาน - Supabase Audit Logs เฉพาะ Super Admin) */}
+          {adminTab === 'activity_logs' && isSuperAdmin && (
             <UserActivityLogView
               currentUser={userProfile}
               schools={schools}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles, Image as ImageIcon, PhoneCall, Server, Wifi } from 'lucide-react';
 import { UserProfile, ThemeStyle, SystemConfig } from '../types';
+import SuperAdminNotificationBell from './SuperAdminNotificationBell';
 
 interface HeaderProps {
   userProfile: UserProfile | null;
@@ -20,6 +21,12 @@ interface HeaderProps {
   systemConfig?: SystemConfig;
   serverStatus?: 'green' | 'yellow' | 'red';
   activeSessionCount?: number;
+  pendingUsers?: UserProfile[];
+  isLoadingPendingUsers?: boolean;
+  onRefreshPendingUsers?: () => Promise<void>;
+  onQuickApproveUser?: (user: UserProfile) => Promise<void>;
+  onQuickRejectUser?: (user: UserProfile) => Promise<void>;
+  onOpenAdminUserManagement?: () => void;
 }
 
 export default function Header({
@@ -39,7 +46,13 @@ export default function Header({
   availableYears,
   systemConfig,
   serverStatus = 'green',
-  activeSessionCount
+  activeSessionCount,
+  pendingUsers = [],
+  isLoadingPendingUsers = false,
+  onRefreshPendingUsers,
+  onQuickApproveUser,
+  onQuickRejectUser,
+  onOpenAdminUserManagement,
 }: HeaderProps) {
   return (
     <>
@@ -207,6 +220,18 @@ export default function Header({
             </button>
           </div>
 
+          {/* Super Admin Notification Bell for pending registrations */}
+          {userProfile?.role === 'super_admin' && onRefreshPendingUsers && onQuickApproveUser && onQuickRejectUser && (
+            <SuperAdminNotificationBell
+              pendingUsers={pendingUsers}
+              isLoading={isLoadingPendingUsers}
+              onRefresh={onRefreshPendingUsers}
+              onApprove={onQuickApproveUser}
+              onReject={onQuickRejectUser}
+              onOpenAdminUserManagement={onOpenAdminUserManagement || (() => setActiveTab('admin'))}
+            />
+          )}
+
           {/* User Section (Desktop & Mobile) */}
           {userProfile ? (
             <div className="flex items-center gap-2">
@@ -327,9 +352,13 @@ export default function Header({
             >
               <Shield className="h-4 w-4 text-emerald-600 fill-emerald-200 dark:text-emerald-400 dark:fill-emerald-900 shrink-0" />
               <span className="text-[#33272A] dark:text-[#FFF9F5]">ระบบ</span>
-              {userProfile.status === 'pending' && (
+              {userProfile.role === 'super_admin' && pendingUsers.length > 0 ? (
+                <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black animate-pulse">
+                  {pendingUsers.length}
+                </span>
+              ) : userProfile.status === 'pending' ? (
                 <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
-              )}
+              ) : null}
             </button>
           )}
         </div>
@@ -416,9 +445,13 @@ export default function Header({
           >
             <Shield className={`h-5 w-5 text-emerald-500 ${activeTab === 'admin' ? 'stroke-[2.5px] fill-emerald-200' : 'stroke-2'}`} />
             <span className="text-[10px] font-black">ระบบ</span>
-            {userProfile.status === 'pending' && (
+            {userProfile.role === 'super_admin' && pendingUsers.length > 0 ? (
+              <span className="absolute top-0.5 right-[18%] bg-rose-500 text-white text-[9px] px-1 py-0.2 rounded-full font-black animate-pulse leading-tight min-w-[16px] text-center">
+                {pendingUsers.length}
+              </span>
+            ) : userProfile.status === 'pending' ? (
               <span className="absolute top-1 right-[25%] h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
-            )}
+            ) : null}
           </button>
         )}
 

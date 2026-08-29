@@ -1,11 +1,14 @@
 import { auth } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
 import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailableYears } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { dbFetchUserProfile, dbFetchAcademicRecords } from './lib/dbAdapter';
+import { dbFetchUserProfile, dbFetchAcademicRecords, dbFetchUsersByStatus, dbUpdateUserStatus, dbDeleteUser, dbLogUserActivity } from './lib/dbAdapter';
+import { playNotificationChime } from './lib/soundEffects';
+import SuperAdminFloatingAlert from './components/SuperAdminFloatingAlert';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   allowDataDownload: true,
@@ -89,9 +92,29 @@ export default function App() {
   const [academicYear, setAcademicYear] = useState<string>(() => getCurrentBEYear());
   const [availableYears, setAvailableYears] = useState<string[]>(() => getDefaultAvailableYears());
   
-  // จัดการผู้ใช้งาน
+  // จัดการผู้ใช้งาน (โหลดค่าเริ่มต้นจาก localStorage เพื่อป้องกัน session หลุดเวลากด F5 / Refresh)
   const [user, setUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('mhs1_persisted_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // บันทึกโปรไฟล์ผู้ใช้ลง localStorage เสมอเมื่อมีการเปลี่ยนแปลง
+  useEffect(() => {
+    try {
+      if (userProfile) {
+        localStorage.setItem('mhs1_persisted_profile', JSON.stringify(userProfile));
+      } else {
+        localStorage.removeItem('mhs1_persisted_profile');
+      }
+    } catch (e) {
+      console.warn('Persist user profile error:', e);
+    }
+  }, [userProfile]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isHighTrafficNoticeOpen, setIsHighTrafficNoticeOpen] = useState<boolean>(false);
   const [sessionNoticeModal, setSessionNoticeModal] = useState<{
@@ -101,6 +124,13 @@ export default function App() {
   } | null>(null);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(false);
   
+  // สถานะคำขอสมัครสมาชิกใหม่สำหรับ Super Admin
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [isLoadingPendingUsers, setIsLoadingPendingUsers] = useState<boolean>(false);
+  const [adminPanelInitialTab, setAdminPanelInitialTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme' | undefined>(undefined);
+  const prevPendingCountRef = React.useRef<number>(0);
+  const hasInitializedPendingRef = React.useRef<boolean>(false);
+
   // สถานะการโหลดข้อมูล
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -198,66 +228,106 @@ export default function App() {
     localStorage.setItem('font-size', fontSize);
   }, [fontSize]);
 
-  // ตรวจสอบการเข้าสู่ระบบและโหลดโปรไฟล์
+  // ตรวจสอบการเข้าสู่ระบบและโหลดโปรไฟล์ (รองรับทั้ง Firebase Auth และ Supabase Auth)
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setIsLoading(false);
-      return;
-    }
+    let isMounted = true;
+    let firebaseChecked = false;
+    let supabaseChecked = false;
 
-    const handleSession = async (session: any) => {
-      const currentUser = session?.user;
-      setUser(currentUser);
-      if (currentUser) {
-        // ตรวจสอบกรณีเป็น Super Admin เมลที่ระบุไว้ก่อนทำ DB read
-        const isHardcodedSuperAdmin = currentUser.email === 'tamrri@gmail.com' || currentUser.email === 'ch.chapeach@gmail.com';
-        if (isHardcodedSuperAdmin) {
-          const superAdminProfile: UserProfile = {
-            uid: currentUser.id,
-            email: currentUser.email || '',
-            firstName: 'Super',
-            lastName: 'Admin',
-            schoolId: 'all',
-            schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
-            role: 'super_admin',
-            status: 'approved',
-            createdAt: new Date()
-          };
+    const resolveProfile = async (uid: string, email?: string | null) => {
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const isHardcodedSuperAdmin = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
+      
+      if (isHardcodedSuperAdmin) {
+        const superAdminProfile: UserProfile = {
+          uid: uid,
+          email: cleanEmail,
+          firstName: 'Super',
+          lastName: 'Admin',
+          schoolId: 'all',
+          schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
+          role: 'super_admin',
+          status: 'approved',
+          createdAt: new Date()
+        };
+        if (isMounted) {
           setUserProfile(superAdminProfile);
-          return;
         }
+        return;
+      }
 
-        try {
-          // ดึงโปรไฟล์แอดมินโรงเรียนจาก Supabase
-          const matchedProfile = await dbFetchUserProfile(currentUser.id, currentUser.email || undefined);
-
-          if (matchedProfile) {
-            if (matchedProfile.status === 'approved') {
-              setUserProfile(matchedProfile);
-            } else {
-              setUserProfile(null);
-            }
-          } else {
+      try {
+        const matchedProfile = await dbFetchUserProfile(uid, cleanEmail || undefined);
+        if (isMounted) {
+          if (matchedProfile && matchedProfile.status === 'approved') {
+            setUserProfile(matchedProfile);
+          } else if (matchedProfile && matchedProfile.status !== 'approved') {
             setUserProfile(null);
           }
-        } catch (error) {
-          console.warn('Notice fetching user profile:', error);
         }
-      } else {
-        setUserProfile(null);
+      } catch (error) {
+        console.warn('Notice fetching user profile on auth change:', error);
       }
     };
 
-    // ดึงเซสชันตั้งต้นทันที
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
+    // 1. ตรวจสอบการเข้าสู่ระบบผ่าน Firebase Auth (เช่น ล็อกอินด้วย Google หรือ Firebase Email)
+    const unsubFirebase = onAuthStateChanged(auth, async (fbUser) => {
+      firebaseChecked = true;
+      if (fbUser) {
+        if (isMounted) setUser(fbUser);
+        await resolveProfile(fbUser.uid, fbUser.email);
+      } else {
+        // หาก Firebase ไม่มีผู้ใช้ ให้รอตรวจสอบ Supabase ก่อนตัดสินใจเคลียร์
+        if (supabaseChecked && !user) {
+          try {
+            const saved = localStorage.getItem('mhs1_persisted_profile');
+            if (!saved && isMounted) {
+              setUserProfile(null);
+            }
+          } catch (e) {}
+        }
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      handleSession(session);
-    });
+    // 2. ตรวจสอบการเข้าสู่ระบบผ่าน Supabase Auth
+    let supabaseSub: any = null;
+    if (isSupabaseConfigured()) {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        supabaseChecked = true;
+        if (session?.user) {
+          if (isMounted) setUser(session.user);
+          await resolveProfile(session.user.id, session.user.email);
+        } else if (!auth.currentUser && firebaseChecked) {
+          try {
+            const saved = localStorage.getItem('mhs1_persisted_profile');
+            if (!saved && isMounted) {
+              setUserProfile(null);
+            }
+          } catch (e) {}
+        }
+      });
 
-    return () => subscription.unsubscribe();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          if (isMounted) setUser(session.user);
+          await resolveProfile(session.user.id, session.user.email);
+        } else if (!auth.currentUser) {
+          if (isMounted && _event === 'SIGNED_OUT') {
+            setUser(null);
+            setUserProfile(null);
+          }
+        }
+      });
+      supabaseSub = subscription;
+    } else {
+      supabaseChecked = true;
+    }
+
+    return () => {
+      isMounted = false;
+      unsubFirebase();
+      if (supabaseSub) supabaseSub.unsubscribe();
+    };
   }, []);
 
   // การจัดการ Active Session (Heartbeat + ตรวจสอบการโดน Super Admin เตะออกจากระบบ)
@@ -374,7 +444,129 @@ export default function App() {
     }
   }, [systemConfig?.contactEnabled, userProfile?.role, activeTab]);
 
-  // 2. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน
+  // 2. ระบบแจ้งเตือนคำขอสมัครสมาชิกใหม่แบบ Real-time สำหรับ Super Admin
+  const isSuperAdminUser = userProfile?.role === 'super_admin' || userProfile?.email === 'tamrri@gmail.com' || userProfile?.email === 'ch.chapeach@gmail.com';
+
+  const fetchPendingRegistrations = async (isBackground = false) => {
+    if (!isSuperAdminUser) return;
+    if (!isBackground) setIsLoadingPendingUsers(true);
+    try {
+      const allUsers = await dbFetchUsersByStatus('all');
+      const pending = allUsers.filter(u => u.status === 'pending');
+
+      // ตรวจสอบว่ามีผู้สมัครใหม่เพิ่มขึ้นหรือไม่ เพื่อส่งเสียงเตือน
+      if (hasInitializedPendingRef.current && pending.length > prevPendingCountRef.current) {
+        playNotificationChime();
+      }
+      hasInitializedPendingRef.current = true;
+      prevPendingCountRef.current = pending.length;
+      setPendingUsers(pending);
+    } catch (err) {
+      console.warn('Notice fetching pending users:', err);
+    } finally {
+      if (!isBackground) setIsLoadingPendingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdminUser) {
+      setPendingUsers([]);
+      hasInitializedPendingRef.current = false;
+      prevPendingCountRef.current = 0;
+      return;
+    }
+
+    fetchPendingRegistrations();
+
+    // Polling ทุก 35 วินาที
+    const interval = setInterval(() => {
+      fetchPendingRegistrations(true);
+    }, 35000);
+
+    // ฟังการเปลี่ยนแปลงในตาราง users บน Supabase แบบ Real-time
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase
+        .channel('superadmin_users_notifier')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users' },
+          () => {
+            fetchPendingRegistrations(true);
+          }
+        )
+        .subscribe();
+    }
+
+    // เมื่อโฟกัสหน้าต่างเบราว์เซอร์ ให้ตรวจสอบทันที
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingRegistrations(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isSuperAdminUser]);
+
+  // ฟังก์ชันอนุมัติผู้ใช้งานด่วนจากปุ่มแจ้งเตือน
+  const handleQuickApproveUser = async (targetUser: UserProfile) => {
+    await dbUpdateUserStatus(targetUser.uid, 'approved', targetUser.email);
+    if (userProfile) {
+      try {
+        await dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: `${userProfile.firstName} ${userProfile.lastName}`,
+          userEmail: userProfile.email,
+          userRole: 'super_admin',
+          schoolId: targetUser.schoolId,
+          schoolName: targetUser.schoolName,
+          actionType: 'user_management',
+          actionTitle: `อนุมัติคำขอสมัครสมาชิก: ${targetUser.firstName} ${targetUser.lastName}`,
+          details: `อนุมัติให้ใช้งานระบบแอดมิน ${targetUser.schoolName || targetUser.schoolId} (${targetUser.email})`,
+          targetName: targetUser.schoolName,
+          timestamp: new Date()
+        });
+      } catch (e) {}
+    }
+    await fetchPendingRegistrations(true);
+  };
+
+  // ฟังก์ชันปฏิเสธคำขอสมัครด่วนจากปุ่มแจ้งเตือน
+  const handleQuickRejectUser = async (targetUser: UserProfile) => {
+    await dbDeleteUser(targetUser.uid, targetUser.email);
+    if (userProfile) {
+      try {
+        await dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: `${userProfile.firstName} ${userProfile.lastName}`,
+          userEmail: userProfile.email,
+          userRole: 'super_admin',
+          schoolId: targetUser.schoolId,
+          schoolName: targetUser.schoolName,
+          actionType: 'user_management',
+          actionTitle: `ปฏิเสธคำขอสมัครสมาชิก: ${targetUser.firstName} ${targetUser.lastName}`,
+          details: `ปฏิเสธและลบคำขอของผู้สมัคร ${targetUser.email}`,
+          targetName: targetUser.schoolName,
+          timestamp: new Date()
+        });
+      } catch (e) {}
+    }
+    await fetchPendingRegistrations(true);
+  };
+
+  const handleOpenAdminUserManagement = () => {
+    setAdminPanelInitialTab('users');
+    setActiveTab('admin');
+  };
+
+  // 3. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน
   const [activeSessionCount, setActiveSessionCount] = useState<number>(1);
   useEffect(() => {
     let isMounted = true;
@@ -654,12 +846,16 @@ export default function App() {
 
   // ออกจากระบบ
   const handleLogout = async () => {
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut().catch(() => {});
-    } else {
-      await import('firebase/auth').then(({signOut}) => signOut(auth)).catch(() => {});
+    try {
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut().catch(() => {});
+      }
+      await signOut(auth).catch(() => {});
+    } catch (e) {
+      console.warn('Sign out error:', e);
     }
     localStorage.removeItem('mhs_app_data_cache_v3');
+    localStorage.removeItem('mhs1_persisted_profile');
     setUserProfile(null);
     setUser(null);
     setActiveTab('dashboard');
@@ -726,7 +922,21 @@ export default function App() {
         systemConfig={systemConfig}
         serverStatus={serverStatus}
         activeSessionCount={activeSessionCount}
+        pendingUsers={pendingUsers}
+        isLoadingPendingUsers={isLoadingPendingUsers}
+        onRefreshPendingUsers={() => fetchPendingRegistrations()}
+        onQuickApproveUser={handleQuickApproveUser}
+        onQuickRejectUser={handleQuickRejectUser}
+        onOpenAdminUserManagement={handleOpenAdminUserManagement}
       />
+
+      {/* 📢 Super Admin Real-time Floating Alert Banner */}
+      {isSuperAdminUser && pendingUsers.length > 0 && (
+        <SuperAdminFloatingAlert
+          pendingUsers={pendingUsers}
+          onOpenUserManagement={handleOpenAdminUserManagement}
+        />
+      )}
 
       {/* MAIN CONTENT AREA */}
       <main className={`flex-grow mx-auto w-full py-6 pb-20 lg:pb-8 transition-all ${
@@ -868,6 +1078,7 @@ export default function App() {
                       setSelectedSchoolId(id);
                       setActiveTab('schools');
                     }}
+                    initialAdminTab={adminPanelInitialTab}
                   />
                 )}
               </>
@@ -911,7 +1122,7 @@ export default function App() {
       {/* AUTO LOGOUT AFTER 30 MIN INACTIVITY */}
       <InactivityLogoutHandler
         userProfile={userProfile}
-        onLoggedOut={() => setUserProfile(null)}
+        onLoggedOut={handleLogout}
       />
 
       {/* HIGH TRAFFIC POP-UP NOTICE MODAL */}
