@@ -8,6 +8,7 @@ import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { dbFetchUserProfile, dbFetchAcademicRecords, dbFetchUsersByStatus, dbUpdateUserStatus, dbDeleteUser, dbLogUserActivity } from './lib/dbAdapter';
 import { playNotificationChime } from './lib/soundEffects';
+import { notifyNewUserRegistration, requestBrowserNotificationPermission, getBrowserNotificationPermission } from './lib/browserNotification';
 import SuperAdminFloatingAlert from './components/SuperAdminFloatingAlert';
 
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
@@ -454,9 +455,14 @@ export default function App() {
       const allUsers = await dbFetchUsersByStatus('all');
       const pending = allUsers.filter(u => u.status === 'pending');
 
-      // ตรวจสอบว่ามีผู้สมัครใหม่เพิ่มขึ้นหรือไม่ เพื่อส่งเสียงเตือน
+      // ตรวจสอบว่ามีผู้สมัครใหม่เพิ่มขึ้นหรือไม่ เพื่อส่งเสียงเตือนและแจ้งเตือนผ่าน Browser Notification API
       if (hasInitializedPendingRef.current && pending.length > prevPendingCountRef.current) {
         playNotificationChime();
+
+        // ส่งการแจ้งเตือน Native Browser Notification (Desktop / OS)
+        const newCount = pending.length - prevPendingCountRef.current;
+        const newUsers = pending.slice(0, Math.max(1, newCount));
+        notifyNewUserRegistration(newUsers, pending.length, handleOpenAdminUserManagement);
       }
       hasInitializedPendingRef.current = true;
       prevPendingCountRef.current = pending.length;
@@ -475,6 +481,19 @@ export default function App() {
       prevPendingCountRef.current = 0;
       return;
     }
+
+    // ขอสิทธิ์การแจ้งเตือนเบราว์เซอร์อัตโนมัติหากยังไม่เคยตั้งค่า
+    if (getBrowserNotificationPermission() === 'default') {
+      // รอให้ผู้ใช้พร้อม
+      const timer = setTimeout(() => {
+        requestBrowserNotificationPermission().catch(() => {});
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuperAdminUser]);
+
+  useEffect(() => {
+    if (!isSuperAdminUser) return;
 
     fetchPendingRegistrations();
 

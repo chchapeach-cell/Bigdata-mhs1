@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, UserCheck, X, Check, Clock, School, Mail, Phone, ExternalLink, RefreshCw, AlertCircle, Sparkles, ShieldCheck } from 'lucide-react';
+import { Bell, UserCheck, X, Check, Clock, School, Mail, Phone, ExternalLink, RefreshCw, AlertCircle, Sparkles, ShieldCheck, Volume2, Monitor } from 'lucide-react';
 import { UserProfile } from '../types';
 import { playNotificationChime, playApproveChime } from '../lib/soundEffects';
+import {
+  isBrowserNotificationSupported,
+  getBrowserNotificationPermission,
+  requestBrowserNotificationPermission,
+  sendBrowserNotification
+} from '../lib/browserNotification';
 
 interface SuperAdminNotificationBellProps {
   pendingUsers: UserProfile[];
@@ -23,7 +29,32 @@ export default function SuperAdminNotificationBell({
   const [isOpen, setIsOpen] = useState(false);
   const [processingUid, setProcessingUid] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(
+    getBrowserNotificationPermission()
+  );
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Update permission status on mount
+  useEffect(() => {
+    setNotificationPermission(getBrowserNotificationPermission());
+  }, []);
+
+  const handleRequestNotificationPermission = async () => {
+    const perm = await requestBrowserNotificationPermission();
+    setNotificationPermission(perm);
+    if (perm === 'granted') {
+      sendBrowserNotification('✅ เปิดการแจ้งเตือนสำเร็จ', {
+        body: 'ระบบจะแจ้งเตือนเมื่อมีผู้สมัครสมาชิกใหม่เข้ามาทันที แม้พับหน้าจออยู่',
+        icon: '/icon-192.png',
+        tag: 'mhs1-perm-test'
+      });
+      playNotificationChime();
+      setActionSuccessMessage('เปิดการแจ้งเตือนบนเบราว์เซอร์เรียบร้อยแล้ว');
+      setTimeout(() => setActionSuccessMessage(null), 3500);
+    } else if (perm === 'denied') {
+      alert('เบราว์เซอร์ถูกปฏิเสธสิทธิ์การแจ้งเตือน กรุณาคลิกที่รูปกุญแจ 🔒 บนแถบ URL ของเบราว์เซอร์เพื่ออนุญาตการแจ้งเตือน (Notifications)');
+    }
+  };
 
   // Close when clicking outside
   useEffect(() => {
@@ -180,6 +211,35 @@ export default function SuperAdminNotificationBell({
               <span className="truncate">{actionSuccessMessage}</span>
             </div>
           )}
+
+          {/* Notification API Status / Toggle Banner */}
+          <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Monitor className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-300 truncate">
+                {notificationPermission === 'granted'
+                  ? 'การแจ้งเตือนหน้าจอ: เปิดใช้งานแล้ว'
+                  : notificationPermission === 'denied'
+                  ? 'การแจ้งเตือนหน้าจอ: ถูกบล็อก'
+                  : 'แจ้งเตือนผ่านเบราว์เซอร์ (Desktop)'}
+              </span>
+            </div>
+
+            {notificationPermission === 'granted' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-black shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                เปิดอยู่
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRequestNotificationPermission}
+                className="px-2 py-0.5 rounded-md bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-black shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
+              >
+                เปิดใช้งาน
+              </button>
+            )}
+          </div>
 
           {/* Body List */}
           <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80 p-2 space-y-2">
