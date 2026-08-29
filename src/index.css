@@ -1201,3 +1201,77 @@ html.dark .skeleton-shimmer::after {
     rgba(255, 255, 255, 0)
   );
 }
+
+/* =============================================================
+   SERVER REAL-TIME STATUS BREATHING & PULSE ANIMATIONS
+   ============================================================= */
+@keyframes serverBreathingGlowGreen {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6), 0 0 6px 1px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 0 12px 3px rgba(16, 185, 129, 0.6);
+  }
+}
+
+@keyframes serverBreathingGlowYellow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6), 0 0 6px 1px rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2), 0 0 12px 3px rgba(245, 158, 11, 0.6);
+  }
+}
+
+@keyframes serverBreathingGlowRed {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7), 0 0 6px 1px rgba(244, 63, 94, 0.5);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 0 5px rgba(244, 63, 94, 0.25), 0 0 14px 4px rgba(244, 63, 94, 0.7);
+  }
+}
+
+@keyframes serverAuraExpand {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-server-breathing-green {
+  animation: serverBreathingGlowGreen 2.8s ease-in-out infinite;
+}
+
+.animate-server-breathing-yellow {
+  animation: serverBreathingGlowYellow 2.2s ease-in-out infinite;
+}
+
+.animate-server-breathing-red {
+  animation: serverBreathingGlowRed 1.6s ease-in-out infinite;
+}
+
+.animate-server-aura {
+  animation: serverAuraExpand 2.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+

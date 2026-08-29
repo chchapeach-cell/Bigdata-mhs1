@@ -724,6 +724,8 @@ export default function App() {
         setAcademicYear={setAcademicYear}
         availableYears={availableYears}
         systemConfig={systemConfig}
+        serverStatus={serverStatus}
+        activeSessionCount={activeSessionCount}
       />
 
       {/* MAIN CONTENT AREA */}

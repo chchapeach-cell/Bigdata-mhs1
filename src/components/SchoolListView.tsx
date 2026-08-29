@@ -123,6 +123,36 @@ export default function SchoolListView({
   // รูปแบบการแสดงผลบน Desktop: 'grid' (การ์ด) หรือ 'table' (ตาราง)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
+  // ฟังก์ชันไฮไลต์ข้อความที่ตรงกับคำค้นหา (Search Text Highlighting)
+  const highlightMatch = (text: string, query: string) => {
+    if (!query || !query.trim() || !text) {
+      return text;
+    }
+    const trimmed = query.trim();
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+
+    if (parts.length <= 1) return text;
+
+    return (
+      <span>
+        {parts.map((part, index) => {
+          const isMatch = part.toLowerCase() === trimmed.toLowerCase();
+          return isMatch ? (
+            <mark
+              key={index}
+              className="bg-[#FF8BA7]/40 dark:bg-[#FF8BA7]/60 text-[#33272A] dark:text-[#FFF9F5] rounded px-1 py-0.5 font-black border-b-2 border-[#FF8BA7] dark:border-[#FFD3B6] shadow-2xs inline-block"
+            >
+              {part}
+            </mark>
+          ) : (
+            <span key={index}>{part}</span>
+          );
+        })}
+      </span>
+    );
+  };
+
   const toggleCompareSchool = (schoolId: string) => {
     if (selectedForCompare.includes(schoolId)) {
       setSelectedForCompare(prev => prev.filter(id => id !== schoolId));
@@ -492,8 +522,18 @@ export default function SchoolListView({
                 placeholder="ค้นหาชื่อโรงเรียน หรือรหัสโรงเรียน..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-2xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] pl-11 pr-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8BA7] text-[#33272A] dark:text-[#FFF9F5]"
+                className="w-full rounded-2xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] pl-11 pr-10 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-[#FF8BA7] text-[#33272A] dark:text-[#FFF9F5]"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute top-3 right-3 text-slate-400 hover:text-[#FF8BA7] dark:hover:text-[#FF8BA7] transition-colors p-0.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  title="ล้างข้อความค้นหา"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <button
               type="button"
@@ -917,14 +957,16 @@ export default function SchoolListView({
                                 {selectedForCompare.includes(school.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                               </button>
                             </td>
-                            <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
+                            <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">
+                              {highlightMatch(school.id, searchTerm)}
+                            </td>
                             <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
                               <div className="flex flex-col gap-1">
                                 <button 
                                   onClick={() => onSelectSchool(school.id)}
                                   className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
                                 >
-                                  {school.name}
+                                  {highlightMatch(school.name, searchTerm)}
                                 </button>
 
                                 {/* แสดงป้ายไฟฟ้า / วิชาเอกย่อ */}
@@ -1088,6 +1130,10 @@ export default function SchoolListView({
                       const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                       const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
                       const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
+                      const isMatchedBySearch = searchTerm.trim().length > 0 && (
+                        school.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                        school.id.includes(searchTerm.trim())
+                      );
                       return (
                         <motion.div 
                           key={school.id}
@@ -1105,6 +1151,8 @@ export default function SchoolListView({
                           className={`card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative group ${
                             selectedForCompare.includes(school.id)
                               ? 'ring-2 ring-purple-500 bg-purple-50/40 dark:bg-purple-950/30'
+                              : isMatchedBySearch
+                              ? 'border-[#FF8BA7] dark:border-[#FF8BA7] shadow-[0_0_12px_rgba(255,139,167,0.22)]'
                               : ''
                           }`}
                         >
@@ -1112,7 +1160,7 @@ export default function SchoolListView({
                             <div className="flex justify-between items-start gap-2">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                                  รหัส: {school.id}
+                                  รหัส: {highlightMatch(school.id, searchTerm)}
                                 </span>
                                 {/* Badge แสดงเวลาล่าสุดที่มีการแก้ไขข้อมูล (Updated At) */}
                                 <span 
@@ -1152,7 +1200,7 @@ export default function SchoolListView({
                                 onClick={() => onSelectSchool(school.id)}
                                 className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block group-hover:translate-x-0.5 duration-150"
                               >
-                                {school.name}
+                                {highlightMatch(school.name, searchTerm)}
                               </button>
                               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
                                 <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
@@ -1289,6 +1337,10 @@ export default function SchoolListView({
                     const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
                     const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
                     const updateInfo = getSchoolUpdateBadgeInfo(school.updatedAt, school.updatedBy);
+                    const isMatchedBySearch = searchTerm.trim().length > 0 && (
+                      school.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                      school.id.includes(searchTerm.trim())
+                    );
                     return (
                       <motion.div 
                         key={school.id}
@@ -1305,6 +1357,8 @@ export default function SchoolListView({
                         className={`card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative ${
                           selectedForCompare.includes(school.id)
                             ? 'ring-2 ring-purple-500 bg-purple-50/40 dark:bg-purple-950/30'
+                            : isMatchedBySearch
+                            ? 'border-[#FF8BA7] dark:border-[#FF8BA7] shadow-[0_0_12px_rgba(255,139,167,0.22)]'
                             : ''
                         }`}
                       >
@@ -1312,7 +1366,7 @@ export default function SchoolListView({
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                                รหัส: {school.id}
+                                รหัส: {highlightMatch(school.id, searchTerm)}
                               </span>
                               {/* Badge แสดงเวลาล่าสุดที่มีการแก้ไขข้อมูล (Updated At) บนมือถือ */}
                               <span 
@@ -1352,7 +1406,7 @@ export default function SchoolListView({
                               onClick={() => onSelectSchool(school.id)}
                               className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block"
                             >
-                              {school.name}
+                              {highlightMatch(school.name, searchTerm)}
                             </button>
                             <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}

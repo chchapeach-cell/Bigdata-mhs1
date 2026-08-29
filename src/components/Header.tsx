@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles, Image as ImageIcon, PhoneCall } from 'lucide-react';
+import { Sun, Moon, LogIn, LogOut, Shield, Award, User, RefreshCw, Globe, LayoutDashboard, Building2, UserPlus, Zap, GraduationCap, Palette, Sparkles, Image as ImageIcon, PhoneCall, Server, Wifi } from 'lucide-react';
 import { UserProfile, ThemeStyle, SystemConfig } from '../types';
 
 interface HeaderProps {
@@ -18,6 +18,8 @@ interface HeaderProps {
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
   systemConfig?: SystemConfig;
+  serverStatus?: 'green' | 'yellow' | 'red';
+  activeSessionCount?: number;
 }
 
 export default function Header({
@@ -35,7 +37,9 @@ export default function Header({
   academicYear,
   setAcademicYear,
   availableYears,
-  systemConfig
+  systemConfig,
+  serverStatus = 'green',
+  activeSessionCount
 }: HeaderProps) {
   return (
     <>
@@ -99,6 +103,59 @@ export default function Header({
 
         {/* Right side controls */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* 🟢 Real-time Server Status Indicator with Subtle Breathing Animation */}
+          <div
+            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl border-2 transition-all cursor-default select-none shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] shrink-0 ${
+              serverStatus === 'red'
+                ? 'bg-rose-50 text-rose-900 border-[#33272A] dark:bg-rose-950/70 dark:text-rose-200 dark:border-[#FFD3B6]'
+                : serverStatus === 'yellow'
+                ? 'bg-amber-50 text-amber-900 border-[#33272A] dark:bg-amber-950/70 dark:text-amber-200 dark:border-[#FFD3B6]'
+                : 'bg-emerald-50 text-emerald-900 border-[#33272A] dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-[#FFD3B6]'
+            }`}
+            title={
+              serverStatus === 'red'
+                ? '🔴 สถานะเซิร์ฟเวอร์: ผู้ใช้งานหนาแน่น (ระบบกำลังกระจายภาระงาน)'
+                : serverStatus === 'yellow'
+                ? '🟡 สถานะเซิร์ฟเวอร์: ปานกลาง (เชื่อมต่อ Cloud ปกติ)'
+                : '🟢 สถานะเซิร์ฟเวอร์: ออนไลน์เรียลไทม์ (เชื่อมต่อ Supabase & Cloud Run สมบูรณ์)'
+            }
+          >
+            {/* Breathing Pulse Indicator Dot with Expanding Aura */}
+            <span className="relative flex h-3 w-3 items-center justify-center">
+              {/* Outer expanding breathing aura ring */}
+              <span
+                className={`absolute inline-flex h-3.5 w-3.5 rounded-full opacity-60 animate-server-aura ${
+                  serverStatus === 'red'
+                    ? 'bg-rose-400 dark:bg-rose-500'
+                    : serverStatus === 'yellow'
+                    ? 'bg-amber-400 dark:bg-amber-500'
+                    : 'bg-emerald-400 dark:bg-emerald-500'
+                }`}
+              />
+              {/* Core glowing dot with gentle breathing pulse effect */}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  serverStatus === 'red'
+                    ? 'bg-rose-600 dark:bg-rose-400 animate-server-breathing-red'
+                    : serverStatus === 'yellow'
+                    ? 'bg-amber-500 dark:bg-amber-400 animate-server-breathing-yellow'
+                    : 'bg-emerald-500 dark:bg-emerald-400 animate-server-breathing-green'
+                }`}
+              />
+            </span>
+
+            {/* Status Label (responsive text) */}
+            <div className="flex items-center gap-1 font-black text-[10px] sm:text-xs leading-none">
+              <span className="hidden xs:inline">
+                {serverStatus === 'red'
+                  ? 'หนาแน่น'
+                  : serverStatus === 'yellow'
+                  ? 'ปานกลาง'
+                  : 'ออนไลน์'}
+              </span>
+            </div>
+          </div>
+
           {/* Dark / Light Mode Toggle Button */}
           <button
             type="button"
