@@ -268,24 +268,10 @@ export default function AcademicStatsView({
           }
           return r;
         });
-        localStorage.setItem('academic_records_initialized_flag', 'true');
         setRecords(repaired);
       } else {
-        // Only initialize default demo records if the user has NEVER loaded the system before
-        const isFirstEverVisit = !localStorage.getItem('academic_records_initialized_flag');
-        if (isFirstEverVisit) {
-          const initial = generateInitialAcademicRecords(schools, academicYear || '2567');
-          try {
-            await dbSaveAcademicRecords(initial, userProfile?.email || 'Super Admin');
-          } catch (initErr) {
-            console.warn('Could not save initial academic records to DB (table might not exist yet):', initErr);
-          }
-          localStorage.setItem('academic_records_initialized_flag', 'true');
-          setRecords(initial);
-        } else {
-          // If already initialized before, empty means records were deleted by user
-          setRecords([]);
-        }
+        // หากฐานข้อมูลว่างเปล่า (ลบออกหมดแล้ว) ให้แสดงเป็นว่างเปล่า
+        setRecords([]);
       }
     } catch (err) {
       console.error('Error loading academic records:', err);

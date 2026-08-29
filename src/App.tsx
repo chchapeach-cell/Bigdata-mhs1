@@ -2,7 +2,6 @@ import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
 import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize, parseInitialData } from './utils/initialData';
-import { generateInitialAcademicRecords } from './utils/academicData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -38,6 +37,7 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
 // นำเข้า Components
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
+import DashboardSkeleton from './components/DashboardSkeleton';
 import SchoolListView from './components/SchoolListView';
 import SchoolDetailView from './components/SchoolDetailView';
 import AdminPanel from './components/AdminPanel';
@@ -82,7 +82,7 @@ export default function App() {
   const [schools, setSchools] = useState<School[]>(() => initialPreset.schools);
   const [studentData, setStudentData] = useState<StudentData[]>(() => initialPreset.students);
   const [studentGData, setStudentGData] = useState<StudentGData[]>(() => generateInitialStudentGData(initialPreset.schools));
-  const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>(() => generateInitialAcademicRecords(initialPreset.schools, '2567'));
+  const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   
   // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
@@ -587,11 +587,9 @@ export default function App() {
               }
             }
 
-            if (acRecords && acRecords.length > 0) {
-              setAcademicRecords(acRecords);
-            }
+            setAcademicRecords(acRecords || []);
 
-            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records across years ${years.join(', ')}`);
+            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records`);
             setIsLoading(false);
             return;
           } else {
@@ -772,12 +770,7 @@ export default function App() {
           : 'max-w-7xl px-4 sm:px-6'
       }`}>
         {isLoading ? (
-          <div className="flex h-96 flex-col items-center justify-center gap-3">
-            <RefreshCw className="h-10 w-10 text-rose-500 animate-spin" />
-            <span className="text-sm font-extrabold text-slate-500 dark:text-slate-400">
-              กำลังดึงข้อมูลสถิติล่าสุดจาก Firebase...
-            </span>
-          </div>
+          <DashboardSkeleton isDarkMode={isDarkMode} />
         ) : (
           <div className="animate-fade-in">
             {/* โชว์หน้ารายละเอียดเมื่อโรงเรียนโดนเลือก */}

@@ -3,7 +3,7 @@ import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDire
 import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
-import { generateInitialAcademicRecords, determineQualityLevel, matchSchoolId } from '../utils/academicData';
+import { determineQualityLevel, matchSchoolId } from '../utils/academicData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
   ArrowLeft, Phone, MapPin, Building, Globe, Zap, Droplets,
@@ -886,29 +886,24 @@ export default function SchoolDetailView({
   // โหลดและประมวลผลข้อมูลผลสัมฤทธิ์ทางการศึกษา RT / NT ของโรงเรียนนี้
   const [localAcademicRecords, setLocalAcademicRecords] = useState<AcademicRecord[]>(academicRecords || []);
   const [selectedAcademicTestFilter, setSelectedAcademicTestFilter] = useState<'all' | 'RT' | 'NT'>('all');
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear || academicYear || '2567');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear || academicYear || '2568');
 
   useEffect(() => {
-    if (academicRecords && academicRecords.length > 0) {
+    if (academicRecords !== undefined) {
       setLocalAcademicRecords(academicRecords);
     } else {
       dbFetchAcademicRecords().then(recs => {
-        if (recs && recs.length > 0) {
-          setLocalAcademicRecords(recs);
-        } else {
-          setLocalAcademicRecords(generateInitialAcademicRecords([school], selectedYear || academicYear || '2567'));
-        }
+        setLocalAcademicRecords(recs || []);
       }).catch(() => {
-        setLocalAcademicRecords(generateInitialAcademicRecords([school], selectedYear || academicYear || '2567'));
+        setLocalAcademicRecords([]);
       });
     }
   }, [academicRecords, school, selectedYear, academicYear]);
 
   // กรองเฉพาะรายการของโรงเรียนนี้
   const schoolAcademicRecords = useMemo(() => {
-    const list = localAcademicRecords && localAcademicRecords.length > 0
-      ? localAcademicRecords
-      : generateInitialAcademicRecords([school], selectedAcademicYear || selectedYear || academicYear || '2567');
+    const list = localAcademicRecords || [];
+    if (list.length === 0) return [];
 
     const cleanSchoolName = (school.name || '').replace(/^(โรงเรียน|รร\.)/, '').trim();
 
@@ -921,17 +916,17 @@ export default function SchoolDetailView({
       const matched = matchSchoolId(r.schoolId, r.schoolName, r.amphoe, [school]);
       return matched === school.id;
     });
-  }, [localAcademicRecords, school, selectedAcademicYear, selectedYear, academicYear]);
+  }, [localAcademicRecords, school]);
 
   // รายการปีการศึกษาที่มีข้อมูล RT/NT ของโรงเรียนนี้
   const availableAcademicYears = useMemo<string[]>(() => {
     const rawList = schoolAcademicRecords.map(r => String(r.academicYear || '').trim()).filter(Boolean);
     const yrs: string[] = Array.from(new Set(rawList));
     if (yrs.length === 0) {
-      return ['2567', '2568', '2566', '2565'];
+      return [selectedYear || academicYear || '2568'];
     }
     return yrs.sort((a: string, b: string) => b.localeCompare(a));
-  }, [schoolAcademicRecords]);
+  }, [schoolAcademicRecords, selectedYear, academicYear]);
 
   // ซิงค์ปีการศึกษากับ selectedYear
   useEffect(() => {
@@ -945,13 +940,13 @@ export default function SchoolDetailView({
   // ข้อมูล RT ของโรงเรียนนี้ตามปีการศึกษาที่เลือก
   const currentRTRecord = useMemo(() => {
     return schoolAcademicRecords.find(r => r.testType === 'RT' && String(r.academicYear).trim() === String(selectedAcademicYear).trim())
-      || schoolAcademicRecords.find(r => r.testType === 'RT') || null;
+      || null;
   }, [schoolAcademicRecords, selectedAcademicYear]);
 
   // ข้อมูล NT ของโรงเรียนนี้ตามปีการศึกษาที่เลือก
   const currentNTRecord = useMemo(() => {
     return schoolAcademicRecords.find(r => r.testType === 'NT' && String(r.academicYear).trim() === String(selectedAcademicYear).trim())
-      || schoolAcademicRecords.find(r => r.testType === 'NT') || null;
+      || null;
   }, [schoolAcademicRecords, selectedAcademicYear]);
 
   // Quality Badge Helper สำหรับ RT / NT
