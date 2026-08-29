@@ -7,7 +7,7 @@ import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import * as XLSX from 'xlsx';
-import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork } from '../utils/initialData';
+import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import { removeUndefinedFields } from '../utils/errorHelper';
 import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
@@ -616,7 +616,7 @@ export default function AdminPanel({
   }, [isSuperAdmin, adminTab]);
 
   // State สำหรับจัดการข้อมูลนักเรียนตัว G
-  const [gYear, setGYear] = useState<string>('2568');
+  const [gYear, setGYear] = useState<string>(() => getCurrentBEYear());
   const [gSchoolId, setGSchoolId] = useState<string>(selectedSchoolId || '');
   const [gTotalCount, setGTotalCount] = useState<number>(0);
   const [gMaleCount, setGMaleCount] = useState<number>(0);
@@ -628,7 +628,7 @@ export default function AdminPanel({
   const [gSearchQuery, setGSearchQuery] = useState<string>('');
 
   // State สำหรับการอัปโหลดไฟล์นักเรียนตัว G
-  const [gUploadYear, setGUploadYear] = useState<string>('2568');
+  const [gUploadYear, setGUploadYear] = useState<string>(() => getCurrentBEYear());
   const [isUploadingGFile, setIsUploadingGFile] = useState<boolean>(false);
   const [gUploadProgress, setGUploadProgress] = useState<number>(0);
   const [gUploadStatusText, setGUploadStatusText] = useState<string>('');
@@ -644,7 +644,7 @@ export default function AdminPanel({
   const [deleteGSuccess, setDeleteGSuccess] = useState<string>('');
 
   // State สำหรับจัดการและแก้ไขข้อมูลสถิตินักเรียน BIGDATA
-  const [bigdataYear, setBigdataYear] = useState<string>('2568');
+  const [bigdataYear, setBigdataYear] = useState<string>(() => getCurrentBEYear());
   const [bigdataSearchQuery, setBigdataSearchQuery] = useState<string>('');
   const [editingStudentDataRecord, setEditingStudentDataRecord] = useState<StudentData | null>(null);
   const [editStudentMale, setEditStudentMale] = useState<number>(0);
@@ -671,8 +671,8 @@ export default function AdminPanel({
         }
       });
     }
-    ['2568', '2567', '2566', '2565', '2564'].forEach(y => yearsSet.add(y));
-    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+    getDefaultAvailableYears().forEach(y => yearsSet.add(y));
+    return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
   }, [studentData]);
 
   // ฟังก์ชันสำหรับการแก้ไข/ลบข้อมูลนักเรียน BIGDATA
@@ -817,9 +817,9 @@ export default function AdminPanel({
       });
     }
 
-    ['2568', '2567', '2566', '2565', '2564'].forEach(y => yearsSet.add(y));
+    getDefaultAvailableYears().forEach(y => yearsSet.add(y));
 
-    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+    return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a));
   }, [studentGData, studentData]);
 
   // อัปเดตข้อมูลนักเรียนตัว G เมื่อเปลี่ยนโรงเรียนหรือปีการศึกษา
@@ -1623,7 +1623,7 @@ export default function AdminPanel({
     }
   };
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [uploadYear, setUploadYear] = useState('2568');
+  const [uploadYear, setUploadYear] = useState(() => getCurrentBEYear());
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [isUploading, setIsUploading] = useState(false);

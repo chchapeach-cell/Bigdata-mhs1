@@ -1,5 +1,6 @@
 import React from 'react';
 import { Building2, Users, GraduationCap, Award, Sparkles, Zap, Wifi, Droplets, Lightbulb } from 'lucide-react';
+import { getDefaultAvailableYears } from '../utils/initialData';
 
 interface DashboardSkeletonProps {
   isDarkMode?: boolean;
@@ -295,10 +296,9 @@ export default function DashboardSkeleton({ isDarkMode = false }: DashboardSkele
               />
             </svg>
             <div className="flex justify-between pt-2 px-1">
-              <span className="text-[10px] font-bold text-slate-400">ปี 2565</span>
-              <span className="text-[10px] font-bold text-slate-400">ปี 2566</span>
-              <span className="text-[10px] font-bold text-slate-400">ปี 2567</span>
-              <span className="text-[10px] font-bold text-slate-400">ปี 2568</span>
+              {getDefaultAvailableYears().slice(0, 4).reverse().map(yr => (
+                <span key={yr} className="text-[10px] font-bold text-slate-400">ปี {yr}</span>
+              ))}
             </div>
           </div>
         </div>

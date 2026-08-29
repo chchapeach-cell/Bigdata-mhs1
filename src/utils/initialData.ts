@@ -6,6 +6,27 @@ import rawStudentsG from './studentsGData.json';
 // พิกัดศูนย์กลางของแม่ฮ่องสอน เขต 1
 export const MAP_CENTER = { lat: 19.3021, lng: 97.9654 };
 
+/**
+ * คำนวณปี พ.ศ. ปัจจุบันตามปฏิทิน (ค.ศ. + 543)
+ * เช่น ปี ค.ศ. 2026 => "2569", ปี ค.ศ. 2027 => "2570"
+ */
+export function getCurrentBEYear(): string {
+  const currentCE = new Date().getFullYear();
+  return String(currentCE + 543);
+}
+
+/**
+ * สร้างรายการปีการศึกษาย้อนหลังจากปี พ.ศ. ปัจจุบัน
+ */
+export function getDefaultAvailableYears(baseYear?: string, count: number = 6): string[] {
+  const current = baseYear ? parseInt(baseYear, 10) : (new Date().getFullYear() + 543);
+  const years: string[] = [];
+  for (let i = 0; i < count; i++) {
+    years.push(String(current - i));
+  }
+  return years;
+}
+
 // ข้อมูลชื่อภาษาไทยที่ถูกต้องและพิกัดจริงของโรงเรียนต่างๆ ใน สพป.แม่ฮ่องสอน เขต 1 เพื่อให้ระบบออกมาสมบูรณ์แบบ
 export const SCHOOL_METADATA_PRESETS: { [id: string]: { name: string; lat: number; lng: number; imageUrl: string; director: string; phone: string; managerPhone: string } } = {
   "58010001": {

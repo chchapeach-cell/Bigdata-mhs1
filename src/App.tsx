@@ -1,7 +1,7 @@
 import { auth } from './firebase';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
-import { generateInitialStudentGData, getAmphoeAndNetwork, getSchoolSize, parseInitialData } from './utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailableYears } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -78,20 +78,16 @@ export default function App() {
   };
   
   // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล)
-  const initialPreset = parseInitialData('2568');
-  const [schools, setSchools] = useState<School[]>(() => initialPreset.schools);
-  const [studentData, setStudentData] = useState<StudentData[]>(() => initialPreset.students);
-  const [studentGData, setStudentGData] = useState<StudentGData[]>(() => generateInitialStudentGData(initialPreset.schools));
+  const [schools, setSchools] = useState<School[]>([]);
+  const [studentData, setStudentData] = useState<StudentData[]>([]);
+  const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   
-  // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ.)
-  const currentBEYear = '2568';
-  const [academicYear, setAcademicYear] = useState<string>('2568');
-  const [availableYears, setAvailableYears] = useState<string[]>(() => {
-    const years = Array.from(new Set(initialPreset.students.map(s => s.academicYear).filter(Boolean)));
-    return years.length > 0 ? years.sort((a, b) => b.localeCompare(a)) : ['2568', '2567', '2566', '2565'];
-  });
+  // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ. อัตโนมัติตามปีปฏิทิน เช่น 2569, 2570)
+  const currentBEYear = getCurrentBEYear();
+  const [academicYear, setAcademicYear] = useState<string>(() => getCurrentBEYear());
+  const [availableYears, setAvailableYears] = useState<string[]>(() => getDefaultAvailableYears());
   
   // จัดการผู้ใช้งาน
   const [user, setUser] = useState<any>(null);
@@ -106,7 +102,7 @@ export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(false);
   
   // สถานะการโหลดข้อมูล
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('theme');
@@ -570,26 +566,41 @@ export default function App() {
 
             setSchools(mappedSchools);
             setStudentData(mappedStudents);
-            const finalStudentsG = mappedStudentsG.length > 0 ? mappedStudentsG : generateInitialStudentGData(mappedSchools);
-            setStudentGData(finalStudentsG);
+            setStudentGData(mappedStudentsG);
 
-            const years = Array.from(new Set(mappedStudents.map(s => s.academicYear).filter(Boolean)));
-            if (years.length > 0) {
-              years.sort((a, b) => b.localeCompare(a));
-              setAvailableYears(years);
-              // Default to 2568 if available, or current year / latest
-              if (years.includes('2568')) {
-                setAcademicYear('2568');
-              } else if (years.includes(currentBEYear)) {
-                setAcademicYear(currentBEYear);
-              } else {
-                setAcademicYear(years[0]);
+            // รวบรวมปีการศึกษาทั้งหมดที่มีอยู่ในระบบ
+            const yearsSet = new Set<string>();
+            mappedStudents.forEach(s => {
+              if (s.academicYear && /^\d{4}$/.test(String(s.academicYear).trim())) {
+                yearsSet.add(String(s.academicYear).trim());
               }
+            });
+            mappedStudentsG.forEach(sg => {
+              if (sg.academicYear && /^\d{4}$/.test(String(sg.academicYear).trim())) {
+                yearsSet.add(String(sg.academicYear).trim());
+              }
+            });
+            (acRecords || []).forEach(ar => {
+              if (ar.academicYear && /^\d{4}$/.test(String(ar.academicYear).trim())) {
+                yearsSet.add(String(ar.academicYear).trim());
+              }
+            });
+            if (currentBEYear && /^\d{4}$/.test(currentBEYear)) {
+              yearsSet.add(currentBEYear);
+            }
+
+            const years = Array.from(yearsSet);
+            if (years.length > 0) {
+              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2570, 2569, 2568, 2567)
+              years.sort((a, b) => Number(b) - Number(a));
+              setAvailableYears(years);
+              // เลือกปีล่าสุดเสมอเมื่อเปิดเข้าสู่ระบบ
+              setAcademicYear(years[0]);
             }
 
             setAcademicRecords(acRecords || []);
 
-            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records`);
+            console.log(`✅ Loaded from Supabase in parallel: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
             setIsLoading(false);
             return;
           } else {
@@ -599,78 +610,23 @@ export default function App() {
           console.warn('Notice reading from Supabase:', suEx);
         }
       }
-      // 1. ถ้าเชื่อมต่อ Supabase ไม่ได้ หรือไม่มีข้อมูลใน Supabase ให้โหลดข้อมูลตั้งต้น (Preset Data)
-      const schoolsList: School[] = [];
-      const studentsList: StudentData[] = [];
-      const studentsGList: StudentGData[] = [];
 
-      if (schoolsList.length === 0) {
-        // Fallback to initial preset data if database is empty or connection fails
-        const { parseInitialData } = await import('./utils/initialData');
-        const initial = parseInitialData('2568');
-        setSchools(initial.schools);
-        setStudentData(initial.students);
-        setStudentGData(generateInitialStudentGData(initial.schools));
-        
-        const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
-        if (years.length > 0) {
-          years.sort((a, b) => b.localeCompare(a));
-          setAvailableYears(years);
-          if (years.includes(currentBEYear)) {
-            setAcademicYear(currentBEYear);
-          } else {
-            setAcademicYear(years[0]);
-          }
-        }
-        return;
-      }
-
-      setSchools(schoolsList);
-      setStudentData(studentsList);
-
-      // ถ้าในคอลเลกชัน students_g ยังไม่มีข้อมูล ให้ใช้ตัวอย่างเริ่มต้น
-      if (studentsGList.length === 0) {
-        setStudentGData(generateInitialStudentGData(schoolsList));
-      } else {
-        setStudentGData(studentsGList);
-      }
-
-      // ตรวจหาปีการศึกษาทั้งหมดที่มีในฐานข้อมูล
-      const years = Array.from(new Set(studentsList.map(s => s.academicYear)));
-      if (years.length > 0) {
-        years.sort((a, b) => b.localeCompare(a));
-        setAvailableYears(years);
-        if (years.includes(currentBEYear)) {
-          setAcademicYear(currentBEYear);
-        } else {
-          setAcademicYear(years[0]);
-        }
-      }
+      // ถ้าเชื่อมต่อ Supabase ไม่ได้หรือไม่มีข้อมูล ให้ตั้งค่าเป็นว่างเปล่าตามความเป็นจริง
+      setSchools([]);
+      setStudentData([]);
+      setStudentGData([]);
+      setAcademicRecords([]);
 
     } catch (error) {
-      console.warn('Notice fetching data (falling back to preset data):', error);
+      console.warn('Notice fetching data:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       if (errMsg.includes('Quota') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Free daily read') || errMsg.includes('resource-exhausted')) {
         setIsQuotaExceeded(true);
       }
-      
-      // Fallback to initial preset data only if network or database fetch completely fails
-      const { parseInitialData } = await import('./utils/initialData');
-      const initial = parseInitialData('2568');
-      setSchools(initial.schools);
-      setStudentData(initial.students);
-      setStudentGData(generateInitialStudentGData(initial.schools));
-      
-      const years = Array.from(new Set(initial.students.map(s => s.academicYear)));
-      if (years.length > 0) {
-        years.sort((a, b) => b.localeCompare(a));
-        setAvailableYears(years);
-        if (years.includes(currentBEYear)) {
-          setAcademicYear(currentBEYear);
-        } else {
-          setAcademicYear(years[0]);
-        }
-      }
+      setSchools([]);
+      setStudentData([]);
+      setStudentGData([]);
+      setAcademicRecords([]);
     } finally {
       setIsLoading(false);
     }

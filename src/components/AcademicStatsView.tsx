@@ -47,13 +47,13 @@ import {
   Cell
 } from 'recharts';
 import {
-  generateInitialAcademicRecords,
   parseAcademicFile,
   calculateAcademicSummary,
   exportAcademicRecordsToExcel,
   determineQualityLevel,
   matchSchoolId
 } from '../utils/academicData';
+import { getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import {
   dbFetchAcademicRecords,
   dbSaveAcademicRecords,
@@ -145,8 +145,8 @@ export default function AcademicStatsView({
     (availableYears || []).forEach(y => y && yearsSet.add(y));
     records.forEach(r => r.academicYear && yearsSet.add(r.academicYear));
     customYears.forEach(y => y && yearsSet.add(y));
-    ['2569', '2568', '2567', '2566', '2565'].forEach(y => yearsSet.add(y));
-    return Array.from(yearsSet).filter(Boolean).sort((a, b) => b.localeCompare(a));
+    getDefaultAvailableYears().forEach(y => y && yearsSet.add(y));
+    return Array.from(yearsSet).filter(Boolean).sort((a, b) => Number(b) - Number(a));
   }, [academicYear, uploadYear, availableYears, records, customYears]);
 
   const handleAddNewAcademicYear = (yearStr: string, autoSwitch = true) => {
@@ -509,27 +509,23 @@ export default function AcademicStatsView({
     }
   };
 
-  // Restore Default Dataset (NT 128 + RT 130)
-  const handleRestoreDefault = async () => {
-    if (!window.confirm('คุณต้องการโหลดข้อมูลผลการประเมิน NT (ป.3 128 รายการ) และ RT (ป.1 130 รายการ) สพป.แม่ฮ่องสอน เขต 1 ต้นฉบับกลับมาใช้งานใช่หรือไม่?')) {
-      return;
-    }
-    setIsSaving(true);
+  // Refresh Dataset from Database
+  const handleRefreshData = async () => {
+    setIsLoading(true);
     try {
-      const initial = generateInitialAcademicRecords(schools, academicYear || '2567');
-      await dbSaveAcademicRecords(initial, userProfile?.email || 'Super Admin');
-      setRecords(initial);
+      const dbRecords = await dbFetchAcademicRecords();
+      setRecords(dbRecords || []);
       setStatusMessage({
         type: 'success',
-        text: 'กู้คืนข้อมูลผลการประเมินเริ่มต้น NT และ RT รวม 258 รายการเรียบร้อยแล้ว'
+        text: `รีเฟรชข้อมูลจากฐานข้อมูลเรียบร้อยแล้ว (${dbRecords?.length || 0} รายการ)`
       });
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: 'เกิดข้อผิดพลาดในการกู้คืนข้อมูล: ' + (err.message || String(err))
+        text: 'เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || String(err))
       });
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
 
@@ -828,16 +824,16 @@ export default function AcademicStatsView({
                 <span>ดาวน์โหลด Excel</span>
               </button>
 
-              {/* Restore Default Button */}
+              {/* Refresh Data Button */}
               <button
-                id="btn-restore-default-academic"
+                id="btn-refresh-academic"
                 type="button"
-                onClick={handleRestoreDefault}
-                title="กู้คืนข้อมูลเริ่มต้นตามไฟล์ 128 สถานศึกษา"
+                onClick={handleRefreshData}
+                title="รีเฟรชข้อมูลจากฐานข้อมูล"
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                <span>รีเซ็ตค่าเดิม</span>
+                <span>รีเฟรชข้อมูล</span>
               </button>
             </div>
           )}
@@ -2174,7 +2170,7 @@ export default function AcademicStatsView({
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 mb-1.5">ปีการศึกษาที่แนะนำ:</label>
                 <div className="flex flex-wrap gap-2">
-                  {['2569', '2568', '2567', '2566', '2565'].map((yr) => (
+                  {getDefaultAvailableYears().map((yr) => (
                     <button
                       key={yr}
                       type="button"

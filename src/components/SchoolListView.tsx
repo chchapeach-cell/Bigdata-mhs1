@@ -1,10 +1,11 @@
 import { useState, useMemo, FormEvent, useEffect } from 'react';
 import { School, StudentData, DownloadLog, UserProfile } from '../types';
-import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns } from 'lucide-react';
+import { Search, Download, Filter, FileSpreadsheet, Eye, User, FileText, AlertTriangle, HelpCircle, ArrowUpDown, ChevronUp, ChevronDown, MapPin, Zap, Globe, GraduationCap, Sparkles, Phone, Droplets, GitCompare, X, Check, CheckSquare, Square, Columns, LayoutGrid, List } from 'lucide-react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
-import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST } from '../utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 
 interface SchoolListViewProps {
   schools: School[];
@@ -118,6 +119,9 @@ export default function SchoolListView({
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [highlightDiff, setHighlightDiff] = useState(true);
+
+  // รูปแบบการแสดงผลบน Desktop: 'grid' (การ์ด) หรือ 'table' (ตาราง)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   const toggleCompareSchool = (schoolId: string) => {
     if (selectedForCompare.includes(schoolId)) {
@@ -427,7 +431,7 @@ export default function SchoolListView({
 
         await generatePdfReport({
           title,
-          subtitle: `ปีการศึกษา ${academicYear || '2568'}`,
+          subtitle: `ปีการศึกษา ${academicYear || getCurrentBEYear()}`,
           requesterInfo: {
             name: downloadName,
             email: downloadEmail,
@@ -539,11 +543,11 @@ export default function SchoolListView({
               <GraduationCap className="h-3.5 w-3.5 text-amber-500" /> ปีการศึกษา
             </label>
             <select
-              value={academicYear || '2568'}
+              value={academicYear || getCurrentBEYear()}
               onChange={(e) => setAcademicYear && setAcademicYear(e.target.value)}
               className="w-full rounded-xl border-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-2 text-xs font-bold text-[#33272A] dark:text-[#FFF9F5] focus:ring-2 focus:ring-[#FF8BA7] cursor-pointer"
             >
-              {(availableYears && availableYears.length > 0 ? availableYears : ['2568', '2567', '2566', '2565']).map(yr => (
+              {(availableYears && availableYears.length > 0 ? availableYears : getDefaultAvailableYears()).map(yr => (
                 <option key={yr} value={yr}>ปีการศึกษา {yr}</option>
               ))}
             </select>
@@ -700,420 +704,697 @@ export default function SchoolListView({
 
       {/* Schools Table / Grid */}
       <div className="card overflow-hidden">
-        <div className="p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] flex justify-between items-center bg-[#FFF9F5] dark:bg-[#1e1518]">
+        <div className="p-4 sm:p-6 border-b-2 border-[#33272A] dark:border-[#FFD3B6] flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-[#FFF9F5] dark:bg-[#1e1518]">
           <div>
-            <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">รายชื่อโรงเรียนในสังกัด ({sortedSchools.length} แห่ง)</h3>
-            <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">คลิกพาดหัวตารางเพื่อเรียงข้อมูล หรือคลิกที่โรงเรียนเพื่อดูรายละเอียดข้อมูลเชิงลึก</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">รายชื่อโรงเรียนในสังกัด</h3>
+              <motion.span 
+                key={sortedSchools.length}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="px-2.5 py-0.5 rounded-full text-xs font-black bg-[#FF8BA7] text-[#33272A] border border-[#33272A] shadow-sm"
+              >
+                {sortedSchools.length} แห่ง
+              </motion.span>
+            </div>
+            <p className="text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold mt-0.5">
+              {viewMode === 'grid' 
+                ? 'มุมมองการ์ดพร้อมแอนิเมชันจัดเรียงอัตโนมัติตามตัวกรอง' 
+                : 'คลิกพาดหัวตารางเพื่อเรียงข้อมูล หรือคลิกที่โรงเรียนเพื่อดูรายละเอียดเชิงลึก'}
+            </p>
+          </div>
+
+          {/* Desktop View Switcher (การ์ด / ตาราง) */}
+          <div className="hidden lg:flex items-center gap-1 bg-white dark:bg-[#281b20] p-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6]/60 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-[#FF8BA7] text-[#33272A] shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[#FFD3B6]/20'
+              }`}
+              title="แสดงผลแบบการ์ดพร้อมการเคลื่อนไหว"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>การ์ด</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[#FFD3B6]/20'
+              }`}
+              title="แสดงผลแบบตารางข้อมูลละเอียด"
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>ตาราง</span>
+            </button>
           </div>
         </div>
 
-        {/* ตารางแสดงข้อมูลแบบ Desktop */}
-        <div className="hidden lg:block overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-xs">
-                <th className="p-3 text-center w-12">
-                  <span className="text-[10px] font-bold">เทียบ</span>
-                </th>
-                <th 
-                  className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('id')}
-                >
-                  <div className="flex items-center gap-1">
-                    รหัส
-                    {sortField === 'id' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center gap-1">
-                    ชื่อสถานศึกษา
-                    {sortField === 'name' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('amphoe')}
-                >
-                  <div className="flex items-center gap-1">
-                    อำเภอ / กลุ่มเครือข่าย
-                    {sortField === 'amphoe' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('size')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    ขนาด
-                    {sortField === 'size' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('isExpansion')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    ประเภท
-                    {sortField === 'isExpansion' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('staffCount')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    ครู
-                    {sortField === 'staffCount' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('studentCount')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    นร.รวม
-                    {sortField === 'studentCount' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th 
-                  className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
-                  onClick={() => handleSort('internetType')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    ระบบเน็ต
-                    {sortField === 'internetType' ? (
-                      sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
-                    ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
-                  </div>
-                </th>
-                <th className="p-3 text-right">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 text-[#33272A] dark:text-[#FFF9F5] font-semibold">
-              {sortedSchools.length > 0 ? (
-                sortedSchools.map((school) => {
-                  const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
-                  const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
-                  return (
-                    <tr key={school.id} className={`hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10 ${selectedForCompare.includes(school.id) ? 'bg-purple-50/70 dark:bg-purple-950/30' : ''}`}>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleCompareSchool(school.id)}
-                          className={`p-1 rounded-lg border-2 transition-all cursor-pointer ${
-                            selectedForCompare.includes(school.id)
-                              ? 'bg-purple-600 border-purple-800 text-white shadow-sm'
-                              : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-slate-400 hover:border-purple-400'
-                          }`}
-                          title={selectedForCompare.includes(school.id) ? 'ยกเลิกการเลือกเปรียบเทียบ' : 'เลือกเพื่อเปรียบเทียบ (สูงสุด 3 แห่ง)'}
-                        >
-                          {selectedForCompare.includes(school.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                        </button>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
-                      <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
-                        <div className="flex flex-col gap-1">
-                          <button 
-                            onClick={() => onSelectSchool(school.id)}
-                            className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
+        {/* ตารางแสดงข้อมูลแบบ Desktop Table View */}
+        {viewMode === 'table' && (
+          <div className="hidden lg:block overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-[#FFD3B6]/50 dark:bg-[#33272A] text-[#33272A] dark:text-[#FFF9F5] font-black border-b-2 border-[#33272A] dark:border-[#FFD3B6] uppercase tracking-wider select-none text-xs">
+                  <th className="p-3 text-center w-12">
+                    <span className="text-[10px] font-bold">เทียบ</span>
+                  </th>
+                  <th 
+                    className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('id')}
+                  >
+                    <div className="flex items-center gap-1">
+                      รหัส
+                      {sortField === 'id' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-1">
+                      ชื่อสถานศึกษา
+                      {sortField === 'name' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('amphoe')}
+                  >
+                    <div className="flex items-center gap-1">
+                      อำเภอ / กลุ่มเครือข่าย
+                      {sortField === 'amphoe' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('size')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      ขนาด
+                      {sortField === 'size' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('isExpansion')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      ประเภท
+                      {sortField === 'isExpansion' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('staffCount')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      ครู
+                      {sortField === 'staffCount' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('studentCount')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      นร.รวม
+                      {sortField === 'studentCount' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th 
+                    className="p-3 text-center cursor-pointer hover:bg-[#FFD3B6]/70 dark:hover:bg-slate-700/60 transition-colors"
+                    onClick={() => handleSort('internetType')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      ระบบเน็ต
+                      {sortField === 'internetType' ? (
+                        sortDirection === 'asc' ? <ChevronUp className="h-4 w-4 text-[#FF8BA7]" /> : <ChevronDown className="h-4 w-4 text-[#FF8BA7]" />
+                      ) : <ArrowUpDown className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </th>
+                  <th className="p-3 text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#33272A]/10 dark:divide-[#FFD3B6]/20 text-[#33272A] dark:text-[#FFF9F5] font-semibold">
+                <LayoutGroup id="desktop-table-rows">
+                  <AnimatePresence mode="popLayout">
+                    {sortedSchools.length > 0 ? (
+                      sortedSchools.map((school) => {
+                        const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
+                        const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                        return (
+                          <motion.tr 
+                            key={school.id}
+                            layout
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.15 } }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 350,
+                              damping: 26,
+                              mass: 0.7
+                            }}
+                            className={`hover:bg-[#FFD3B6]/10 dark:hover:bg-slate-800/40 transition-colors border-b border-[#33272A]/10 dark:border-[#FFD3B6]/10 ${selectedForCompare.includes(school.id) ? 'bg-purple-50/70 dark:bg-purple-950/30' : ''}`}
                           >
-                            {school.name}
-                          </button>
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleCompareSchool(school.id)}
+                                className={`p-1 rounded-lg border-2 transition-all cursor-pointer ${
+                                  selectedForCompare.includes(school.id)
+                                    ? 'bg-purple-600 border-purple-800 text-white shadow-sm'
+                                    : 'bg-white dark:bg-[#1e1518] border-slate-300 dark:border-slate-700 text-slate-400 hover:border-purple-400'
+                                }`}
+                                title={selectedForCompare.includes(school.id) ? 'ยกเลิกการเลือกเปรียบเทียบ' : 'เลือกเพื่อเปรียบเทียบ (สูงสุด 3 แห่ง)'}
+                              >
+                                {selectedForCompare.includes(school.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                              </button>
+                            </td>
+                            <td className="p-3 font-mono font-bold text-[#33272A] dark:text-[#FFD3B6] text-[13px]">{school.id}</td>
+                            <td className="p-3 font-black text-[#33272A] dark:text-[#FFF9F5]">
+                              <div className="flex flex-col gap-1">
+                                <button 
+                                  onClick={() => onSelectSchool(school.id)}
+                                  className="hover:text-[#FF8BA7] text-left outline-none transition-colors cursor-pointer text-sm md:text-[15px]"
+                                >
+                                  {school.name}
+                                </button>
 
-                          {/* แสดงป้ายไฟฟ้า / วิชาเอกย่อ */}
-                          <div className="flex flex-wrap items-center gap-1">
-                            {/* ป้ายไฟฟ้า */}
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
-                              school.electricity === 'has_electric' || school.electricity === true
-                                ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-700'
-                                : school.electricity === 'solar'
-                                ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200 dark:border-yellow-700'
-                                : school.electricity === 'hybrid'
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700'
-                                : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                            }`}>
-                              <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
-                              {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
-                               school.electricity === 'solar' ? 'โซลาร์เซลล์' :
-                               school.electricity === 'hybrid' ? 'ผสมผสาน' : 'ไม่มีไฟฟ้า'}
-                            </span>
+                                {/* แสดงป้ายไฟฟ้า / วิชาเอกย่อ */}
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {/* ป้ายไฟฟ้า */}
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
+                                    school.electricity === 'has_electric' || school.electricity === true
+                                      ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-700'
+                                      : school.electricity === 'solar'
+                                      ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200 dark:border-yellow-700'
+                                      : school.electricity === 'hybrid'
+                                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                  }`}>
+                                    <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                                    {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                                     school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                                     school.electricity === 'hybrid' ? 'ผสมผสาน' : 'ไม่มีไฟฟ้า'}
+                                  </span>
 
-                            {/* ป้ายประปา */}
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
-                              school.waterSystem === 'mountain'
-                                ? 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-200 dark:border-cyan-700'
-                                : school.waterSystem === 'none'
-                                ? 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-700'
-                                : school.waterSystem === 'other'
-                                ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 dark:border-purple-700'
-                                : 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-700'
-                            }`}>
-                              <Droplets className="h-2.5 w-2.5 text-blue-500" />
-                              {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
-                               school.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
-                               school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
-                            </span>
+                                  {/* ป้ายประปา */}
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
+                                    school.waterSystem === 'mountain'
+                                      ? 'bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-200 dark:border-cyan-700'
+                                      : school.waterSystem === 'none'
+                                      ? 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-700'
+                                      : school.waterSystem === 'other'
+                                      ? 'bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 dark:border-purple-700'
+                                      : 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-700'
+                                  }`}>
+                                    <Droplets className="h-2.5 w-2.5 text-blue-500" />
+                                    {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                                     school.waterSystem === 'none' ? 'ไม่มีน้ำประปา' :
+                                     school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
+                                  </span>
 
-                            {/* ห้องเรียนย่อย */}
-                            {school.classrooms && school.classrooms.length > 0 && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
-                                📚 {school.classrooms.length} ห้อง
+                                  {/* ห้องเรียนย่อย */}
+                                  {school.classrooms && school.classrooms.length > 0 && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
+                                      📚 {school.classrooms.length} ห้อง
+                                    </span>
+                                  )}
+
+                                  {/* ครูวิชาเอก */}
+                                  {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-200 border border-sky-300 dark:border-sky-700 flex items-center gap-0.5" title={(school.majorSubjects || school.majorSubjectsWithStaff?.map(m=>m.name))?.join(', ')}>
+                                      <GraduationCap className="h-2.5 w-2.5 text-sky-600" />
+                                      {school.majorSubjects ? school.majorSubjects.slice(0, 2).join(', ') : school.majorSubjectsWithStaff?.slice(0, 2).map(m=>m.name).join(', ')}
+                                      {((school.majorSubjects?.length || 0) > 2 || (school.majorSubjectsWithStaff?.length || 0) > 2) && '...'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="text-[13px] font-black text-[#33272A] dark:text-[#FFF9F5]">{amp}</div>
+                              <div className="text-[11px] text-slate-500 dark:text-rose-200/50 font-medium">{net}</div>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                                school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                                school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
+                                'bg-[#FFAAA5] text-[#33272A]'
+                              }`}>
+                                {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
                               </span>
-                            )}
-
-                            {/* ครูวิชาเอก */}
-                            {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-200 border border-sky-300 dark:border-sky-700 flex items-center gap-0.5" title={(school.majorSubjects || school.majorSubjectsWithStaff?.map(m=>m.name))?.join(', ')}>
-                                <GraduationCap className="h-2.5 w-2.5 text-sky-600" />
-                                {school.majorSubjects ? school.majorSubjects.slice(0, 2).join(', ') : school.majorSubjectsWithStaff?.slice(0, 2).map(m=>m.name).join(', ')}
-                                {((school.majorSubjects?.length || 0) > 2 || (school.majorSubjectsWithStaff?.length || 0) > 2) && '...'}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                school.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFF9F5] text-slate-500'
+                              }`}>
+                                {school.isExpansion ? 'ขยายโอกาส' : 'ทั่วไป'}
                               </span>
-                            )}
+                            </td>
+                            <td className="p-3 text-center font-bold text-sm">{school.staffCount}</td>
+                            <td className="p-3 text-center font-black text-[#FF8BA7] text-sm">{school.studentCount}</td>
+                            <td className="p-3 text-center">
+                              <span className="font-bold text-[#33272A] dark:text-[#FFF9F5] text-[13px]">
+                                {school.internetType === 'fiber' ? 'Fiber' :
+                                 school.internetType === 'satellite' ? 'ดาวเทียม' :
+                                 school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right flex justify-end gap-1.5 items-center">
+                              {(school.schoolPhone || school.directorPhone) && (
+                                <a
+                                  href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
+                                  className="rounded-xl p-1.5 border-2 border-[#33272A] bg-emerald-100 hover:bg-emerald-200 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200 transition-colors cursor-pointer"
+                                  title={`โทรติดต่อ ${school.schoolPhone ? 'โรงเรียน (' + school.schoolPhone + ')' : 'ผู้บริหาร (' + school.directorPhone + ')'}`}
+                                >
+                                  <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                </a>
+                              )}
+                              <button
+                                onClick={() => onSelectSchool(school.id)}
+                                className="rounded-xl p-1.5 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] transition-colors cursor-pointer"
+                                title="ดูรายละเอียดเจาะลึก"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenDownload(school.id, school.name)}
+                                className="rounded-xl p-1.5 border-2 border-[#33272A] bg-[#A0E7E5] hover:opacity-90 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#A0E7E5] transition-colors cursor-pointer"
+                                title="ดาวน์โหลดไฟล์ข้อมูลนักเรียน"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </motion.tr>
+                        );
+                      })
+                    ) : (
+                      <motion.tr
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <td colSpan={9} className="p-8 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
+                            <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-[13px] font-black text-[#33272A] dark:text-[#FFF9F5]">{amp}</div>
-                        <div className="text-[11px] text-slate-500 dark:text-rose-200/50 font-medium">{net}</div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
-                          school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
-                          school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
-                          school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
-                          'bg-[#FFAAA5] text-[#33272A]'
-                        }`}>
-                          {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className={`px-2 py-1 rounded text-xs font-black border border-[#33272A] dark:border-[#FFD3B6] ${
-                          school.isExpansion ? 'bg-[#A0E7E5] text-[#33272A]' : 'bg-[#FFF9F5] text-slate-500'
-                        }`}>
-                          {school.isExpansion ? 'ขยายโอกาส' : 'ทั่วไป'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-bold text-sm">{school.staffCount}</td>
-                      <td className="p-3 text-center font-black text-[#FF8BA7] text-sm">{school.studentCount}</td>
-                      <td className="p-3 text-center">
-                        <span className="font-bold text-[#33272A] dark:text-[#FFF9F5] text-[13px]">
-                          {school.internetType === 'fiber' ? 'Fiber' :
-                           school.internetType === 'satellite' ? 'ดาวเทียม' :
-                           school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right flex justify-end gap-1.5 items-center">
-                        {(school.schoolPhone || school.directorPhone) && (
-                          <a
-                            href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
-                            className="rounded-xl p-1.5 border-2 border-[#33272A] bg-emerald-100 hover:bg-emerald-200 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-950 dark:text-emerald-200 transition-colors cursor-pointer"
-                            title={`โทรติดต่อ ${school.schoolPhone ? 'โรงเรียน (' + school.schoolPhone + ')' : 'ผู้บริหาร (' + school.directorPhone + ')'}`}
-                          >
-                            <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => onSelectSchool(school.id)}
-                          className="rounded-xl p-1.5 border-2 border-[#33272A] bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] transition-colors cursor-pointer"
-                          title="ดูรายละเอียดเจาะลึก"
+                        </td>
+                      </motion.tr>
+                    )}
+                  </AnimatePresence>
+                </LayoutGroup>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* แสดงข้อมูลแบบ Card Grid สำหรับ Desktop (เมื่อ viewMode === 'grid') */}
+        {viewMode === 'grid' && (
+          <div className="hidden lg:block p-6 bg-[#FFF9F5]/30 dark:bg-[#1e1518]/30">
+            <LayoutGroup id="desktop-school-cards">
+              <AnimatePresence mode="popLayout">
+                {sortedSchools.length > 0 ? (
+                  <motion.div 
+                    layout
+                    className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+                  >
+                    {sortedSchools.map((school) => {
+                      const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
+                      const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                      return (
+                        <motion.div 
+                          key={school.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 380,
+                            damping: 28,
+                            mass: 0.7
+                          }}
+                          whileHover={{ y: -4, transition: { duration: 0.15 } }}
+                          className={`card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative group ${
+                            selectedForCompare.includes(school.id)
+                              ? 'ring-2 ring-purple-500 bg-purple-50/40 dark:bg-purple-950/30'
+                              : ''
+                          }`}
                         >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDownload(school.id, school.name)}
-                          className="rounded-xl p-1.5 border-2 border-[#33272A] bg-[#A0E7E5] hover:opacity-90 text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#A0E7E5] transition-colors cursor-pointer"
-                          title="ดาวน์โหลดไฟล์ข้อมูลนักเรียน"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                                รหัส: {school.id}
+                              </span>
+                              <div className="flex flex-wrap gap-1 justify-end">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                  school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                                  school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                                  school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
+                                  'bg-[#FFAAA5] text-[#33272A]'
+                                }`}>
+                                  {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
+                                </span>
+                                {school.isExpansion && (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] bg-[#A0E7E5] text-[#33272A]">
+                                    ขยายโอกาส
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div>
+                              <button 
+                                onClick={() => onSelectSchool(school.id)}
+                                className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block group-hover:translate-x-0.5 duration-150"
+                              >
+                                {school.name}
+                              </button>
+                              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
+                              </p>
+
+                              {/* Badges ข้อมูลสาธารณูปโภคและวิชาเอก */}
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                                  school.electricity === 'has_electric' || school.electricity === true
+                                    ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                                    : school.electricity === 'solar'
+                                    ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                                    : school.electricity === 'hybrid'
+                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                                    : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                                }`}>
+                                  <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                                  {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                                   school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                                   school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
+                                </span>
+
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 flex items-center gap-1">
+                                  <Globe className="h-2.5 w-2.5 text-sky-600" />
+                                  {school.internetType === 'fiber' ? 'เน็ต Fiber' :
+                                   school.internetType === 'satellite' ? 'เน็ต ดาวเทียม' :
+                                   school.internetType === 'sim' ? 'เน็ต SIM 4G' : 'ไม่มีเน็ต'}
+                                </span>
+
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 flex items-center gap-1">
+                                  <Droplets className="h-2.5 w-2.5 text-blue-600" />
+                                  {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                                   school.waterSystem === 'none' ? 'ไม่มีน้ำ' :
+                                   school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
+                                </span>
+
+                                {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 flex items-center gap-1" title={(school.majorSubjects || school.majorSubjectsWithStaff?.map(m=>m.name))?.join(', ')}>
+                                    <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
+                                    เอก{school.majorSubjects ? school.majorSubjects[0] : school.majorSubjectsWithStaff?.[0]?.name}
+                                    {((school.majorSubjects?.length || 0) > 1 || (school.majorSubjectsWithStaff?.length || 0) > 1) && ` +${(school.majorSubjects?.length || school.majorSubjectsWithStaff?.length || 1) - 1}`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-1.5 py-2 border-y border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-center text-xs">
+                              <div>
+                                <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ครู/บุคลากร</div>
+                                <div className="font-black text-[#33272A] dark:text-[#FFF9F5] mt-0.5">{school.staffCount} คน</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">นักเรียนรวม</div>
+                                <div className="font-black text-[#FF8BA7] mt-0.5">{school.studentCount} คน</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ระบบเน็ต</div>
+                                <div className="font-black text-[#33272A] dark:text-[#FFF9F5] truncate mt-0.5" title={school.internetType}>
+                                  {school.internetType === 'fiber' ? 'Fiber' :
+                                   school.internetType === 'satellite' ? 'ดาวเทียม' :
+                                   school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            <button
+                              type="button"
+                              onClick={() => toggleCompareSchool(school.id)}
+                              className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                                selectedForCompare.includes(school.id)
+                                  ? 'bg-purple-600 text-white border-purple-800'
+                                  : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                              }`}
+                            >
+                              <GitCompare className="h-4 w-4" />
+                              {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
+                            </button>
+                            {(school.schoolPhone || school.directorPhone) && (
+                              <a
+                                href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
+                                className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                                title="โทรติดต่อ"
+                              >
+                                <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
+                              </a>
+                            )}
+                            <button
+                              onClick={() => onSelectSchool(school.id)}
+                              className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            >
+                              <Eye className="h-4 w-4" /> รายละเอียด
+                            </button>
+                            <button
+                              onClick={() => handleOpenDownload(school.id, school.name)}
+                              className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            >
+                              <Download className="h-4 w-4" /> โหลด
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-8 text-center text-slate-400 card bg-white dark:bg-[#1e1518]"
+                  >
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
                       <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </LayoutGroup>
+          </div>
+        )}
 
         {/* ตารางแสดงข้อมูลแบบ Mobile & Tablet Card Layout */}
         <div className="lg:hidden p-4 space-y-4 bg-[#FFF9F5]/30 dark:bg-[#1e1518]/30 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-          {sortedSchools.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {sortedSchools.map((school) => {
-                const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
-                const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
-                return (
-                  <div 
-                    key={school.id} 
-                    className="card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
-                          รหัส: {school.id}
-                        </span>
-                        <div className="flex flex-wrap gap-1 justify-end">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
-                            school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
-                            school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
-                            school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
-                            'bg-[#FFAAA5] text-[#33272A]'
-                          }`}>
-                            {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
-                          </span>
-                          {school.isExpansion && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] bg-[#A0E7E5] text-[#33272A]">
-                              ขยายโอกาส
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <button 
-                          onClick={() => onSelectSchool(school.id)}
-                          className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block"
-                        >
-                          {school.name}
-                        </button>
-                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
-                        </p>
-
-                        {/* Badges ข้อมูลไฟฟ้า และ ครูวิชาเอก สำหรับมือถือ */}
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                            school.electricity === 'has_electric' || school.electricity === true
-                              ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
-                              : school.electricity === 'solar'
-                              ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
-                              : school.electricity === 'hybrid'
-                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
-                              : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
-                          }`}>
-                            <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
-                            {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
-                             school.electricity === 'solar' ? 'โซลาร์เซลล์' :
-                             school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
-                          </span>
-
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 flex items-center gap-1">
-                            <Globe className="h-2.5 w-2.5 text-sky-600" />
-                            {school.internetType === 'fiber' ? 'เน็ต Fiber' :
-                             school.internetType === 'satellite' ? 'เน็ต ดาวเทียม' :
-                             school.internetType === 'sim' ? 'เน็ต SIM 4G' : 'ไม่มีเน็ต'}
-                          </span>
-
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 flex items-center gap-1">
-                            <Droplets className="h-2.5 w-2.5 text-blue-600" />
-                            {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
-                             school.waterSystem === 'none' ? 'ไม่มีน้ำ' :
-                             school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
-                          </span>
-
-                          {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 flex items-center gap-1">
-                              <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
-                              เอก{school.majorSubjects ? school.majorSubjects[0] : school.majorSubjectsWithStaff?.[0]?.name}
-                              {((school.majorSubjects?.length || 0) > 1 || (school.majorSubjectsWithStaff?.length || 0) > 1) && ` +${(school.majorSubjects?.length || school.majorSubjectsWithStaff?.length || 1) - 1}`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-1.5 py-2 border-y border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-center text-xs">
-                        <div>
-                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ครู/บุคลากร</div>
-                          <div className="font-black text-[#33272A] dark:text-[#FFF9F5] mt-0.5">{school.staffCount} คน</div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">นักเรียนรวม</div>
-                          <div className="font-black text-[#FF8BA7] mt-0.5">{school.studentCount} คน</div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ระบบอินเทอร์เน็ต</div>
-                          <div className="font-black text-[#33272A] dark:text-[#FFF9F5] truncate mt-0.5" title={school.internetType}>
-                            {school.internetType === 'fiber' ? 'Fiber' :
-                             school.internetType === 'satellite' ? 'ดาวเทียม' :
-                             school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      <button
-                        type="button"
-                        onClick={() => toggleCompareSchool(school.id)}
-                        className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+          <LayoutGroup id="mobile-school-cards">
+            <AnimatePresence mode="popLayout">
+              {sortedSchools.length > 0 ? (
+                <motion.div 
+                  layout
+                  className="grid gap-4 sm:grid-cols-2"
+                >
+                  {sortedSchools.map((school) => {
+                    const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
+                    const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
+                    return (
+                      <motion.div 
+                        key={school.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.92, y: -10, transition: { duration: 0.18 } }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 380,
+                          damping: 28,
+                          mass: 0.7
+                        }}
+                        className={`card p-4 flex flex-col justify-between hover:border-[#FF8BA7] transition-all bg-white dark:bg-[#1e1518] relative ${
                           selectedForCompare.includes(school.id)
-                            ? 'bg-purple-600 text-white border-purple-800'
-                            : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                            ? 'ring-2 ring-purple-500 bg-purple-50/40 dark:bg-purple-950/30'
+                            : ''
                         }`}
                       >
-                        <GitCompare className="h-4 w-4" />
-                        {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
-                      </button>
-                      {(school.schoolPhone || school.directorPhone) && (
-                        <a
-                          href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
-                          className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
-                          title="โทรติดต่อ"
-                        >
-                          <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
-                        </a>
-                      )}
-                      <button
-                        onClick={() => onSelectSchool(school.id)}
-                        className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
-                      >
-                        <Eye className="h-4 w-4" /> รายละเอียด
-                      </button>
-                      <button
-                        onClick={() => handleOpenDownload(school.id, school.name)}
-                        className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
-                      >
-                        <Download className="h-4 w-4" /> โหลด
-                      </button>
-                    </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] font-mono font-black text-rose-500 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-[#33272A]/10 dark:border-[#FFD3B6]/10">
+                              รหัส: {school.id}
+                            </span>
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] ${
+                                school.size === 'small' ? 'bg-[#FF8BA7] text-[#33272A]' :
+                                school.size === 'medium' ? 'bg-[#FFD3B6] text-[#33272A]' :
+                                school.size === 'large' ? 'bg-[#A0E7E5] text-[#33272A]' :
+                                'bg-[#FFAAA5] text-[#33272A]'
+                              }`}>
+                                {school.size === 'small' ? 'เล็ก' : school.size === 'medium' ? 'กลาง' : school.size === 'large' ? 'ใหญ่' : 'ใหญ่พิเศษ'}
+                              </span>
+                              {school.isExpansion && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black border border-[#33272A] dark:border-[#FFD3B6] bg-[#A0E7E5] text-[#33272A]">
+                                  ขยายโอกาส
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <button 
+                              onClick={() => onSelectSchool(school.id)}
+                              className="text-base font-black text-[#33272A] dark:text-[#FFF9F5] hover:text-[#FF8BA7] text-left transition-colors cursor-pointer block"
+                            >
+                              {school.name}
+                            </button>
+                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-[#FF8BA7] shrink-0" /> อ.{amp} • {net}
+                            </p>
+
+                            {/* Badges ข้อมูลไฟฟ้า และ ครูวิชาเอก สำหรับมือถือ */}
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                                school.electricity === 'has_electric' || school.electricity === true
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200'
+                                  : school.electricity === 'solar'
+                                  ? 'bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/80 dark:text-yellow-200'
+                                  : school.electricity === 'hybrid'
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300'
+                              }`}>
+                                <Zap className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
+                                {school.electricity === 'has_electric' || school.electricity === true ? 'ไฟฟ้าถาวร' :
+                                 school.electricity === 'solar' ? 'โซลาร์เซลล์' :
+                                 school.electricity === 'hybrid' ? 'ไฟฟ้าผสมผสาน' : 'ไม่มีไฟฟ้า'}
+                              </span>
+
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 flex items-center gap-1">
+                                <Globe className="h-2.5 w-2.5 text-sky-600" />
+                                {school.internetType === 'fiber' ? 'เน็ต Fiber' :
+                                 school.internetType === 'satellite' ? 'เน็ต ดาวเทียม' :
+                                 school.internetType === 'sim' ? 'เน็ต SIM 4G' : 'ไม่มีเน็ต'}
+                              </span>
+
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 flex items-center gap-1">
+                                <Droplets className="h-2.5 w-2.5 text-blue-600" />
+                                {school.waterSystem === 'mountain' ? 'ประปาภูเขา' :
+                                 school.waterSystem === 'none' ? 'ไม่มีน้ำ' :
+                                 school.waterSystem === 'other' ? 'น้ำอื่นๆ' : 'ประปารัฐ'}
+                              </span>
+
+                              {((school.majorSubjects && school.majorSubjects.length > 0) || (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0)) && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/80 dark:text-purple-200 flex items-center gap-1">
+                                  <GraduationCap className="h-2.5 w-2.5 text-purple-600" />
+                                  เอก{school.majorSubjects ? school.majorSubjects[0] : school.majorSubjectsWithStaff?.[0]?.name}
+                                  {((school.majorSubjects?.length || 0) > 1 || (school.majorSubjectsWithStaff?.length || 0) > 1) && ` +${(school.majorSubjects?.length || school.majorSubjectsWithStaff?.length || 1) - 1}`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 py-2 border-y border-[#33272A]/10 dark:border-[#FFD3B6]/10 text-center text-xs">
+                            <div>
+                              <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ครู/บุคลากร</div>
+                              <div className="font-black text-[#33272A] dark:text-[#FFF9F5] mt-0.5">{school.staffCount} คน</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">นักเรียนรวม</div>
+                              <div className="font-black text-[#FF8BA7] mt-0.5">{school.studentCount} คน</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">ระบบอินเทอร์เน็ต</div>
+                              <div className="font-black text-[#33272A] dark:text-[#FFF9F5] truncate mt-0.5" title={school.internetType}>
+                                {school.internetType === 'fiber' ? 'Fiber' :
+                                 school.internetType === 'satellite' ? 'ดาวเทียม' :
+                                 school.internetType === 'sim' ? 'SIM 4G' : 'ไม่ได้ใช้'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => toggleCompareSchool(school.id)}
+                            className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                              selectedForCompare.includes(school.id)
+                                ? 'bg-purple-600 text-white border-purple-800'
+                                : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                            }`}
+                          >
+                            <GitCompare className="h-4 w-4" />
+                            {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
+                          </button>
+                          {(school.schoolPhone || school.directorPhone) && (
+                            <a
+                              href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
+                              className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                              title="โทรติดต่อ"
+                            >
+                              <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
+                            </a>
+                          )}
+                          <button
+                            onClick={() => onSelectSchool(school.id)}
+                            className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Eye className="h-4 w-4" /> รายละเอียด
+                          </button>
+                          <button
+                            onClick={() => handleOpenDownload(school.id, school.name)}
+                            className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Download className="h-4 w-4" /> โหลด
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="p-8 text-center text-slate-400 card bg-white dark:bg-[#1e1518]"
+                >
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
+                    <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-8 text-center text-slate-400 card bg-white dark:bg-[#1e1518]">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <AlertTriangle className="h-8 w-8 text-[#FF8BA7] animate-bounce" />
-                <span className="font-bold">ไม่พบข้อมูลโรงเรียนที่ตรงกับเงื่อนไขการค้นหา</span>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </LayoutGroup>
         </div>
       </div>
 
@@ -1259,7 +1540,7 @@ export default function SchoolListView({
                     เปรียบเทียบข้อมูลโรงเรียน ({compareSchools.length} แห่ง)
                   </h3>
                   <p className="text-[11px] md:text-xs text-[#33272A]/70 dark:text-[#FFF9F5]/70 font-semibold">
-                    เปรียบเทียบข้อมูลพื้นฐาน สาธารณูปโภค ครู และนักเรียน ปีการศึกษา {academicYear || '2568'}
+                    เปรียบเทียบข้อมูลพื้นฐาน สาธารณูปโภค ครู และนักเรียน ปีการศึกษา {academicYear || getCurrentBEYear()}
                   </p>
                 </div>
               </div>

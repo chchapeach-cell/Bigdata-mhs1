@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
 import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
-import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST } from '../utils/initialData';
+import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import { determineQualityLevel, matchSchoolId } from '../utils/academicData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 
@@ -776,7 +776,7 @@ export default function SchoolDetailView({
 
   // สถานะปีการศึกษาที่กำลังดูในหน้ารายละเอียดโรงเรียน
   const [selectedYear, setSelectedYear] = useState<string>(
-    academicYear || studentData?.academicYear || '2568'
+    academicYear || studentData?.academicYear || getCurrentBEYear()
   );
 
   useEffect(() => {
@@ -886,7 +886,7 @@ export default function SchoolDetailView({
   // โหลดและประมวลผลข้อมูลผลสัมฤทธิ์ทางการศึกษา RT / NT ของโรงเรียนนี้
   const [localAcademicRecords, setLocalAcademicRecords] = useState<AcademicRecord[]>(academicRecords || []);
   const [selectedAcademicTestFilter, setSelectedAcademicTestFilter] = useState<'all' | 'RT' | 'NT'>('all');
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear || academicYear || '2568');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(selectedYear || academicYear || getCurrentBEYear());
 
   useEffect(() => {
     if (academicRecords !== undefined) {
@@ -923,7 +923,7 @@ export default function SchoolDetailView({
     const rawList = schoolAcademicRecords.map(r => String(r.academicYear || '').trim()).filter(Boolean);
     const yrs: string[] = Array.from(new Set(rawList));
     if (yrs.length === 0) {
-      return [selectedYear || academicYear || '2568'];
+      return [selectedYear || academicYear || getCurrentBEYear()];
     }
     return yrs.sort((a: string, b: string) => b.localeCompare(a));
   }, [schoolAcademicRecords, selectedYear, academicYear]);
@@ -2591,7 +2591,7 @@ export default function SchoolDetailView({
                 }}
                 className="bg-[#FFF9F5] dark:bg-[#1e1518] text-[#33272A] dark:text-[#FFF9F5] border-2 border-[#33272A] dark:border-[#FFD3B6] rounded-xl px-2.5 py-1 text-xs font-black cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-[#FF8BA7]"
               >
-                {(availableYears && availableYears.length > 0 ? availableYears : ['2568', '2567', '2566', '2565']).map(yr => (
+                {(availableYears && availableYears.length > 0 ? availableYears : getDefaultAvailableYears()).map(yr => (
                   <option key={yr} value={yr}>ปีการศึกษา {yr}</option>
                 ))}
               </select>
