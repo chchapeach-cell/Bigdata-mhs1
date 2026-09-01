@@ -649,7 +649,7 @@ export default function App() {
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    const CACHE_KEY = 'mhs_app_data_cache_v4';
+    const CACHE_KEY = 'mhs_app_data_cache_v5';
     const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
 
     // ตรวจสอบแคชในเบราว์เซอร์ก่อน หากยังไม่หมดอายุและไม่ได้กด forceRefresh
@@ -659,7 +659,7 @@ export default function App() {
         if (cachedRaw) {
           const parsed = JSON.parse(cachedRaw);
           if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < CACHE_TTL_MS)) {
-            if (Array.isArray(parsed.schools) && parsed.schools.length > 0) {
+            if (Array.isArray(parsed.schools) && parsed.schools.length > 0 && Array.isArray(parsed.studentData) && parsed.studentData.length > 0) {
               setSchools(parsed.schools);
               setStudentData(parsed.studentData || []);
               setStudentGData(parsed.studentGData || []);
@@ -669,10 +669,7 @@ export default function App() {
               }
               if (Array.isArray(parsed.availableYears) && parsed.availableYears.length > 0) {
                 setAvailableYears(parsed.availableYears);
-                // เลือกปีการศึกษาที่มีข้อมูลนักเรียนจริง
-                const studentYears = Array.isArray(parsed.studentData) 
-                  ? Array.from(new Set(parsed.studentData.map((s: any) => s.academicYear).filter(Boolean))).sort((a: any, b: any) => Number(b) - Number(a))
-                  : [];
+                const studentYears = Array.from(new Set(parsed.studentData.map((s: any) => s.academicYear).filter(Boolean))).sort((a: any, b: any) => Number(b) - Number(a));
                 setAcademicYear((studentYears[0] as string) || parsed.availableYears[0]);
               }
               setIsLoading(false);
@@ -691,9 +688,9 @@ export default function App() {
         try {
           // ดึงข้อมูลทั้งหมดจาก Supabase แบบคู่ขนาน
           const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
-            supabase.from('schools').select('*').order('id', { ascending: true }),
-            supabase.from('students').select('*'),
-            supabase.from('students_g').select('*'),
+            supabase.from('schools').select('*').limit(2000).order('id', { ascending: true }),
+            supabase.from('students').select('*').limit(5000),
+            supabase.from('students_g').select('*').limit(5000),
             supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
             dbFetchAcademicRecords().catch(() => [])
           ]);
@@ -761,20 +758,46 @@ export default function App() {
             });
 
             const suStudents = studentsRes.data;
-            let mappedStudents: StudentData[] = (suStudents || []).map(st => ({
-              id: st.id,
-              schoolId: st.school_id || st.schoolId,
-              schoolName: st.school_name || st.schoolName,
-              academicYear: st.academic_year || st.academicYear,
-              grades: st.grades || {},
-              totalMale: st.total_male ?? st.totalMale ?? 0,
-              totalFemale: st.total_female ?? st.totalFemale ?? 0,
-              totalStudents: st.total_students ?? st.totalStudents ?? 0
-            }));
+            let mappedStudents: StudentData[] = (suStudents || []).map(st => {
+              let totalMale = Number(st.total_male ?? st.totalMale ?? 0);
+              let totalFemale = Number(st.total_female ?? st.totalFemale ?? 0);
+              let totalStudents = Number(st.total_students ?? st.totalStudents ?? 0);
+
+              // คำนวณสรุปยอดอัตโนมัติจากโครงสร้าง grades ในกรณีที่ฐานข้อมูลไม่ได้บันทึก total_students แยกคอลัมน์
+              if (st.grades && typeof st.grades === 'object') {
+                let gMale = 0;
+                let gFemale = 0;
+                let gTotal = 0;
+                Object.values(st.grades).forEach((g: any) => {
+                  if (g && typeof g === 'object') {
+                    const m = Number(g.male || 0);
+                    const f = Number(g.female || 0);
+                    const t = Number(g.total !== undefined && g.total !== null ? g.total : (m + f));
+                    gMale += m;
+                    gFemale += f;
+                    gTotal += t;
+                  }
+                });
+                if ((totalStudents === 0 || isNaN(totalStudents)) && gTotal > 0) totalStudents = gTotal;
+                if ((totalMale === 0 || isNaN(totalMale)) && gMale > 0) totalMale = gMale;
+                if ((totalFemale === 0 || isNaN(totalFemale)) && gFemale > 0) totalFemale = gFemale;
+              }
+
+              return {
+                id: st.id,
+                schoolId: st.school_id || st.schoolId,
+                schoolName: st.school_name || st.schoolName,
+                academicYear: String(st.academic_year || st.academicYear || '').trim(),
+                grades: st.grades || {},
+                totalMale,
+                totalFemale,
+                totalStudents
+              };
+            });
 
             // หากตาราง students บน Supabase ยังไม่มีข้อมูล ให้สร้างโครงสร้างข้อมูลนักเรียนสำหรับทุกโรงเรียน
             if (mappedStudents.length === 0) {
-              const currentYear = currentBEYear || '2568';
+              const currentYear = currentBEYear || '2569';
               mappedStudents = mappedSchools.map(sch => ({
                 id: `${sch.id}_${currentYear}`,
                 schoolId: sch.id,
@@ -792,10 +815,10 @@ export default function App() {
               id: sg.id,
               schoolId: sg.school_id || sg.schoolId,
               schoolName: sg.school_name || sg.schoolName,
-              academicYear: sg.academic_year || sg.academicYear,
-              totalGStudents: sg.total_g_students ?? sg.totalGStudents ?? 0,
-              maleGCount: sg.male_g_count ?? sg.maleGCount ?? 0,
-              femaleGCount: sg.female_g_count ?? sg.femaleGCount ?? 0,
+              academicYear: String(sg.academic_year || sg.academicYear || '').trim(),
+              totalGStudents: Number(sg.total_g_students ?? sg.totalGStudents ?? 0),
+              maleGCount: Number(sg.male_g_count ?? sg.maleGCount ?? 0),
+              femaleGCount: Number(sg.female_g_count ?? sg.femaleGCount ?? 0),
               notes: sg.notes || ''
             }));
 
@@ -830,11 +853,11 @@ export default function App() {
 
             const years = Array.from(yearsSet);
             if (years.length > 0) {
-              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2568, 2567)
+              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2569, 2568, 2567, 2566)
               years.sort((a, b) => Number(b) - Number(a));
               setAvailableYears(years);
               
-              // เลือกปีที่มีข้อมูลนักเรียนจริงล่าสุดก่อน ถ้าไม่มีให้เลือกปีแรกในรายการ
+              // เลือกปีล่าสุดที่มีข้อมูลในระบบ (เช่น 2569)
               const studentYears = Array.from(studentYearsSet).sort((a, b) => Number(b) - Number(a));
               const defaultYear = studentYears.length > 0 ? studentYears[0] : years[0];
               setAcademicYear(defaultYear);
@@ -880,7 +903,6 @@ export default function App() {
         setStudentGData([]);
         setAcademicRecords([]);
       }
-
     } catch (error) {
       console.warn('Notice fetching data:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
