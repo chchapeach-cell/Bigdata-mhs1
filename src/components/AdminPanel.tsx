@@ -3,7 +3,7 @@ import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award, ArrowUpDown, ChevronUp, ChevronDown, Cpu } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import * as XLSX from 'xlsx';
@@ -11,6 +11,7 @@ import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork, getCurrentBEYea
 import { removeUndefinedFields } from '../utils/errorHelper';
 import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
+import SystemSessionAndRamMonitor from './SystemSessionAndRamMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
 import { UserActivityLogView } from './UserActivityLogView';
@@ -36,7 +37,7 @@ interface AdminPanelProps {
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
   onSelectSchool?: (id: string) => void;
-  initialAdminTab?: 'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme';
+  initialAdminTab?: 'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme';
 }
 
 export default function AdminPanel({
@@ -615,7 +616,7 @@ export default function AdminPanel({
     );
     return schools.filter(s => !approvedSchoolIds.has(s.id)).length;
   }, [schools, approvedUsers]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme'>(
+  const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme'>(
     initialAdminTab || (isSuperAdmin ? 'students_center' : 'schools')
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
@@ -628,7 +629,7 @@ export default function AdminPanel({
     }
   }, [initialAdminTab]);
 
-  // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม และตั้งค่าระบบ)
+  // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม, สถิติระบบ และตั้งค่าระบบ)
   useEffect(() => {
     if (!isSuperAdmin && (
       adminTab === 'students_center' || 
@@ -636,6 +637,7 @@ export default function AdminPanel({
       adminTab === 'users' || 
       adminTab === 'logs' || 
       adminTab === 'activity_logs' || 
+      adminTab === 'system_monitor' || 
       adminTab === 'settings'
     )) {
       setAdminTab('schools');
@@ -2681,6 +2683,22 @@ export default function AdminPanel({
                 <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 <span>LOG การแก้ไขข้อมูล (Activity Log)</span>
               </button>
+
+              <button
+                onClick={() => setAdminTab('system_monitor')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'system_monitor' 
+                    ? 'bg-[#FF8BA7] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Cpu className="h-4 w-4 text-rose-700 dark:text-rose-300" />
+                <span>ความหนาแน่น &amp; RAM (Live)</span>
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </button>
             </>
           )}
 
@@ -3595,6 +3613,17 @@ export default function AdminPanel({
               currentUser={userProfile}
               schools={schools}
               isSuperAdmin={isSuperAdmin}
+            />
+          )}
+
+          {/* TAB: Real-time System Active Session Load & RAM Usage Monitor (เฉพาะ Super Admin) */}
+          {adminTab === 'system_monitor' && isSuperAdmin && (
+            <SystemSessionAndRamMonitor
+              currentUserProfile={userProfile}
+              schools={schools}
+              studentData={studentData}
+              studentGData={studentGData}
+              userProfiles={approvedUsers.concat(pendingUsers)}
             />
           )}
 

@@ -645,16 +645,40 @@ export default function App() {
     }
   }, [serverStatus, systemConfig.highTrafficAlertEnabled]);
 
-  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Supabase / Firestore (ดึงข้อมูลสดเสมอ ไม่ผ่านแคช)
+  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Supabase / Firestore (มีระบบ Smart Cache ลด Egress)
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    // ล้างแคชเก่าที่อาจตกค้างอยู่ในเบราว์เซอร์เพื่อให้ได้ข้อมูลจริงล่าสุดเสมอ
-    try {
-      localStorage.removeItem('mhs_app_data_cache_v3');
-      sessionStorage.removeItem('mhs_app_data_cache_v3');
-    } catch (e) {
-      // ignore
+    const CACHE_KEY = 'mhs_app_data_cache_v4';
+    const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
+
+    // ตรวจสอบแคชในเบราว์เซอร์ก่อน หากยังไม่หมดอายุและไม่ได้กด forceRefresh
+    if (!forceRefresh) {
+      try {
+        const cachedRaw = localStorage.getItem(CACHE_KEY);
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < CACHE_TTL_MS)) {
+            if (Array.isArray(parsed.schools) && parsed.schools.length > 0) {
+              setSchools(parsed.schools);
+              setStudentData(parsed.studentData || []);
+              setStudentGData(parsed.studentGData || []);
+              setAcademicRecords(parsed.academicRecords || []);
+              if (parsed.systemConfig) {
+                setSystemConfig(prev => ({ ...prev, ...parsed.systemConfig }));
+              }
+              if (Array.isArray(parsed.availableYears) && parsed.availableYears.length > 0) {
+                setAvailableYears(parsed.availableYears);
+                setAcademicYear(parsed.availableYears[0]);
+              }
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (cacheReadErr) {
+        console.warn('Cache read notice:', cacheReadErr);
+      }
     }
 
     try {
@@ -810,6 +834,21 @@ export default function App() {
             }
 
             setAcademicRecords(acRecords || []);
+
+            // บันทึกลงแคชเพื่อป้องกันการดึงข้อมูลซ้ำเมื่อเปิดหน้าเว็บใหม่
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                schools: mappedSchools,
+                studentData: mappedStudents,
+                studentGData: mappedStudentsG,
+                academicRecords: acRecords || [],
+                systemConfig: (settingsRes as any)?.data?.config || null,
+                availableYears: years
+              }));
+            } catch (cacheWriteErr) {
+              console.warn('Cache write notice:', cacheWriteErr);
+            }
 
             console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
             setIsLoading(false);
