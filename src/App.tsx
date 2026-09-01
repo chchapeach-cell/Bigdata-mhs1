@@ -669,7 +669,11 @@ export default function App() {
               }
               if (Array.isArray(parsed.availableYears) && parsed.availableYears.length > 0) {
                 setAvailableYears(parsed.availableYears);
-                setAcademicYear(parsed.availableYears[0]);
+                // เลือกปีการศึกษาที่มีข้อมูลนักเรียนจริง
+                const studentYears = Array.isArray(parsed.studentData) 
+                  ? Array.from(new Set(parsed.studentData.map((s: any) => s.academicYear).filter(Boolean))).sort((a: any, b: any) => Number(b) - Number(a))
+                  : [];
+                setAcademicYear((studentYears[0] as string) || parsed.availableYears[0]);
               }
               setIsLoading(false);
               return;
@@ -803,13 +807,16 @@ export default function App() {
             setStudentData(mappedStudents);
             setStudentGData(mappedStudentsG);
 
-            // รวบรวมปีการศึกษาทั้งหมดที่มีอยู่ในระบบ
-            const yearsSet = new Set<string>();
+            // รวบรวมปีการศึกษาที่มีข้อมูลนักเรียนจริงในระบบ
+            const studentYearsSet = new Set<string>();
             mappedStudents.forEach(s => {
               if (s.academicYear && /^\d{4}$/.test(String(s.academicYear).trim())) {
-                yearsSet.add(String(s.academicYear).trim());
+                studentYearsSet.add(String(s.academicYear).trim());
               }
             });
+
+            // รวบรวมปีการศึกษาทั้งหมดที่มีอยู่ในระบบ
+            const yearsSet = new Set<string>(studentYearsSet);
             mappedStudentsG.forEach(sg => {
               if (sg.academicYear && /^\d{4}$/.test(String(sg.academicYear).trim())) {
                 yearsSet.add(String(sg.academicYear).trim());
@@ -820,17 +827,17 @@ export default function App() {
                 yearsSet.add(String(ar.academicYear).trim());
               }
             });
-            if (currentBEYear && /^\d{4}$/.test(currentBEYear)) {
-              yearsSet.add(currentBEYear);
-            }
 
             const years = Array.from(yearsSet);
             if (years.length > 0) {
-              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2570, 2569, 2568, 2567)
+              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2568, 2567)
               years.sort((a, b) => Number(b) - Number(a));
               setAvailableYears(years);
-              // เลือกปีล่าสุดเสมอเมื่อเปิดเข้าสู่ระบบ
-              setAcademicYear(years[0]);
+              
+              // เลือกปีที่มีข้อมูลนักเรียนจริงล่าสุดก่อน ถ้าไม่มีให้เลือกปีแรกในรายการ
+              const studentYears = Array.from(studentYearsSet).sort((a, b) => Number(b) - Number(a));
+              const defaultYear = studentYears.length > 0 ? studentYears[0] : years[0];
+              setAcademicYear(defaultYear);
             }
 
             setAcademicRecords(acRecords || []);
