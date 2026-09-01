@@ -820,7 +820,7 @@ export default function DashboardView({
       },
       {
         title: "นักเรียนรหัส G (ไม่มีหลักฐานทางทะเบียนราษฎร)",
-        desc: `ปีการศึกษา ${academicYear} มีนักเรียนรหัส G รวม ${gTotal.toLocaleString()} คน (ชาย ${gMale.toLocaleString()} คน, หญิง ${gFemale.toLocaleString()} คน) กระจายในโรงเรียน ${gSchools} แห่ง เพื่อการคุ้มครองสิทธิและสนับสนุนงบประมาณการศึกษาอย่างเสมอภาค`,
+        desc: `ปีการศึกษา ${academicYear} มีนักเรียนรหัส G รวม ${(gTotal || 0).toLocaleString()} คน (ชาย ${(gMale || 0).toLocaleString()} คน, หญิง ${(gFemale || 0).toLocaleString()} คน) กระจายในโรงเรียน ${gSchools} แห่ง เพื่อการคุ้มครองสิทธิและสนับสนุนงบประมาณการศึกษาอย่างเสมอภาค`,
         type: "warning"
       }
     ];
@@ -934,7 +934,7 @@ export default function DashboardView({
           </div>
           <div className="mt-4 flex justify-between items-end">
             <div>
-              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{stats.totalStudents.toLocaleString()}</span>
+              <span className="text-3xl font-bold text-[#33272A] dark:text-[#FFF9F5]">{(stats?.totalStudents || 0).toLocaleString()}</span>
               <span className="ml-2 text-xs font-semibold text-[#33272A]/70 dark:text-[#FFF9F5]/70">คน (ชาย: {stats.totalMale} / หญิง: {stats.totalFemale})</span>
             </div>
             <span className="text-xs font-bold text-[#FF8BA7] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
@@ -1226,7 +1226,7 @@ export default function DashboardView({
                 <Eye className="h-4 w-4 text-amber-900 dark:text-slate-900 shrink-0" />
               </button>
               <div className="bg-white dark:bg-[#1e1518] px-2.5 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-xs font-black text-[#33272A] dark:text-[#FFF9F5] shrink-0">
-                ปี {academicYear}: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{currentYearGStats.total.toLocaleString()}</span> คน
+                ปี {academicYear}: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{(currentYearGStats?.total || 0).toLocaleString()}</span> คน
               </div>
             </div>
           </div>
@@ -1237,7 +1237,7 @@ export default function DashboardView({
               <div>
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">นักเรียนรหัส G รวม</span>
                 <div className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1">
-                  {currentYearGStats.total.toLocaleString()} <span className="text-xs font-normal">คน</span>
+                  {(currentYearGStats?.total || 0).toLocaleString()} <span className="text-xs font-normal">คน</span>
                 </div>
               </div>
               <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 flex items-center justify-center font-bold">
@@ -1249,8 +1249,8 @@ export default function DashboardView({
               <div>
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สัดส่วน ชาย / หญิง</span>
                 <div className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] mt-1 flex items-center gap-3">
-                  <span className="text-blue-600 dark:text-blue-400">ชาย: {currentYearGStats.male.toLocaleString()}</span>
-                  <span className="text-pink-600 dark:text-pink-400">หญิง: {currentYearGStats.female.toLocaleString()}</span>
+                  <span className="text-blue-600 dark:text-blue-400">ชาย: {(currentYearGStats?.male || 0).toLocaleString()}</span>
+                  <span className="text-pink-600 dark:text-pink-400">หญิง: {(currentYearGStats?.female || 0).toLocaleString()}</span>
                 </div>
               </div>
               <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300 flex items-center justify-center font-bold">
@@ -2585,7 +2585,7 @@ export default function DashboardView({
               <div className="flex items-center gap-2 flex-wrap">
                 <span>💡 สรุปรวม:</span>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-black border border-amber-300">
-                  นักเรียนตัว G ทั้งหมด {currentYearGStats.total.toLocaleString()} คน
+                  นักเรียนตัว G ทั้งหมด {(currentYearGStats?.total || 0).toLocaleString()} คน
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">
                   เฉลี่ย {gSchoolsList.length > 0 ? (currentYearGStats.total / gSchoolsList.length).toFixed(1) : 0} คน / โรงเรียน

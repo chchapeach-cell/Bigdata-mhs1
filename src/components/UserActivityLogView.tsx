@@ -476,7 +476,7 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
               <span>กิจกรรมที่ดึงมา ({limitCount} ล่าสุด)</span>
             </div>
             <div className="text-2xl font-black text-[#33272A] dark:text-[#FFF9F5]">
-              {stats.total.toLocaleString()} <span className="text-xs font-normal text-slate-400">รายการ</span>
+              {(stats?.total || 0).toLocaleString()} <span className="text-xs font-normal text-slate-400">รายการ</span>
             </div>
           </div>
 
@@ -486,7 +486,7 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
               <span>ปรับปรุงสถิตินักเรียน</span>
             </div>
             <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
-              {stats.studentUpdates.toLocaleString()} <span className="text-xs font-normal text-slate-400">ครั้ง</span>
+              {(stats?.studentUpdates || 0).toLocaleString()} <span className="text-xs font-normal text-slate-400">ครั้ง</span>
             </div>
           </div>
 
@@ -496,7 +496,7 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
               <span>โครงสร้างพื้นฐาน</span>
             </div>
             <div className="text-2xl font-black text-amber-800 dark:text-amber-300">
-              {stats.infraUpdates.toLocaleString()} <span className="text-xs font-normal text-slate-400">ครั้ง</span>
+              {(stats?.infraUpdates || 0).toLocaleString()} <span className="text-xs font-normal text-slate-400">ครั้ง</span>
             </div>
           </div>
 
@@ -506,7 +506,7 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
               <span>แอดมินที่มีการแก้ไข</span>
             </div>
             <div className="text-2xl font-black text-sky-700 dark:text-sky-300">
-              {stats.activeUsers.toLocaleString()} <span className="text-xs font-normal text-slate-400">ท่าน ({stats.activeSchools} ร.ร.)</span>
+              {(stats?.activeUsers || 0).toLocaleString()} <span className="text-xs font-normal text-slate-400">ท่าน ({stats.activeSchools} ร.ร.)</span>
             </div>
           </div>
         </div>

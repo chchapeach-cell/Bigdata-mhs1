@@ -369,8 +369,8 @@ export default function DatabaseQuotaMonitor({
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-              <span>สะสม: {estimatedDailyReads.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_READS.toLocaleString()}/วัน`}</span>
+              <span>สะสม: {(estimatedDailyReads || 0).toLocaleString()} ครั้ง</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${(MAX_DAILY_READS || 0).toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
@@ -391,8 +391,8 @@ export default function DatabaseQuotaMonitor({
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-              <span>สะสม: {estimatedDailyWrites.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_WRITES.toLocaleString()}/วัน`}</span>
+              <span>สะสม: {(estimatedDailyWrites || 0).toLocaleString()} ครั้ง</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${(MAX_DAILY_WRITES || 0).toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
@@ -413,8 +413,8 @@ export default function DatabaseQuotaMonitor({
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-              <span>สะสม: {estimatedDailyDeletes.toLocaleString()} ครั้ง</span>
-              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${MAX_DAILY_DELETES.toLocaleString()}/วัน`}</span>
+              <span>สะสม: {(estimatedDailyDeletes || 0).toLocaleString()} ครั้ง</span>
+              <span>จำกัด: {isSupabaseActive ? 'ไม่จำกัด (Unlimited)' : `${(MAX_DAILY_DELETES || 0).toLocaleString()}/วัน`}</span>
             </div>
           </div>
 
@@ -435,8 +435,8 @@ export default function DatabaseQuotaMonitor({
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-              <span>รวม: {totalDocuments.toLocaleString()} รายการ</span>
-              <span>ความจุ: {MAX_DOCUMENTS_CAPACITY.toLocaleString()}</span>
+              <span>รวม: {(totalDocuments || 0).toLocaleString()} รายการ</span>
+              <span>ความจุ: {(MAX_DOCUMENTS_CAPACITY || 0).toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -486,7 +486,7 @@ export default function DatabaseQuotaMonitor({
                     <Cpu className="h-3.5 w-3.5 shrink-0" /> คำสั่งอ่านข้อมูล (Stored Reads / Queries)
                   </td>
                   <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '50,000 ครั้ง/วัน'}</td>
-                  <td className="py-2 px-2 font-mono">{estimatedDailyReads.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2 font-mono">{(estimatedDailyReads || 0).toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {readQuotaPercent}%
@@ -499,7 +499,7 @@ export default function DatabaseQuotaMonitor({
                     <BarChart2 className="h-3.5 w-3.5 shrink-0" /> คำสั่งเขียนข้อมูล (Inserts & Updates)
                   </td>
                   <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '20,000 ครั้ง/วัน'}</td>
-                  <td className="py-2 px-2 font-mono">{estimatedDailyWrites.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2 font-mono">{(estimatedDailyWrites || 0).toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {writeQuotaPercent}%
@@ -512,7 +512,7 @@ export default function DatabaseQuotaMonitor({
                     <ShieldAlert className="h-3.5 w-3.5 shrink-0" /> คำสั่งลบข้อมูล (Deletes)
                   </td>
                   <td className="py-2 px-2 font-mono">{isSupabaseActive ? 'ไม่จำกัดโควตารายวัน' : '20,000 ครั้ง/วัน'}</td>
-                  <td className="py-2 px-2 font-mono">{estimatedDailyDeletes.toLocaleString()} ครั้ง</td>
+                  <td className="py-2 px-2 font-mono">{(estimatedDailyDeletes || 0).toLocaleString()} ครั้ง</td>
                   <td className="py-2 px-2">
                     <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-black bg-emerald-100 text-emerald-800">
                       {deleteQuotaPercent}%

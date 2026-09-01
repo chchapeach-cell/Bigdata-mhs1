@@ -264,7 +264,7 @@ export default function VisitorCounter() {
           <Eye className="h-4 w-4 text-[#FF8BA7] shrink-0" />
           <span className="text-xs">ผู้เข้าชมระบบทั้งหมด:</span>
           <span className="bg-[#A0E7E5] text-[#33272A] px-2 py-0.5 rounded-lg text-xs font-black border border-[#33272A]">
-            {totalVisits.toLocaleString()}
+            {(totalVisits || 0).toLocaleString()}
           </span>
           <span>คน</span>
         </div>
@@ -275,7 +275,7 @@ export default function VisitorCounter() {
           <Users className="h-3.5 w-3.5 text-[#FF8BA7]" />
           <span className="text-xs">เข้าชมวันนี้:</span>
           <span className="bg-[#FFD3B6] text-[#33272A] px-2 py-0.5 rounded-lg text-xs font-black border border-[#33272A]">
-            {todayVisits.toLocaleString()}
+            {(todayVisits || 0).toLocaleString()}
           </span>
           <span>คน</span>
         </div>
@@ -321,25 +321,25 @@ export default function VisitorCounter() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white dark:bg-[#20171a] p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]">
                 <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block mb-1">เข้าชมวันนี้</span>
-                <span className="text-2xl font-black text-[#FF8BA7] block">{todayVisits.toLocaleString()}</span>
+                <span className="text-2xl font-black text-[#FF8BA7] block">{(todayVisits || 0).toLocaleString()}</span>
                 <span className="text-[10px] font-bold text-slate-400">{todayStr}</span>
               </div>
 
               <div className="bg-white dark:bg-[#20171a] p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]">
                 <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block mb-1">เข้าชมเดือนนี้</span>
-                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block">{thisMonthVisits.toLocaleString()}</span>
+                <span className="text-2xl font-black text-blue-600 dark:text-blue-400 block">{(thisMonthVisits || 0).toLocaleString()}</span>
                 <span className="text-[10px] font-bold text-slate-400">เดือน {currentMonthStr}</span>
               </div>
 
               <div className="bg-white dark:bg-[#20171a] p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]">
                 <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block mb-1">เข้าชมปีนี้</span>
-                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block">{thisYearVisits.toLocaleString()}</span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 block">{(thisYearVisits || 0).toLocaleString()}</span>
                 <span className="text-[10px] font-bold text-slate-400">ปี พ.ศ. {Number(currentYearStr) + 543}</span>
               </div>
 
               <div className="bg-white dark:bg-[#20171a] p-3.5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]">
                 <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block mb-1">ยอดรวมทั้งหมด</span>
-                <span className="text-2xl font-black text-purple-600 dark:text-purple-400 block">{totalVisits.toLocaleString()}</span>
+                <span className="text-2xl font-black text-purple-600 dark:text-purple-400 block">{(totalVisits || 0).toLocaleString()}</span>
                 <span className="text-[10px] font-bold text-slate-400">นับจากสถิติล่าสุด</span>
               </div>
             </div>
@@ -426,7 +426,7 @@ export default function VisitorCounter() {
                     </h4>
                     <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
                       {chartRangeDays === 1 
-                        ? `จำแนกตามช่วงเวลาจริง (00:00 - 23:59 น.) รวมวันนี้: ${todayVisits.toLocaleString()} คน`
+                        ? `จำแนกตามช่วงเวลาจริง (00:00 - 23:59 น.) รวมวันนี้: ${(todayVisits || 0).toLocaleString()} คน`
                         : `จำแนกตามรายวัน รวมย้อนหลัง ${chartRangeDays} วัน: ${getDailyOrHourlyChartData().reduce((acc, c) => acc + c.visits, 0).toLocaleString()} คน`
                       }
                     </p>
@@ -486,7 +486,7 @@ export default function VisitorCounter() {
                                   {data.timeRange || data.displayDate}
                                 </p>
                                 <p className="text-blue-600 dark:text-blue-400 font-black text-sm">
-                                  ผู้เข้าชม: {data.visits.toLocaleString()} คน
+                                  ผู้เข้าชม: {(data?.visits || 0).toLocaleString()} คน
                                 </p>
                                 {chartRangeDays === 1 && (
                                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
@@ -584,7 +584,7 @@ export default function VisitorCounter() {
                               <span className="font-black text-[#33272A] dark:text-[#FFF9F5]">{item.timeRange || item.displayDate}</span>
                             </td>
                             <td className="p-2.5 text-center font-black text-blue-600 dark:text-blue-400 text-sm">
-                              {item.visits.toLocaleString()}
+                              {(item?.visits || 0).toLocaleString()}
                             </td>
                             {chartRangeDays === 1 && (
                               <td className="p-2.5 text-center font-mono text-slate-600 dark:text-slate-300">

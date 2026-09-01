@@ -672,7 +672,7 @@ export default function SchoolComparisonPanel({
                         {compareSchools.map(s => (
                           <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-slate-800 last:border-none">
                             <div className="text-base font-black text-indigo-700 dark:text-indigo-300">
-                              {s.studentCount.toLocaleString()} คน
+                              {(s.studentCount || 0).toLocaleString()} คน
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">
                               ชาย {s.maleCount || 0} / หญิง {s.femaleCount || 0} คน
