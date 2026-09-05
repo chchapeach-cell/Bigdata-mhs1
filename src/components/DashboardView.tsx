@@ -4,7 +4,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets, Clock, CheckCircle2 } from 'lucide-react';
 import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST, getSchoolUpdateBadgeInfo } from '../utils/initialData';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
-import SchoolComparisonPanel from './SchoolComparisonPanel';
 
 interface DashboardViewProps {
   schools: School[];
@@ -2605,15 +2604,6 @@ export default function DashboardView({
           </div>
         </div>
       )}
-
-      {/* ส่วนเปรียบเทียบข้อมูลสถานศึกษาแบบเคียงข้างกัน (School Comparison Panel) */}
-      <SchoolComparisonPanel
-        schools={schools}
-        studentData={studentData}
-        academicYear={academicYear}
-        onSelectSchool={onSelectSchool}
-        isDarkMode={isDarkMode}
-      />
 
       {/* แถบการวิเคราะห์ข้อมูลเชิงลึกอัตโนมัติแบบเรียลไทม์ (Real-time Data Analytics Insights) */}
       <div className="card bg-[#FFEEE2] dark:bg-[#2c2023] p-6">
