@@ -997,9 +997,9 @@ export default function DashboardView({
           <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4">
             จำนวนนักเรียนชาย-หญิง แยกรายระดับชั้นเรียน (ไม่เกิน ม.3)
           </h3>
-          <div className="h-80 w-full text-xs font-bold">
+          <div className="h-80 w-full text-xs font-bold mb-6">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={gradeChartData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
+              <BarChart data={gradeChartData} margin={{ top: 25, right: 10, left: 15, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
                 <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
                 <XAxis dataKey="name" stroke={chartStroke} />
@@ -1015,10 +1015,52 @@ export default function DashboardView({
                   itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: tooltipText }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontWeight: 'bold' }} />
-                <Bar dataKey="ชาย" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
-                <Bar dataKey="หญิง" fill="#FF8BA7" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12} />
+                <Bar dataKey="ชาย" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12}>
+                  <LabelList dataKey="ชาย" position="top" fill={chartStroke} fontSize={10} fontWeight="bold" />
+                </Bar>
+                <Bar dataKey="หญิง" fill="#FF8BA7" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12}>
+                  <LabelList dataKey="หญิง" position="top" fill={chartStroke} fontSize={10} fontWeight="bold" />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* ตารางข้อมูลแสดงตัวเลขด้านล่างกราฟ */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-max text-[11px] text-center border-collapse">
+              <thead>
+                <tr>
+                  <th className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-left bg-slate-50 dark:bg-slate-800/50 text-[#33272A] dark:text-[#FFF9F5] whitespace-nowrap">ระดับชั้น</th>
+                  {gradeChartData.map(g => (
+                    <th key={g.name} className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 bg-slate-50 dark:bg-slate-800/50 text-[#33272A] dark:text-[#FFF9F5] whitespace-nowrap">{g.name}</th>
+                  ))}
+                  <th className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 bg-slate-50 dark:bg-slate-800/50 text-[#33272A] dark:text-[#FFF9F5] whitespace-nowrap">รวม</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-left font-bold text-[#14b8a6] dark:text-[#A0E7E5] whitespace-nowrap">ชาย</td>
+                  {gradeChartData.map(g => (
+                    <td key={`male-${g.name}`} className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-[#33272A] dark:text-[#FFF9F5]">{g.ชาย.toLocaleString()}</td>
+                  ))}
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 font-bold text-[#14b8a6] dark:text-[#A0E7E5]">{gradeChartData.reduce((acc, g) => acc + g.ชาย, 0).toLocaleString()}</td>
+                </tr>
+                <tr>
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-left font-bold text-[#f43f5e] dark:text-[#FF8BA7] whitespace-nowrap">หญิง</td>
+                  {gradeChartData.map(g => (
+                    <td key={`female-${g.name}`} className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-[#33272A] dark:text-[#FFF9F5]">{g.หญิง.toLocaleString()}</td>
+                  ))}
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 font-bold text-[#f43f5e] dark:text-[#FF8BA7]">{gradeChartData.reduce((acc, g) => acc + g.หญิง, 0).toLocaleString()}</td>
+                </tr>
+                <tr className="bg-slate-50/50 dark:bg-slate-800/30">
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 text-left font-black text-[#33272A] dark:text-[#FFF9F5] whitespace-nowrap">รวม</td>
+                  {gradeChartData.map(g => (
+                    <td key={`total-${g.name}`} className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 font-black text-[#33272A] dark:text-[#FFF9F5]">{g.รวม.toLocaleString()}</td>
+                  ))}
+                  <td className="border border-[#e0d9d5] dark:border-[#4a3e42] p-2 font-black text-[#33272A] dark:text-[#FFF9F5]">{gradeChartData.reduce((acc, g) => acc + g.รวม, 0).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
