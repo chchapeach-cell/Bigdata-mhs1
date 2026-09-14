@@ -1,10 +1,9 @@
 import { auth } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent, useMemo } from 'react';
 import { School, UserProfile } from '../types';
-import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn, ExternalLink } from 'lucide-react';
-
-
+import { CheckCircle, AlertTriangle, Mail, Shield, UserPlus, LogIn, ExternalLink, Search } from 'lucide-react';
+import { parseInitialData } from '../utils/initialData';
 
 import { checkActiveUsersConcurrency } from '../utils/sessionHelper';
 
@@ -34,10 +33,32 @@ export default function AuthModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const isLoggingInRef = useRef(false);
+
+  // รายการโรงเรียนที่เรียงตามรหัสโรงเรียนและตัดข้อมูลซ้ำ
+  const sortedSchools = useMemo(() => {
+    const list = (schools && schools.length > 0) ? schools : parseInitialData().schools;
+    const map = new Map<string, School>();
+    list.forEach(s => {
+      if (s && s.id && !map.has(s.id)) {
+        map.set(s.id, s);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+  }, [schools]);
+
+  const filteredSchools = useMemo(() => {
+    if (!schoolSearchQuery.trim()) return sortedSchools;
+    const q = schoolSearchQuery.trim().toLowerCase();
+    return sortedSchools.filter(s => 
+      s.id.toLowerCase().includes(q) || 
+      s.name.toLowerCase().includes(q)
+    );
+  }, [sortedSchools, schoolSearchQuery]);
 
   useEffect(() => {
     if (isOpen) {
@@ -476,7 +497,7 @@ export default function AuthModal({
 
       // 4. บันทึกคำขอสิทธิ์ลงในตาราง 'users' ให้ Super Admin มองเห็นทันที
       const isSuper = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
-      const targetSchool = schools.find(s => s.id === selectedSchoolId);
+      const targetSchool = sortedSchools.find(s => s.id === selectedSchoolId) || schools.find(s => s.id === selectedSchoolId);
       const schoolNameVal = targetSchool?.name || '';
 
       const newUserProfile: UserProfile = {
@@ -735,18 +756,56 @@ export default function AuthModal({
 
               {/* เลือกโรงเรียนในสังกัด */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">เลือกโรงเรียนสังกัดที่ต้องการแก้ไขข้อมูล</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    เลือกโรงเรียนสังกัดที่ต้องการแก้ไขข้อมูล ({sortedSchools.length} แห่ง)
+                  </label>
+                  {selectedSchoolId && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      รหัส: {selectedSchoolId}
+                    </span>
+                  )}
+                </div>
+
+                {/* กล่องค้นหาโรงเรียนเพื่อความรวดเร็ว */}
+                <div className="relative mb-1.5">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={schoolSearchQuery}
+                    onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                    placeholder="พิมพ์ชื่อ หรือรหัสโรงเรียน เพื่อค้นหา..."
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1e1518] pl-8 pr-3 py-1.5 text-xs text-[#33272A] dark:text-[#FFF9F5] outline-none focus:border-[#FF8BA7]"
+                  />
+                  {schoolSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSchoolSearchQuery('')}
+                      className="absolute right-2.5 top-2 text-[10px] text-gray-400 hover:text-gray-600"
+                    >
+                      ล้าง
+                    </button>
+                  )}
+                </div>
+
                 <select
                   required
                   value={selectedSchoolId}
                   onChange={(e) => setSelectedSchoolId(e.target.value)}
                   className="w-full rounded-xl border-2 border-[#33272A] bg-white p-2 text-xs font-bold text-[#33272A] dark:border-[#FFD3B6] dark:bg-[#1e1518] dark:text-[#FFF9F5] outline-none focus:ring-2 focus:ring-[#FF8BA7]"
                 >
-                  <option value="">-- กรุณาเลือกสถานศึกษาของคุณ --</option>
-                  {schools.map(school => (
-                    <option key={school.id} value={school.id}>{school.id} - {school.name}</option>
+                  <option value="">-- กรุณาเลือกสถานศึกษาของคุณ ({filteredSchools.length} รายการ) --</option>
+                  {filteredSchools.map(school => (
+                    <option key={school.id} value={school.id}>
+                      {school.id} - {school.name}
+                    </option>
                   ))}
                 </select>
+                {filteredSchools.length === 0 && (
+                  <p className="text-[10px] text-rose-500 font-bold mt-1">
+                    ไม่พบโรงเรียนที่ตรงกับคำค้นหา "{schoolSearchQuery}"
+                  </p>
+                )}
               </div>
 
               {/* ปุ่มควบคุมสมัครสมาชิก */}

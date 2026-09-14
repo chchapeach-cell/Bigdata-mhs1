@@ -2,7 +2,7 @@ import { auth } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
-import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailableYears } from './utils/initialData';
+import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailableYears, parseInitialData } from './utils/initialData';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -82,7 +82,13 @@ export default function App() {
   };
   
   // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล)
-  const [schools, setSchools] = useState<School[]>([]);
+  const [schools, setSchools] = useState<School[]>(() => {
+    try {
+      return parseInitialData().schools || [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [studentData, setStudentData] = useState<StudentData[]>([]);
   const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
