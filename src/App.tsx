@@ -1,564 +1,1313 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { School, User, DatabaseConfig } from './types';
-import { parseInitialData } from './utils/initialData';
-import { getDatabaseConfig } from './services/dbManager';
-import { SummaryTable } from './components/SummaryTable';
-import { SchoolCard } from './components/SchoolCard';
-import { SchoolDetailModal } from './components/SchoolDetailModal';
-import { AuthModal } from './components/AuthModal';
-import { DatabaseSettingsModal } from './components/DatabaseSettingsModal';
-import { 
-  Building2, 
-  Search, 
-  UserCircle, 
-  LogOut, 
-  Zap, 
-  Wifi, 
-  Droplets,
-  Layers,
-  ShieldCheck,
-  RotateCcw,
-  Database,
-  Server
-} from 'lucide-react';
+import { auth } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import React, { useState, useEffect, Suspense } from 'react';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
+import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailableYears } from './utils/initialData';
+import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
+import { formatDatabaseError } from './utils/errorHelper';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { dbFetchUserProfile, dbFetchAcademicRecords, dbFetchUsersByStatus, dbUpdateUserStatus, dbDeleteUser, dbLogUserActivity } from './lib/dbAdapter';
+import { playNotificationChime } from './lib/soundEffects';
+import { notifyNewUserRegistration, requestBrowserNotificationPermission, getBrowserNotificationPermission } from './lib/browserNotification';
+import SuperAdminFloatingAlert from './components/SuperAdminFloatingAlert';
 
-export function App() {
-  const [schools, setSchools] = useState<School[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAmphoe, setSelectedAmphoe] = useState('all');
-  const [selectedElectric, setSelectedElectric] = useState('all');
-  const [selectedInternet, setSelectedInternet] = useState('all');
-  const [selectedWater, setSelectedWater] = useState('all');
+const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
+  allowDataDownload: true,
+  contactEnabled: true,
+  restrictOneAdminPerSchool: true,
+  allowSchoolAdminRegistration: true,
+  highTrafficAlertEnabled: true,
+  highTrafficAlertMessage: 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
+  electricityOptions: [
+    { id: 'has_electric', label: '🔌 ไฟฟ้าถาวร' },
+    { id: 'solar', label: '☀️ โซลาร์เซลล์' },
+    { id: 'hybrid', label: '⚡☀️ ผสมผสาน' },
+    { id: 'none', label: '❌ ไม่มีไฟฟ้า' },
+  ],
+  internetOptions: [
+    { id: 'fiber', label: '🌐 Fiber Optic' },
+    { id: 'satellite', label: '🛰️ ดาวเทียม' },
+    { id: 'sim', label: '📱 SIM 4G/5G' },
+    { id: 'none', label: '❌ ไม่มีเน็ต' },
+  ],
+  waterSystemOptions: [
+    { id: 'government', label: '🚰 น้ำประปาภาครัฐ' },
+    { id: 'mountain', label: '🏔️ น้ำประปาภูเขา' },
+    { id: 'none', label: '❌ ไม่มีน้ำใช้' },
+    { id: 'other', label: '📌 อื่นๆ' },
+  ],
+};
+
+// นำเข้า Components
+import Header from './components/Header';
+import DashboardView from './components/DashboardView';
+import DashboardSkeleton from './components/DashboardSkeleton';
+import SchoolListView from './components/SchoolListView';
+import SchoolDetailView from './components/SchoolDetailView';
+import AdminPanel from './components/AdminPanel';
+import AcademicStatsView from './components/AcademicStatsView';
+import AuthModal from './components/AuthModal';
+import InfrastructureView from './components/InfrastructureView';
+import ContactView from './components/ContactView';
+import VisitorCounter from './components/VisitorCounter';
+import InactivityLogoutHandler from './components/InactivityLogoutHandler';
+
+import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle, Users, Clock, X } from 'lucide-react';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   
-  const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
+  // สถานะตัวกรองจากหน้านำทางแดชบอร์ด
+  const [initialFilters, setInitialFilters] = useState<{
+    size?: string;
+    type?: string;
+    amphoe?: string;
+    netFilter?: string;
+    electricityFilter?: string;
+    majorSubjectFilter?: string;
+  } | null>(null);
+
+  const handleFilterNavigate = (filters: {
+    size?: string;
+    type?: string;
+    amphoe?: string;
+    netFilter?: string;
+    electricityFilter?: string;
+    majorSubjectFilter?: string;
+  }) => {
+    setInitialFilters(filters);
+    setActiveTab('schools');
+    setSelectedSchoolId(null); // เคลียร์สถานะการเลือกโรงเรียนรายบุคคลเพื่อเปิดหน้าตารางรายชื่อแบบกรอง
+  };
+  
+  // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล)
+  const [schools, setSchools] = useState<School[]>([]);
+  const [studentData, setStudentData] = useState<StudentData[]>([]);
+  const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
+  const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
+  
+  // หาสมการปีงบประมาณ/ปีการศึกษาปัจจุบัน (พ.ศ. อัตโนมัติตามปีปฏิทิน เช่น 2569, 2570)
+  const currentBEYear = getCurrentBEYear();
+  const [academicYear, setAcademicYear] = useState<string>(() => getCurrentBEYear());
+  const [availableYears, setAvailableYears] = useState<string[]>(() => getDefaultAvailableYears());
+  
+  // จัดการผู้ใช้งาน (โหลดค่าเริ่มต้นจาก localStorage เพื่อป้องกัน session หลุดเวลากด F5 / Refresh)
+  const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('mhs1_persisted_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // บันทึกโปรไฟล์ผู้ใช้ลง localStorage เสมอเมื่อมีการเปลี่ยนแปลง
+  useEffect(() => {
+    try {
+      if (userProfile) {
+        localStorage.setItem('mhs1_persisted_profile', JSON.stringify(userProfile));
+      } else {
+        localStorage.removeItem('mhs1_persisted_profile');
+      }
+    } catch (e) {
+      console.warn('Persist user profile error:', e);
+    }
+  }, [userProfile]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [dbConfig, setDbConfig] = useState<DatabaseConfig>(getDatabaseConfig());
+  const [isHighTrafficNoticeOpen, setIsHighTrafficNoticeOpen] = useState<boolean>(false);
+  const [sessionNoticeModal, setSessionNoticeModal] = useState<{
+    title: string;
+    message: string;
+    type: 'kicked' | 'blocked';
+  } | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(false);
+  
+  // สถานะคำขอสมัครสมาชิกใหม่สำหรับ Super Admin
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [isLoadingPendingUsers, setIsLoadingPendingUsers] = useState<boolean>(false);
+  const [adminPanelInitialTab, setAdminPanelInitialTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme' | undefined>(undefined);
+  const prevPendingCountRef = React.useRef<number>(0);
+  const hasInitializedPendingRef = React.useRef<boolean>(false);
 
-  // Function to load schools based on primary database configuration
-  const loadSchoolData = async (cfg: DatabaseConfig) => {
-    // If Hostatom is selected and has API URL configured, attempt fetch
-    if (cfg.primarySource === 'hostatom' && cfg.hostatom.apiUrl) {
+  // สถานะการโหลดข้อมูล
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      return saved === 'dark';
+    } catch {
+      return false;
+    }
+  });
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>(() => {
+    try {
+      const saved = localStorage.getItem('font-size');
+      return (saved as 'small' | 'medium' | 'large' | 'xlarge') || 'medium';
+    } catch {
+      return 'medium';
+    }
+  });
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>(() => {
+    try {
+      const saved = localStorage.getItem('app-theme-style');
+      return (saved as ThemeStyle) || 'pastel';
+    } catch {
+      return 'pastel';
+    }
+  });
+  const [designStyle, setDesignStyle] = useState<DesignStyle>(() => {
+    try {
+      const saved = localStorage.getItem('app-design-style');
+      return (saved as DesignStyle) || 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+
+  // จัดการระบบธีม Dark Mode / Light Mode และ Themes
+  useEffect(() => {
+    document.documentElement.classList.remove(
+      'theme-pastel', 
+      'theme-modern', 
+      'theme-darktech', 
+      'theme-minimal-slate', 
+      'theme-warm-nature', 
+      'theme-emerald-mint',
+      'theme-cyan-futuristic',
+      'theme-royal-gold',
+      'theme-green',
+      'theme-clean-mobile',
+      'theme-nordic-breeze',
+      'theme-ultra-modern',
+      'theme-luxury-violet',
+      'theme-sunset-ember',
+      'theme-gundam-mecha',
+      'theme-naruto-ninja',
+      'theme-lector-purple'
+    );
+    document.documentElement.classList.add(`theme-${themeStyle}`);
+    localStorage.setItem('app-theme-style', themeStyle);
+
+    if (themeStyle === 'darktech' || themeStyle === 'cyan-futuristic' || themeStyle === 'gundam-mecha') {
+      setIsDarkMode(true);
+    }
+  }, [themeStyle]);
+
+  // จัดการดีไซน์การแสดงผลระบบ (Design Presets)
+  useEffect(() => {
+    document.documentElement.classList.remove(
+      'design-classic',
+      'design-glass-float',
+      'design-compact-grid'
+    );
+    document.documentElement.classList.add(`design-${designStyle}`);
+    localStorage.setItem('app-design-style', designStyle);
+  }, [designStyle]);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // จัดการปรับขนาดตัวอักษรของระบบ
+  useEffect(() => {
+    const sizeMap = {
+      small: '14px',
+      medium: '16px',
+      large: '19px',
+      xlarge: '23px',
+    };
+    document.documentElement.style.fontSize = sizeMap[fontSize];
+    localStorage.setItem('font-size', fontSize);
+  }, [fontSize]);
+
+  // ตรวจสอบการเข้าสู่ระบบและโหลดโปรไฟล์ (รองรับทั้ง Firebase Auth และ Supabase Auth)
+  useEffect(() => {
+    let isMounted = true;
+    let firebaseChecked = false;
+    let supabaseChecked = false;
+
+    const resolveProfile = async (uid: string, email?: string | null) => {
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const isHardcodedSuperAdmin = cleanEmail === 'tamrri@gmail.com' || cleanEmail === 'ch.chapeach@gmail.com';
+      
+      if (isHardcodedSuperAdmin) {
+        const superAdminProfile: UserProfile = {
+          uid: uid,
+          email: cleanEmail,
+          firstName: 'Super',
+          lastName: 'Admin',
+          schoolId: 'all',
+          schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
+          role: 'super_admin',
+          status: 'approved',
+          createdAt: new Date()
+        };
+        if (isMounted) {
+          setUserProfile(superAdminProfile);
+        }
+        return;
+      }
+
       try {
-        const url = cfg.hostatom.apiUrl.includes('?') 
-          ? `${cfg.hostatom.apiUrl}&action=get_schools` 
-          : `${cfg.hostatom.apiUrl}?action=get_schools`;
-        
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            ...(cfg.hostatom.apiKey ? { 'X-API-KEY': cfg.hostatom.apiKey } : {}),
-          },
-        });
-
-        if (res.ok) {
-          const json = await res.json();
-          if (json && Array.isArray(json.data) && json.data.length > 0) {
-            setSchools(json.data);
-            return;
+        const matchedProfile = await dbFetchUserProfile(uid, cleanEmail || undefined);
+        if (isMounted) {
+          if (matchedProfile && matchedProfile.status === 'approved') {
+            setUserProfile(matchedProfile);
+          } else if (matchedProfile && matchedProfile.status !== 'approved') {
+            setUserProfile(null);
           }
         }
+      } catch (error) {
+        console.warn('Notice fetching user profile on auth change:', error);
+      }
+    };
+
+    // 1. ตรวจสอบการเข้าสู่ระบบผ่าน Firebase Auth (เช่น ล็อกอินด้วย Google หรือ Firebase Email)
+    const unsubFirebase = onAuthStateChanged(auth, async (fbUser) => {
+      firebaseChecked = true;
+      if (fbUser) {
+        if (isMounted) setUser(fbUser);
+        await resolveProfile(fbUser.uid, fbUser.email);
+      } else {
+        // หาก Firebase ไม่มีผู้ใช้ ให้รอตรวจสอบ Supabase ก่อนตัดสินใจเคลียร์
+        if (supabaseChecked && !user) {
+          try {
+            const saved = localStorage.getItem('mhs1_persisted_profile');
+            if (!saved && isMounted) {
+              setUserProfile(null);
+            }
+          } catch (e) {}
+        }
+      }
+    });
+
+    // 2. ตรวจสอบการเข้าสู่ระบบผ่าน Supabase Auth
+    let supabaseSub: any = null;
+    if (isSupabaseConfigured()) {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        supabaseChecked = true;
+        if (session?.user) {
+          if (isMounted) setUser(session.user);
+          await resolveProfile(session.user.id, session.user.email);
+        } else if (!auth.currentUser && firebaseChecked) {
+          try {
+            const saved = localStorage.getItem('mhs1_persisted_profile');
+            if (!saved && isMounted) {
+              setUserProfile(null);
+            }
+          } catch (e) {}
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          if (isMounted) setUser(session.user);
+          await resolveProfile(session.user.id, session.user.email);
+        } else if (!auth.currentUser) {
+          if (isMounted && _event === 'SIGNED_OUT') {
+            setUser(null);
+            setUserProfile(null);
+          }
+        }
+      });
+      supabaseSub = subscription;
+    } else {
+      supabaseChecked = true;
+    }
+
+    return () => {
+      isMounted = false;
+      unsubFirebase();
+      if (supabaseSub) supabaseSub.unsubscribe();
+    };
+  }, []);
+
+  // การจัดการ Active Session (Heartbeat + ตรวจสอบการโดน Super Admin เตะออกจากระบบ)
+  useEffect(() => {
+    if (!userProfile || !userProfile.uid) return;
+
+    // 1. ลงทะเบียนเซสชันใช้งาน
+    registerActiveSession(userProfile);
+
+    // 2. ตั้งเวลาส่ง Heartbeat อัปเดตสถานะออนไลน์ทุก 2 นาที (120 วินาที) เพื่อประหยัดโควตาการเขียน/อ่านฐานข้อมูล
+    const heartbeatTimer = setInterval(() => {
+      sendSessionHeartbeat(userProfile.uid);
+    }, 120000);
+
+    // 3. ฟังสถานะ real-time กรณี Super Admin กดเตะออกจากระบบ
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase.channel(`active_session_${userProfile.uid}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'active_sessions', filter: `uid=eq.${userProfile.uid}` },
+          (payload) => {
+            if (payload.new && payload.new.kicked) {
+              setSessionNoticeModal({
+                title: '⛔ คุณถูก Super Admin เตะออกจากระบบ',
+                message: 'ขออภัยในความไม่สะดวก เซสชันการเข้าใช้งานของคุณถูกสั่งให้ออกจากระบบโดย Super Admin หากต้องการใช้งานต่อกรุณาล็อกอินใหม่อีกครั้ง',
+                type: 'kicked'
+              });
+              removeActiveSession(userProfile.uid);
+              supabase.auth.signOut().catch(() => {});
+              setUserProfile(null);
+              setActiveTab('dashboard');
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    // 4. ลบเซสชันเมื่อปิดหน้าต่างเบราว์เซอร์
+    const handleBeforeUnload = () => {
+      removeActiveSession(userProfile.uid);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(heartbeatTimer);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [userProfile?.uid]);
+
+  // 1. ฟังนโยบายและค่าตั้งค่าระบบ real-time จาก Supabase
+  useEffect(() => {
+    let isMounted = true;
+    const fetchConfig = async () => {
+      try {
+        const { dbFetchSystemConfig } = await import('./lib/dbAdapter');
+        const data = await dbFetchSystemConfig();
+        if (data && isMounted) {
+          setSystemConfig({
+            allowDataDownload: data.allowDataDownload !== undefined ? data.allowDataDownload : true,
+            contactEnabled: data.contactEnabled !== undefined ? data.contactEnabled : true,
+            restrictOneAdminPerSchool: data.restrictOneAdminPerSchool !== undefined ? data.restrictOneAdminPerSchool : true,
+            allowSchoolAdminRegistration: data.allowSchoolAdminRegistration !== undefined ? data.allowSchoolAdminRegistration : true,
+            highTrafficAlertEnabled: data.highTrafficAlertEnabled !== undefined ? data.highTrafficAlertEnabled : true,
+            highTrafficAlertMessage: data.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที',
+            simulateRedServerStatus: data.simulateRedServerStatus !== undefined ? data.simulateRedServerStatus : false,
+            electricityOptions: data.electricityOptions && data.electricityOptions.length > 0 ? data.electricityOptions : DEFAULT_SYSTEM_CONFIG.electricityOptions,
+            internetOptions: data.internetOptions && data.internetOptions.length > 0 ? data.internetOptions : DEFAULT_SYSTEM_CONFIG.internetOptions,
+            waterSystemOptions: data.waterSystemOptions && data.waterSystemOptions.length > 0 ? data.waterSystemOptions : DEFAULT_SYSTEM_CONFIG.waterSystemOptions,
+            headerBannerUrl: data.headerBannerUrl || '',
+            headerBannerHeight: data.headerBannerHeight !== undefined ? data.headerBannerHeight : 100,
+            headerBannerFit: data.headerBannerFit || 'contain',
+            headerBannerEnabled: data.headerBannerEnabled !== undefined ? data.headerBannerEnabled : true,
+            contactChannels: data.contactChannels || undefined,
+          });
+        }
       } catch (err) {
-        console.warn('Failed to load from Hostatom, falling back to local data', err);
+        console.warn('System config fetch notice:', err);
+      }
+    };
+
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 5 * 60 * 1000); // 5 minutes
+
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase.channel('system_config_changes')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'settings', filter: `id=eq.system_config` },
+          () => {
+            fetchConfig();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
+  // สลับไปยังหน้าหลักอัตโนมัติหากเมนูติดต่อถูกปิดการใช้งานโดย Super Admin และผู้ใช้ไม่ใช่ Super Admin
+  useEffect(() => {
+    if (systemConfig?.contactEnabled === false && userProfile?.role !== 'super_admin' && activeTab === 'contact') {
+      setActiveTab('dashboard');
+    }
+  }, [systemConfig?.contactEnabled, userProfile?.role, activeTab]);
+
+  // 2. ระบบแจ้งเตือนคำขอสมัครสมาชิกใหม่แบบ Real-time สำหรับ Super Admin
+  const isSuperAdminUser = userProfile?.role === 'super_admin' || userProfile?.email === 'tamrri@gmail.com' || userProfile?.email === 'ch.chapeach@gmail.com';
+
+  const fetchPendingRegistrations = async (isBackground = false) => {
+    if (!isSuperAdminUser) return;
+    if (!isBackground) setIsLoadingPendingUsers(true);
+    try {
+      const allUsers = await dbFetchUsersByStatus('all');
+      const pending = allUsers.filter(u => u.status === 'pending');
+
+      // ตรวจสอบว่ามีผู้สมัครใหม่เพิ่มขึ้นหรือไม่ เพื่อส่งเสียงเตือนและแจ้งเตือนผ่าน Browser Notification API
+      if (hasInitializedPendingRef.current && pending.length > prevPendingCountRef.current) {
+        playNotificationChime();
+
+        // ส่งการแจ้งเตือน Native Browser Notification (Desktop / OS)
+        const newCount = pending.length - prevPendingCountRef.current;
+        const newUsers = pending.slice(0, Math.max(1, newCount));
+        notifyNewUserRegistration(newUsers, pending.length, handleOpenAdminUserManagement);
+      }
+      hasInitializedPendingRef.current = true;
+      prevPendingCountRef.current = pending.length;
+      setPendingUsers(pending);
+    } catch (err) {
+      console.warn('Notice fetching pending users:', err);
+    } finally {
+      if (!isBackground) setIsLoadingPendingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdminUser) {
+      setPendingUsers([]);
+      hasInitializedPendingRef.current = false;
+      prevPendingCountRef.current = 0;
+      return;
+    }
+
+    // ขอสิทธิ์การแจ้งเตือนเบราว์เซอร์อัตโนมัติหากยังไม่เคยตั้งค่า
+    if (getBrowserNotificationPermission() === 'default') {
+      // รอให้ผู้ใช้พร้อม
+      const timer = setTimeout(() => {
+        requestBrowserNotificationPermission().catch(() => {});
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuperAdminUser]);
+
+  useEffect(() => {
+    if (!isSuperAdminUser) return;
+
+    fetchPendingRegistrations();
+
+    // Polling ทุก 35 วินาที
+    const interval = setInterval(() => {
+      fetchPendingRegistrations(true);
+    }, 35000);
+
+    // ฟังการเปลี่ยนแปลงในตาราง users บน Supabase แบบ Real-time
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase
+        .channel('superadmin_users_notifier')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users' },
+          () => {
+            fetchPendingRegistrations(true);
+          }
+        )
+        .subscribe();
+    }
+
+    // เมื่อโฟกัสหน้าต่างเบราว์เซอร์ ให้ตรวจสอบทันที
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingRegistrations(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isSuperAdminUser]);
+
+  // ฟังก์ชันอนุมัติผู้ใช้งานด่วนจากปุ่มแจ้งเตือน
+  const handleQuickApproveUser = async (targetUser: UserProfile) => {
+    await dbUpdateUserStatus(targetUser.uid, 'approved', targetUser.email);
+    if (userProfile) {
+      try {
+        await dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: `${userProfile.firstName} ${userProfile.lastName}`,
+          userEmail: userProfile.email,
+          userRole: 'super_admin',
+          schoolId: targetUser.schoolId,
+          schoolName: targetUser.schoolName,
+          actionType: 'user_management',
+          actionTitle: `อนุมัติคำขอสมัครสมาชิก: ${targetUser.firstName} ${targetUser.lastName}`,
+          details: `อนุมัติให้ใช้งานระบบแอดมิน ${targetUser.schoolName || targetUser.schoolId} (${targetUser.email})`,
+          targetName: targetUser.schoolName,
+          timestamp: new Date()
+        });
+      } catch (e) {}
+    }
+    await fetchPendingRegistrations(true);
+  };
+
+  // ฟังก์ชันปฏิเสธคำขอสมัครด่วนจากปุ่มแจ้งเตือน
+  const handleQuickRejectUser = async (targetUser: UserProfile) => {
+    await dbDeleteUser(targetUser.uid, targetUser.email);
+    if (userProfile) {
+      try {
+        await dbLogUserActivity({
+          userId: userProfile.uid,
+          userName: `${userProfile.firstName} ${userProfile.lastName}`,
+          userEmail: userProfile.email,
+          userRole: 'super_admin',
+          schoolId: targetUser.schoolId,
+          schoolName: targetUser.schoolName,
+          actionType: 'user_management',
+          actionTitle: `ปฏิเสธคำขอสมัครสมาชิก: ${targetUser.firstName} ${targetUser.lastName}`,
+          details: `ปฏิเสธและลบคำขอของผู้สมัคร ${targetUser.email}`,
+          targetName: targetUser.schoolName,
+          timestamp: new Date()
+        });
+      } catch (e) {}
+    }
+    await fetchPendingRegistrations(true);
+  };
+
+  const handleOpenAdminUserManagement = () => {
+    setAdminPanelInitialTab('users');
+    setActiveTab('admin');
+  };
+
+  // 3. ตรวจสอบจำนวน Active Sessions ทุก 3 นาทีเพื่อคำนวณภาระงาน
+  const [activeSessionCount, setActiveSessionCount] = useState<number>(1);
+  useEffect(() => {
+    let isMounted = true;
+    const fetchActiveCount = async () => {
+      try {
+        const minActiveTime = Date.now() - (3 * 60 * 1000);
+        const { count } = await supabase
+          .from('active_sessions')
+          .select('uid', { count: 'exact', head: true })
+          .gt('last_active_time', minActiveTime)
+          .eq('kicked', false);
+
+        if (isMounted) {
+          setActiveSessionCount(Math.max(1, count || 0));
+        }
+      } catch (err) {
+        console.warn('Active sessions query notice:', err);
+      }
+    };
+
+    fetchActiveCount();
+    const interval = setInterval(fetchActiveCount, 3 * 60 * 1000); // อัปเดตทุก 3 นาที
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // 3. คำนวณภาระทรัพยากรระบบและสถานะของเซิร์ฟเวอร์ (Server Resource Load Calculation)
+  const totalDocsCount = schools.length + studentData.length + studentGData.length + 10;
+  const estimatedStorageMB = ((schools.length * 2.5) + (studentData.length * 0.8) + (studentGData.length * 1.2) + 10) / 1024;
+  const storagePercent = (estimatedStorageMB / 1024) * 100;
+  const docsPercent = (totalDocsCount / 100000) * 100;
+  const dynamicRAM = 110 + (estimatedStorageMB * 8) + (totalDocsCount * 0.05);
+  const ramPercent = (dynamicRAM / 1024) * 100;
+  const dynamicCpu = 12.5 + (totalDocsCount * 0.012) + (activeSessionCount * 1.5);
+  const concurrentPercent = (activeSessionCount / 80) * 100;
+
+  const maxSystemLoadPercent = Math.max(storagePercent, docsPercent, ramPercent, dynamicCpu, concurrentPercent);
+
+  // สถานะเซิร์ฟเวอร์จะเป็นสีแดง (RED) เมื่อ:
+  // 1. maxSystemLoadPercent >= 90 หรือ activeSessionCount >= 50
+  // 2. มีการเปิดโหมด "จำลองสถานะเซิร์ฟเวอร์สีแดง" (simulateRedServerStatus) จากผู้ดูแลระบบ
+  const isServerStatusRed = Boolean(systemConfig.simulateRedServerStatus || maxSystemLoadPercent >= 90 || activeSessionCount >= 50);
+
+  const serverStatus: 'green' | 'yellow' | 'red' = isServerStatusRed
+    ? 'red'
+    : (maxSystemLoadPercent >= 70 || activeSessionCount >= 30)
+    ? 'yellow'
+    : 'green';
+
+  // 4. เมื่อสถานะระบบของ Server เปลี่ยนเป็นสีแดง (serverStatus === 'red') ให้ขึ้น Pop-up แจ้งเตือนผู้ใช้งานหนาแน่นอัตโนมัติ
+  useEffect(() => {
+    if (serverStatus === 'red' && systemConfig.highTrafficAlertEnabled !== false) {
+      setIsHighTrafficNoticeOpen(true);
+    }
+  }, [serverStatus, systemConfig.highTrafficAlertEnabled]);
+
+  // ฟังก์ชันดาวน์โหลดและประสานข้อมูลทั้งหมดจาก Supabase / Firestore (มีระบบ Smart Cache ลด Egress)
+  const fetchAllData = async (forceRefresh?: boolean) => {
+    setIsLoading(true);
+
+    const CACHE_KEY = 'mhs_app_data_cache_v5';
+    const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
+
+    // ตรวจสอบแคชในเบราว์เซอร์ก่อน หากยังไม่หมดอายุและไม่ได้กด forceRefresh
+    if (!forceRefresh) {
+      try {
+        const cachedRaw = localStorage.getItem(CACHE_KEY);
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < CACHE_TTL_MS)) {
+            if (Array.isArray(parsed.schools) && parsed.schools.length > 0 && Array.isArray(parsed.studentData) && parsed.studentData.length > 0) {
+              setSchools(parsed.schools);
+              setStudentData(parsed.studentData || []);
+              setStudentGData(parsed.studentGData || []);
+              setAcademicRecords(parsed.academicRecords || []);
+              if (parsed.systemConfig) {
+                setSystemConfig(prev => ({ ...prev, ...parsed.systemConfig }));
+              }
+              if (Array.isArray(parsed.availableYears) && parsed.availableYears.length > 0) {
+                setAvailableYears(parsed.availableYears);
+                const studentYears = Array.from(new Set(parsed.studentData.map((s: any) => s.academicYear).filter(Boolean))).sort((a: any, b: any) => Number(b) - Number(a));
+                setAcademicYear((studentYears[0] as string) || parsed.availableYears[0]);
+              }
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (cacheReadErr) {
+        console.warn('Cache read notice:', cacheReadErr);
       }
     }
 
-    // Default: local verified 131 schools dataset
-    const loaded = parseInitialData();
-    setSchools(loaded);
+    try {
+      // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
+      if (supabase && isSupabaseConfigured()) {
+        try {
+          // ดึงข้อมูลทั้งหมดจาก Supabase แบบคู่ขนาน
+          const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
+            supabase.from('schools').select('*').limit(2000).order('id', { ascending: true }),
+            supabase.from('students').select('*').limit(5000),
+            supabase.from('students_g').select('*').limit(5000),
+            supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
+            dbFetchAcademicRecords().catch(() => [])
+          ]);
+
+          const suSchools = schoolsRes.data;
+          const suErr = schoolsRes.error;
+
+          if (suErr) {
+            console.warn('Supabase schools query warning:', suErr);
+          }
+
+          if (!suErr && suSchools && suSchools.length > 0) {
+            const mappedSchools: School[] = (suSchools as any[]).map(s => {
+              const autoInfo = getAmphoeAndNetwork(s.id, s.name);
+              const resolvedAmphoe = (s.amphoe && s.amphoe !== 'NULL' && String(s.amphoe).trim()) ? String(s.amphoe).trim() : autoInfo.amphoe;
+              const resolvedNetworkGroup = (s.network_group && s.network_group !== 'NULL' && String(s.network_group).trim()) ? String(s.network_group).trim() : (s.networkGroup || autoInfo.networkGroup);
+
+              return {
+                id: s.id,
+                name: s.name,
+                district: s.district || 'สพป.แม่ฮ่องสอน เขต 1',
+                amphoe: resolvedAmphoe,
+                networkGroup: resolvedNetworkGroup,
+                internetType: s.internet_type || s.internetType || 'fiber',
+                electricity: s.electricity !== undefined ? s.electricity : true,
+                waterSystem: s.water_system || s.waterSystem || 'government',
+                waterSystemDetail: s.water_system_detail || s.waterSystemDetail,
+                solarKw: s.solar_kw || s.solarKw,
+                hasSolarBattery: s.has_solar_battery ?? s.hasSolarBattery ?? false,
+                solarBatteryCapacity: s.solar_battery_capacity || s.solarBatteryCapacity,
+                staffCount: s.staff_count ?? s.staffCount ?? 0,
+                contractTeachersCount: s.contract_teachers_count ?? s.contractTeachersCount ?? 0,
+                adminStaffCount: s.admin_staff_count ?? s.adminStaffCount ?? 0,
+                janitorCount: s.janitor_count ?? s.janitorCount ?? 0,
+                otherStaffCount: s.other_staff_count ?? s.otherStaffCount ?? 0,
+                majorSubjects: s.major_subjects || s.majorSubjects || [],
+                majorSubjectsWithStaff: s.major_subjects_with_staff || s.majorSubjectsWithStaff || [],
+                classrooms: s.classrooms || [],
+                directorName: s.director_name || s.directorName,
+                directorPhone: s.director_phone || s.directorPhone,
+                viceDirectorName: s.vice_director_name || s.viceDirectorName,
+                viceDirectorPhone: s.vice_director_phone || s.viceDirectorPhone,
+                viceDirectors: (s.vice_directors && Array.isArray(s.vice_directors) && s.vice_directors.length > 0)
+                  ? s.vice_directors
+                  : ((s.viceDirectorName || s.vice_director_name)
+                    ? [{ id: 'vd-1', name: s.viceDirectorName || s.vice_director_name || '', phone: s.viceDirectorPhone || s.vice_director_phone || '' }]
+                    : []),
+                schoolPhone: s.school_phone || s.schoolPhone,
+                email: s.email,
+                facebook: s.facebook,
+                line: s.line,
+                website: s.website,
+                address: s.address,
+                imageUrl: s.image_url || s.imageUrl,
+                logoUrl: s.logo_url || s.logoUrl,
+                directorImageUrl: s.director_image_url || s.directorImageUrl,
+                latitude: s.latitude,
+                longitude: s.longitude,
+                size: s.size || 'small',
+                isExpansion: s.is_expansion ?? s.isExpansion ?? false,
+                specialHighlights: s.special_highlights || s.specialHighlights,
+                updatedAt: s.updated_at || s.updatedAt,
+                updatedBy: s.updated_by || s.updatedBy
+              };
+            });
+
+            const suStudents = studentsRes.data;
+            let mappedStudents: StudentData[] = (suStudents || []).map(st => {
+              let totalMale = Number(st.total_male ?? st.totalMale ?? 0);
+              let totalFemale = Number(st.total_female ?? st.totalFemale ?? 0);
+              let totalStudents = Number(st.total_students ?? st.totalStudents ?? 0);
+
+              // คำนวณสรุปยอดอัตโนมัติจากโครงสร้าง grades ในกรณีที่ฐานข้อมูลไม่ได้บันทึก total_students แยกคอลัมน์
+              if (st.grades && typeof st.grades === 'object') {
+                let gMale = 0;
+                let gFemale = 0;
+                let gTotal = 0;
+                Object.values(st.grades).forEach((g: any) => {
+                  if (g && typeof g === 'object') {
+                    const m = Number(g.male || 0);
+                    const f = Number(g.female || 0);
+                    const t = Number(g.total !== undefined && g.total !== null ? g.total : (m + f));
+                    gMale += m;
+                    gFemale += f;
+                    gTotal += t;
+                  }
+                });
+                if ((totalStudents === 0 || isNaN(totalStudents)) && gTotal > 0) totalStudents = gTotal;
+                if ((totalMale === 0 || isNaN(totalMale)) && gMale > 0) totalMale = gMale;
+                if ((totalFemale === 0 || isNaN(totalFemale)) && gFemale > 0) totalFemale = gFemale;
+              }
+
+              return {
+                id: st.id,
+                schoolId: st.school_id || st.schoolId,
+                schoolName: st.school_name || st.schoolName,
+                academicYear: String(st.academic_year || st.academicYear || '').trim(),
+                grades: st.grades || {},
+                totalMale,
+                totalFemale,
+                totalStudents
+              };
+            });
+
+            // หากตาราง students บน Supabase ยังไม่มีข้อมูล ให้สร้างโครงสร้างข้อมูลนักเรียนสำหรับทุกโรงเรียน
+            if (mappedStudents.length === 0) {
+              const currentYear = currentBEYear || '2569';
+              mappedStudents = mappedSchools.map(sch => ({
+                id: `${sch.id}_${currentYear}`,
+                schoolId: sch.id,
+                schoolName: sch.name,
+                academicYear: currentYear,
+                grades: {},
+                totalMale: 0,
+                totalFemale: 0,
+                totalStudents: 0
+              }));
+            }
+
+            const suStudentsG = studentsGRes.data;
+            const mappedStudentsG: StudentGData[] = (suStudentsG || []).map(sg => ({
+              id: sg.id,
+              schoolId: sg.school_id || sg.schoolId,
+              schoolName: sg.school_name || sg.schoolName,
+              academicYear: String(sg.academic_year || sg.academicYear || '').trim(),
+              totalGStudents: Number(sg.total_g_students ?? sg.totalGStudents ?? 0),
+              maleGCount: Number(sg.male_g_count ?? sg.maleGCount ?? 0),
+              femaleGCount: Number(sg.female_g_count ?? sg.femaleGCount ?? 0),
+              notes: sg.notes || ''
+            }));
+
+            if (settingsRes && (settingsRes as any).data?.config) {
+              setSystemConfig(prev => ({ ...prev, ...(settingsRes as any).data.config }));
+            }
+
+            setSchools(mappedSchools);
+            setStudentData(mappedStudents);
+            setStudentGData(mappedStudentsG);
+
+            // รวบรวมปีการศึกษาที่มีข้อมูลนักเรียนจริงในระบบ
+            const studentYearsSet = new Set<string>();
+            mappedStudents.forEach(s => {
+              if (s.academicYear && /^\d{4}$/.test(String(s.academicYear).trim())) {
+                studentYearsSet.add(String(s.academicYear).trim());
+              }
+            });
+
+            // รวบรวมปีการศึกษาทั้งหมดที่มีอยู่ในระบบ
+            const yearsSet = new Set<string>(studentYearsSet);
+            mappedStudentsG.forEach(sg => {
+              if (sg.academicYear && /^\d{4}$/.test(String(sg.academicYear).trim())) {
+                yearsSet.add(String(sg.academicYear).trim());
+              }
+            });
+            (acRecords || []).forEach(ar => {
+              if (ar.academicYear && /^\d{4}$/.test(String(ar.academicYear).trim())) {
+                yearsSet.add(String(ar.academicYear).trim());
+              }
+            });
+
+            const years = Array.from(yearsSet);
+            if (years.length > 0) {
+              // เรียงลำดับปีจากมากไปหาน้อย (ปีล่าสุดอยู่บนสุดเสมอ เช่น 2569, 2568, 2567, 2566)
+              years.sort((a, b) => Number(b) - Number(a));
+              setAvailableYears(years);
+              
+              // เลือกปีล่าสุดที่มีข้อมูลในระบบ (เช่น 2569)
+              const studentYears = Array.from(studentYearsSet).sort((a, b) => Number(b) - Number(a));
+              const defaultYear = studentYears.length > 0 ? studentYears[0] : years[0];
+              setAcademicYear(defaultYear);
+            }
+
+            setAcademicRecords(acRecords || []);
+
+            // บันทึกลงแคชเพื่อป้องกันการดึงข้อมูลซ้ำเมื่อเปิดหน้าเว็บใหม่
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                schools: mappedSchools,
+                studentData: mappedStudents,
+                studentGData: mappedStudentsG,
+                academicRecords: acRecords || [],
+                systemConfig: (settingsRes as any)?.data?.config || null,
+                availableYears: years
+              }));
+            } catch (cacheWriteErr) {
+              console.warn('Cache write notice:', cacheWriteErr);
+            }
+
+            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
+            setIsLoading(false);
+            return;
+          } else {
+            console.warn('Supabase schools query returned empty or error:', suErr);
+            setSchools([]);
+            setStudentData([]);
+            setStudentGData([]);
+            setAcademicRecords([]);
+          }
+        } catch (suEx) {
+          console.warn('Notice reading from Supabase:', suEx);
+          setSchools([]);
+          setStudentData([]);
+          setStudentGData([]);
+          setAcademicRecords([]);
+        }
+      } else {
+        setSchools([]);
+        setStudentData([]);
+        setStudentGData([]);
+        setAcademicRecords([]);
+      }
+    } catch (error) {
+      console.warn('Notice fetching data:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('Quota') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Free daily read') || errMsg.includes('resource-exhausted')) {
+        setIsQuotaExceeded(true);
+      }
+      setSchools([]);
+      setStudentData([]);
+      setStudentGData([]);
+      setAcademicRecords([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Initialize data on mount
   useEffect(() => {
-    const currentCfg = getDatabaseConfig();
-    setDbConfig(currentCfg);
-    loadSchoolData(currentCfg);
+    fetchAllData();
 
-    // Check saved user session
-    try {
-      const savedUser = localStorage.getItem('mhs1_current_user');
-      if (savedUser) {
-        setCurrentUser(JSON.parse(savedUser));
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason?.message || String(event.reason || '');
+      if (reason.includes('Quota') || reason.includes('quota') || reason.includes('RESOURCE_EXHAUSTED') || reason.includes('Free daily read') || reason.includes('resource-exhausted')) {
+        setIsQuotaExceeded(true);
       }
-    } catch {}
+    };
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => window.removeEventListener('unhandledrejection', handleRejection);
   }, []);
 
-  const handleConfigChange = (newConfig: DatabaseConfig) => {
-    setDbConfig(newConfig);
-    loadSchoolData(newConfig);
-  };
-
-  const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
+  // ออกจากระบบ
+  const handleLogout = async () => {
     try {
-      localStorage.setItem('mhs1_current_user', JSON.stringify(user));
-    } catch {}
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut().catch(() => {});
+      }
+      await signOut(auth).catch(() => {});
+    } catch (e) {
+      console.warn('Sign out error:', e);
+    }
+    localStorage.removeItem('mhs_app_data_cache_v3');
+    localStorage.removeItem('mhs1_persisted_profile');
+    setUserProfile(null);
+    setUser(null);
+    setActiveTab('dashboard');
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    try {
-      localStorage.removeItem('mhs1_current_user');
-    } catch {}
-  };
-
-  // Unique list of Amphoes
-  const amphoes = useMemo(() => {
-    const set = new Set(schools.map((s) => s.amphoe).filter(Boolean));
-    return ['all', ...Array.from(set)];
-  }, [schools]);
-
-  // Overall statistics for Quick Metric Cards
-  const metrics = useMemo(() => {
-    const totalSchools = schools.length;
-    const totalTeachers = schools.reduce((sum, s) => sum + (s.staff_count || 0), 0);
-    
-    let normalElectric = 0;
-    let solarElectric = 0;
-    let noElectric = 0;
-    let fiberInternet = 0;
-    let govWater = 0;
-    let mountainWater = 0;
-
-    schools.forEach((s) => {
-      // Electric
-      if (s.electricity === true || s.electricity === 'has_electric' || s.electricity === 'normal') {
-        normalElectric++;
-      } else if (s.electricity === 'solar' || (s.solar_kw && Number(s.solar_kw) > 0)) {
-        solarElectric++;
-      } else {
-        noElectric++;
-      }
-
-      // Internet
-      const net = (s.internet_type || '').toLowerCase();
-      if (net.includes('fiber') || net.includes('ใยแก้ว')) {
-        fiberInternet++;
-      }
-
-      // Water
-      const w = (s.water_system || '').toLowerCase();
-      if (w.includes('gov') || w.includes('ประปาเทศบาล') || w.includes('ประปาหมู่บ้าน') || w.includes('รัฐ')) {
-        govWater++;
-      } else if (w.includes('mountain') || w.includes('ภูเขา')) {
-        mountainWater++;
-      }
-    });
-
-    return {
-      totalSchools,
-      totalTeachers,
-      normalElectric,
-      solarElectric,
-      noElectric,
-      fiberInternet,
-      govWater,
-      mountainWater,
-    };
-  }, [schools]);
-
-  // Filtered schools
-  const filteredSchools = useMemo(() => {
-    return schools.filter((school) => {
-      // Search by query (ID or Name or Network)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesId = school.id.includes(q);
-        const matchesName = school.name.toLowerCase().includes(q);
-        const matchesNetwork = school.network_group.toLowerCase().includes(q);
-        if (!matchesId && !matchesName && !matchesNetwork) return false;
-      }
-
-      // Filter Amphoe
-      if (selectedAmphoe !== 'all' && school.amphoe !== selectedAmphoe) {
-        return false;
-      }
-
-      // Filter Electricity
-      if (selectedElectric !== 'all') {
-        const isSolar = school.electricity === 'solar' || (school.solar_kw && Number(school.solar_kw) > 0);
-        const isNormal = school.electricity === true || school.electricity === 'has_electric' || school.electricity === 'normal';
-        if (selectedElectric === 'normal' && !isNormal) return false;
-        if (selectedElectric === 'solar' && !isSolar) return false;
-        if (selectedElectric === 'none' && (isNormal || isSolar)) return false;
-      }
-
-      // Filter Internet
-      if (selectedInternet !== 'all') {
-        const net = (school.internet_type || '').toLowerCase();
-        if (selectedInternet === 'fiber' && !net.includes('fiber') && !net.includes('ใยแก้ว')) return false;
-        if (selectedInternet === 'satellite' && !net.includes('satellite') && !net.includes('ดาวเทียม') && !net.includes('starlink') && !net.includes('sim') && !net.includes('mobile')) return false;
-        if (selectedInternet === 'none' && net && net !== 'none' && net !== 'ไม่มี') return false;
-      }
-
-      // Filter Water
-      if (selectedWater !== 'all') {
-        const w = (school.water_system || '').toLowerCase();
-        if (selectedWater === 'gov' && !w.includes('gov') && !w.includes('ประปาเทศบาล') && !w.includes('ประปาหมู่บ้าน') && !w.includes('รัฐ')) return false;
-        if (selectedWater === 'mountain' && !w.includes('mountain') && !w.includes('ภูเขา')) return false;
-      }
-
-      return true;
-    });
-  }, [schools, searchQuery, selectedAmphoe, selectedElectric, selectedInternet, selectedWater]);
+  const selectedSchool = schools.find(s => s.id === selectedSchoolId);
+  const selectedSchoolStudent = studentData.find(
+    s => s.schoolId === selectedSchoolId && String(s.academicYear).trim() === String(academicYear).trim()
+  ) || studentData.find(s => s.schoolId === selectedSchoolId) || null;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-['Sarabun',sans-serif]">
-      {/* Top Navigation */}
-      <header className="bg-white border-b-2 border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-700 to-blue-900 flex items-center justify-center text-white shadow-md">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="font-extrabold text-slate-900 text-base sm:text-lg leading-tight flex items-center gap-1.5">
-                <span>สพป.แม่ฮ่องสอน เขต 1 Big Data</span>
-                <span className="hidden sm:inline-block px-2 py-0.5 text-[11px] font-bold bg-blue-100 text-blue-900 rounded-md">
-                  มส.1
-                </span>
-              </h1>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                ระบบฐานข้อมูลและสารสนเทศทางการศึกษา สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Database Selector & Migration Button */}
-            <button
-              onClick={() => setIsDbModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                dbConfig.primarySource === 'hostatom'
-                  ? 'bg-blue-50 border-blue-400 text-blue-800 hover:bg-blue-100'
-                  : dbConfig.primarySource === 'firebase'
-                  ? 'bg-amber-50 border-amber-400 text-amber-900 hover:bg-amber-100'
-                  : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="คลิกเพื่อจัดการและเลือกฐานข้อมูลหลัก (Hostatom / Firebase / Local)"
-            >
-              <Database className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="hidden md:inline">ฐานข้อมูลหลัก:</span>
-              <span className="font-black text-blue-700">
-                {dbConfig.primarySource === 'hostatom'
-                  ? 'Hostatom MySQL'
-                  : dbConfig.primarySource === 'firebase'
-                  ? 'Firebase'
-                  : 'Local Data'}
-              </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5"></span>
-            </button>
-
-            {currentUser ? (
-              <div className="flex items-center gap-3 bg-slate-100 pl-3 pr-2 py-1.5 rounded-full border border-slate-300">
-                <div className="text-right text-xs">
-                  <div className="font-bold text-slate-800 leading-tight">
-                    {currentUser.name}
-                  </div>
-                  <div className="text-[10px] text-blue-700 font-semibold truncate max-w-[140px]">
-                    {currentUser.school_name}
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  title="ออกจากระบบ"
-                  className="p-1.5 text-slate-500 hover:text-rose-600 rounded-full hover:bg-slate-200 transition"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+    <div className="min-h-screen flex flex-col bg-bg-vibrant text-text-vibrant transition-colors duration-300 grid-pattern w-full max-w-full overflow-x-clip">
+      {/* QUOTA EXCEEDED ALERT BANNER */}
+      {isQuotaExceeded && (
+        <div className="bg-amber-400 dark:bg-amber-500 text-slate-900 border-b-2 border-slate-900 px-4 py-3 shadow-lg relative z-50 animate-fade-in">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 text-amber-400 rounded-xl shrink-0">
+                <AlertTriangle className="w-5 h-5 animate-bounce" />
               </div>
-            ) : (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
-              >
-                <UserCircle className="w-4 h-4" />
-                <span>ลงทะเบียน / เข้าสู่ระบบ</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
-        {/* Verification banner for requested schools */}
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-sky-50 border-2 border-blue-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm mt-0.5">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                  ตรวจสอบและแยกข้อมูลสถานศึกษาถูกต้องตามฐานข้อมูลทางการ
-                </h2>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-300">
-                  Verified
-                </span>
+              <div>
+                <h4 className="font-extrabold text-xs sm:text-sm text-slate-900">
+                  แจ้งเตือนผู้เข้าใช้บริการ: ระบบถึงขีดจำกัดของ Firebase แล้ว
+                </h4>
+                <p className="text-xs sm:text-sm font-bold text-slate-950 mt-0.5">
+                  โปรดเข้ามาใช้ใหม่ในเวลา 14.00 น. เนื่องจากถึงขีดจำกัดแล้ว ขออภัยในความไม่สะดวก
+                </p>
               </div>
-              <p className="text-xs text-slate-700 mt-1">
-                รหัส <strong>58010045</strong> คือ โรงเรียนบ้านห้วยช่างคำ • รหัส <strong>58010021</strong> คือ โรงเรียนบ้านห้วยช่างคำ สาขาบ้านห้วยช่างเหล็ก (ข้อมูลไม่ซ้ำซ้อน)
-              </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 self-stretch md:self-auto">
             <button
-              onClick={() => setSearchQuery('58010045')}
-              className="flex-1 md:flex-none px-3.5 py-1.5 bg-white border-2 border-blue-400 hover:border-blue-600 rounded-xl text-xs font-bold text-blue-900 shadow-xs hover:bg-blue-50 transition"
+              onClick={() => setIsQuotaExceeded(false)}
+              className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition-colors shrink-0 border-2 border-slate-900 shadow-sm cursor-pointer"
             >
-              ดู 58010045 (ห้วยช่างคำ)
-            </button>
-            <button
-              onClick={() => setSearchQuery('58010021')}
-              className="flex-1 md:flex-none px-3.5 py-1.5 bg-white border-2 border-indigo-400 hover:border-indigo-600 rounded-xl text-xs font-bold text-indigo-900 shadow-xs hover:bg-indigo-50 transition"
-            >
-              ดู 58010021 (สาขาห้วยช่างเหล็ก)
+              รับทราบ
             </button>
           </div>
         </div>
+      )}
 
-        {/* Distinct Categorized Metric Cards at the Top */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {/* Card 1: Schools (Slate) */}
-          <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm border border-slate-800">
-            <div className="flex items-center justify-between text-xs text-slate-300 font-bold mb-1">
-              <span>สถานศึกษา</span>
-              <Building2 className="w-4 h-4 text-slate-300" />
-            </div>
-            <div className="text-2xl font-black text-white">{metrics.totalSchools}</div>
-            <span className="text-[11px] text-slate-400">แห่งในสังกัด</span>
-          </div>
-
-          {/* Card 2: Staff (Violet) */}
-          <div className="bg-violet-900 text-white rounded-2xl p-4 shadow-sm border border-violet-800">
-            <div className="flex items-center justify-between text-xs text-violet-200 font-bold mb-1">
-              <span>ครู/บุคลากร</span>
-              <Building2 className="w-4 h-4 text-violet-300" />
-            </div>
-            <div className="text-2xl font-black text-white">{metrics.totalTeachers.toLocaleString()}</div>
-            <span className="text-[11px] text-violet-300">คนทั้งหมด</span>
-          </div>
-
-          {/* Card 3: Electricity (Amber) */}
-          <div className="bg-amber-500 text-white rounded-2xl p-4 shadow-sm border border-amber-600">
-            <div className="flex items-center justify-between text-xs text-amber-100 font-bold mb-1">
-              <span>ระบบไฟฟ้า</span>
-              <Zap className="w-4 h-4 fill-white" />
-            </div>
-            <div className="text-2xl font-black text-white">{metrics.normalElectric + metrics.solarElectric}</div>
-            <span className="text-[11px] text-amber-100">
-              กฟภ. {metrics.normalElectric} | โซลาร์ {metrics.solarElectric}
-            </span>
-          </div>
-
-          {/* Card 4: Internet (Blue) */}
-          <div className="bg-blue-600 text-white rounded-2xl p-4 shadow-sm border border-blue-700">
-            <div className="flex items-center justify-between text-xs text-blue-100 font-bold mb-1">
-              <span>อินเทอร์เน็ต</span>
-              <Wifi className="w-4 h-4" />
-            </div>
-            <div className="text-2xl font-black text-white">{metrics.fiberInternet}</div>
-            <span className="text-[11px] text-blue-100">Fiber ความเร็วสูง</span>
-          </div>
-
-          {/* Card 5: Water (Teal) */}
-          <div className="bg-teal-600 text-white rounded-2xl p-4 shadow-sm border border-teal-700 col-span-2 md:col-span-1">
-            <div className="flex items-center justify-between text-xs text-teal-100 font-bold mb-1">
-              <span>ระบบน้ำประปา</span>
-              <Droplets className="w-4 h-4 fill-white" />
-            </div>
-            <div className="text-2xl font-black text-white">{metrics.govWater + metrics.mountainWater}</div>
-            <span className="text-[11px] text-teal-100">
-              รัฐ {metrics.govWater} | ภูเขา {metrics.mountainWater}
-            </span>
-          </div>
-        </div>
-
-        {/* Search & Distinct Color-Coded Filter Bar */}
-        <div className="bg-white rounded-2xl p-5 border-2 border-slate-200 shadow-sm space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            {/* Search Input */}
-            <div className="relative">
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                ค้นหาสถานศึกษา
-              </label>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="พิมพ์รหัส หรือชื่อโรงเรียน..."
-                  className="w-full pl-9 pr-7 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Amphoe Filter (Slate/Blue) */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                สังกัดอำเภอ
-              </label>
-              <select
-                value={selectedAmphoe}
-                onChange={(e) => setSelectedAmphoe(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-              >
-                <option value="all">ทุกอำเภอ ({schools.length} แห่ง)</option>
-                {amphoes.filter((a) => a !== 'all').map((amphoe) => (
-                  <option key={amphoe} value={amphoe}>
-                    อำเภอ{amphoe}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Electricity Filter (Amber Accent) */}
-            <div>
-              <label className="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                <span>หมวดระบบไฟฟ้า</span>
-              </label>
-              <select
-                value={selectedElectric}
-                onChange={(e) => setSelectedElectric(e.target.value)}
-                className="w-full px-3 py-2 bg-amber-50/50 border-2 border-amber-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 text-amber-950"
-              >
-                <option value="all">⚡ ไฟฟ้า: ทั้งหมด</option>
-                <option value="normal">⚡ ไฟฟ้าปกติ กฟภ.</option>
-                <option value="solar">☀️ โซลาร์เซลล์ (Solar)</option>
-                <option value="none">⚠️ ไม่มีไฟฟ้า</option>
-              </select>
-            </div>
-
-            {/* Internet Filter (Blue Accent) */}
-            <div>
-              <label className="block text-[11px] font-bold text-blue-900 mb-1 flex items-center gap-1">
-                <Wifi className="w-3.5 h-3.5 text-blue-600" />
-                <span>หมวดอินเทอร์เน็ต</span>
-              </label>
-              <select
-                value={selectedInternet}
-                onChange={(e) => setSelectedInternet(e.target.value)}
-                className="w-full px-3 py-2 bg-blue-50/50 border-2 border-blue-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-950"
-              >
-                <option value="all">📶 อินเทอร์เน็ต: ทั้งหมด</option>
-                <option value="fiber">🌐 ใยแก้วนำแสง (Fiber)</option>
-                <option value="satellite">📡 ดาวเทียม/ซิม</option>
-                <option value="none">🚫 ไม่มีอินเทอร์เน็ต</option>
-              </select>
-            </div>
-
-            {/* Water Filter (Teal Accent) */}
-            <div>
-              <label className="block text-[11px] font-bold text-teal-900 mb-1 flex items-center gap-1">
-                <Droplets className="w-3.5 h-3.5 text-teal-600 fill-teal-500" />
-                <span>หมวดระบบน้ำประปา</span>
-              </label>
-              <select
-                value={selectedWater}
-                onChange={(e) => setSelectedWater(e.target.value)}
-                className="w-full px-3 py-2 bg-teal-50/50 border-2 border-teal-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 text-teal-950"
-              >
-                <option value="all">💧 ประปา: ทั้งหมด</option>
-                <option value="gov">🚰 ประปารัฐ/หมู่บ้าน</option>
-                <option value="mountain">🏔️ ประปาภูเขา</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs font-medium text-slate-600">
-            <span>
-              แสดงข้อมูล <strong>{filteredSchools.length}</strong> จากทั้งหมด <strong>{schools.length}</strong> แห่ง
-            </span>
-            {(searchQuery || selectedAmphoe !== 'all' || selectedElectric !== 'all' || selectedInternet !== 'all' || selectedWater !== 'all') && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedAmphoe('all');
-                  setSelectedElectric('all');
-                  setSelectedInternet('all');
-                  setSelectedWater('all');
-                }}
-                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>ล้างตัวกรองทั้งหมด</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* School Cards Grid */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-600" />
-              <span>รายชื่อสถานศึกษาและสาขาในสังกัด สพป.แม่ฮ่องสอน เขต 1 ({filteredSchools.length} แห่ง)</span>
-            </h3>
-          </div>
-
-          {filteredSchools.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border-2 border-slate-200">
-              <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-800 text-base font-bold">ไม่พบข้อมูลสถานศึกษาตามเงื่อนไขที่เลือก</p>
-              <p className="text-xs text-slate-400 mt-1">ลองเปลี่ยนคำค้นหาหรือกดล้างตัวกรอง</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-              {filteredSchools.map((school) => (
-                <SchoolCard
-                  key={school.id}
-                  school={school}
-                  onClick={() => setSelectedSchool(school)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Bottom Section: Single Consolidated Summary Table requested by user */}
-        <div className="pt-6 border-t-2 border-slate-300">
-          <SummaryTable schools={schools} />
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-12">
-        <p className="font-bold text-slate-700">สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1 (สพป.มส.1)</p>
-        <p className="mt-1 text-[11px] text-slate-400">ระบบบริหารจัดการฐานข้อมูลสารสนเทศทางการศึกษา (Big Data Platform)</p>
-      </footer>
-
-      {/* Modals */}
-      <SchoolDetailModal
-        school={selectedSchool}
-        onClose={() => setSelectedSchool(null)}
+      {/* HEADER */}
+      <Header
+        userProfile={userProfile}
+        onLoginClick={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
+        isDarkMode={isDarkMode}
+        toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setSelectedSchoolId(null); // ล้างค่าเลือกโรงเรียนเมื่อเปลี่ยนแท็บหลัก
+          if (tab === 'admin') {
+            // ล้างแคชเพื่อให้ Admin เห็นข้อมูลล่าสุดเสมอ
+            localStorage.removeItem('mhs_app_data_cache_v3');
+            fetchAllData();
+          }
+        }}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
+        themeStyle={themeStyle}
+        setThemeStyle={setThemeStyle}
+        academicYear={academicYear}
+        setAcademicYear={setAcademicYear}
+        availableYears={availableYears}
+        systemConfig={systemConfig}
+        serverStatus={serverStatus}
+        activeSessionCount={activeSessionCount}
+        pendingUsers={pendingUsers}
+        isLoadingPendingUsers={isLoadingPendingUsers}
+        onRefreshPendingUsers={() => fetchPendingRegistrations()}
+        onQuickApproveUser={handleQuickApproveUser}
+        onQuickRejectUser={handleQuickRejectUser}
+        onOpenAdminUserManagement={handleOpenAdminUserManagement}
       />
 
+      {/* 📢 Super Admin Real-time Floating Alert Banner */}
+      {isSuperAdminUser && pendingUsers.length > 0 && (
+        <SuperAdminFloatingAlert
+          pendingUsers={pendingUsers}
+          onOpenUserManagement={handleOpenAdminUserManagement}
+        />
+      )}
+
+      {/* MAIN CONTENT AREA */}
+      <main className={`flex-grow mx-auto w-full py-6 pb-20 lg:pb-8 transition-all ${
+        activeTab === 'schools' || activeTab === 'admin' || selectedSchoolId
+          ? 'max-w-none px-2 sm:px-4 lg:px-6'
+          : 'max-w-7xl px-4 sm:px-6'
+      }`}>
+        {isLoading ? (
+          <DashboardSkeleton isDarkMode={isDarkMode} />
+        ) : (
+          <div className="animate-fade-in">
+            {/* โชว์หน้ารายละเอียดเมื่อโรงเรียนโดนเลือก */}
+            {selectedSchoolId && selectedSchool ? (
+              <SchoolDetailView
+                school={selectedSchool}
+                studentData={selectedSchoolStudent}
+                allStudentData={studentData}
+                allStudentGData={studentGData}
+                academicRecords={academicRecords}
+                onBack={() => setSelectedSchoolId(null)}
+                onNavigateToContact={() => {
+                  setSelectedSchoolId(null);
+                  setActiveTab('contact');
+                }}
+                onNavigateToAcademic={() => {
+                  setSelectedSchoolId(null);
+                  setActiveTab('academic');
+                }}
+                userProfile={userProfile}
+                onRefreshData={() => fetchAllData(true)}
+                isDarkMode={isDarkMode}
+                systemConfig={systemConfig}
+                academicYear={academicYear}
+                setAcademicYear={setAcademicYear}
+                availableYears={availableYears}
+              />
+            ) : (
+              <>
+                {activeTab === 'dashboard' && (
+                  <DashboardView
+                    schools={schools}
+                    studentData={studentData}
+                    studentGData={studentGData}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    onSelectSchool={(id) => setSelectedSchoolId(id)}
+                    isDarkMode={isDarkMode}
+                    onFilterNavigate={handleFilterNavigate}
+                  />
+                )}
+
+                {activeTab === 'schools' && (
+                  <SchoolListView
+                    schools={schools}
+                    studentData={studentData}
+                    academicRecords={academicRecords}
+                    userProfile={userProfile}
+                    onSelectSchool={(id) => setSelectedSchoolId(id)}
+                    initialFilters={initialFilters}
+                    clearInitialFilters={() => setInitialFilters(null)}
+                    systemConfig={systemConfig}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                  />
+                )}
+
+                {activeTab === 'academic' && (
+                  <AcademicStatsView
+                    schools={schools}
+                    userProfile={userProfile}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    systemConfig={systemConfig}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                    isDarkMode={isDarkMode}
+                  />
+                )}
+
+                {activeTab === 'infrastructure' && (
+                  <InfrastructureView
+                    schools={schools}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                    systemConfig={systemConfig}
+                    userProfile={userProfile}
+                  />
+                )}
+
+                {activeTab === 'contact' && (
+                  (userProfile?.role === 'super_admin' || systemConfig?.contactEnabled !== false) ? (
+                    <ContactView
+                      systemConfig={systemConfig}
+                      userProfile={userProfile}
+                      onRefreshData={() => fetchAllData(true)}
+                    />
+                  ) : (
+                    <div className="card p-8 text-center bg-white dark:bg-[#1e1518] space-y-4 max-w-xl mx-auto border-2 border-[#33272A] shadow-[4px_4px_0px_#33272A] rounded-2xl">
+                      <div className="text-5xl mb-2">🔒</div>
+                      <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">ระบบปิดการแสดงผลเมนูติดต่อ</h2>
+                      <p className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70">
+                        ขณะนี้ผู้ดูแลระบบ (Super Admin) ได้ซ่อนเมนูติดต่อสำหรับผู้ใช้งานทั่วไป
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className="px-5 py-2.5 bg-[#FF8BA7] text-[#33272A] font-black rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer hover:bg-[#ff7597] transition-all text-xs"
+                      >
+                        กลับสู่หน้าหลัก
+                      </button>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'admin' && userProfile && (
+                  <AdminPanel
+                    userProfile={userProfile}
+                    schools={schools}
+                    studentData={studentData}
+                    studentGData={studentGData}
+                    onRefreshData={() => fetchAllData(true)}
+                    systemConfig={systemConfig}
+                    serverStatus={serverStatus}
+                    themeStyle={themeStyle}
+                    setThemeStyle={setThemeStyle}
+                    designStyle={designStyle}
+                    setDesignStyle={setDesignStyle}
+                    isDarkMode={isDarkMode}
+                    setIsDarkMode={setIsDarkMode}
+                    academicYear={academicYear}
+                    setAcademicYear={setAcademicYear}
+                    availableYears={availableYears}
+                    onSelectSchool={(id) => {
+                      setSelectedSchoolId(id);
+                      setActiveTab('schools');
+                    }}
+                    initialAdminTab={adminPanelInitialTab}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* FOOTER */}
+      <footer className="border-t-2 border-[#33272A] bg-white dark:border-[#FFD3B6] dark:bg-[#1e1518] p-4 transition-colors pb-24 xl:pb-6">
+        <div className="mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between text-xs sm:text-sm font-medium text-[#33272A] dark:text-[#FFF9F5] gap-3 text-center md:text-left">
+          <div className="flex items-center gap-1.5 justify-center">
+            <Award className="h-4 w-4 text-[#FF8BA7] shrink-0" />
+            <span className="font-bold">MHS1 BIGDATA &copy; 2026 ระบบสารสนเทศนักเรียนรายบุคคล สพป.แม่ฮ่องสอน เขต 1</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 justify-center md:justify-end text-[#33272A] dark:text-[#FFF9F5]">
+            <span>พัฒนาขึ้นโดย</span>
+            <span className="font-bold text-[#FF8BA7] dark:text-[#FF8BA7]">นักวิเคราะห์นโยบายและแผน นายภูชิชย์ ชาติเวียง</span>
+            <span>และ</span>
+            <span className="font-bold text-[#14B8A6] dark:text-[#A0E7E5]">เจ้าหน้าที่ ICT นางสาวชนัญชิตา ไพศาล</span>
+          </div>
+        </div>
+
+        {/* VISITOR COUNTER */}
+        <div className="mx-auto max-w-7xl px-4 pt-3 mt-3 border-t border-[#33272A]/10 dark:border-[#FFD3B6]/20 flex justify-center items-center">
+          <VisitorCounter />
+        </div>
+      </footer>
+
+      {/* LOGIN / SIGNUP MODAL */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         schools={schools}
-        onLoginSuccess={handleLoginSuccess}
+        onAuthSuccess={(profile) => {
+          setUserProfile(profile);
+          setActiveTab('admin');
+        }}
       />
 
-      <DatabaseSettingsModal
-        isOpen={isDbModalOpen}
-        onClose={() => setIsDbModalOpen(false)}
-        schools={schools}
-        onConfigChange={handleConfigChange}
+      {/* AUTO LOGOUT AFTER 30 MIN INACTIVITY */}
+      <InactivityLogoutHandler
+        userProfile={userProfile}
+        onLoggedOut={handleLogout}
       />
+
+      {/* HIGH TRAFFIC POP-UP NOTICE MODAL */}
+      {systemConfig.highTrafficAlertEnabled !== false && isHighTrafficNoticeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#33272A]/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg card p-6 space-y-5 bg-white dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] shadow-[8px_8px_0px_#33272A] dark:shadow-[8px_8px_0px_#FFD3B6] rounded-3xl relative overflow-hidden">
+            
+            {/* Top decorative badge */}
+            <div className="bg-rose-500 text-white text-[11px] font-black px-4 py-1 rounded-full w-fit flex items-center gap-1.5 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-white animate-ping shrink-0" />
+              <span>แจ้งเตือนสถานะความหนาแน่นผู้ใช้งาน (System Load Alert)</span>
+            </div>
+
+            {/* Header */}
+            <div className="flex items-start gap-3.5 border-b-2 border-[#33272A] pb-4 dark:border-[#FFD3B6]/30">
+              <div className="p-3.5 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border-2 border-[#33272A] dark:border-amber-500 shrink-0 shadow-[2px_2px_0px_#33272A]">
+                <Users className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5] leading-snug">
+                  ระบบ Bigdata สพป.แม่ฮ่องสอน เขต 1
+                </h3>
+                <p className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  ขณะนี้มีผู้เข้าใช้งานหนาแน่นเกินโควตาชั่วคราว
+                </p>
+              </div>
+            </div>
+
+            {/* Exact requested text box */}
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 text-center space-y-2">
+              <p className="text-sm sm:text-base font-black text-amber-950 dark:text-amber-200 leading-relaxed">
+                " {systemConfig.highTrafficAlertMessage || 'ตอนนี้ระบบ Bigdata มีผู้ใช้งานในระบบจำนวนมาก ให้เข้ามาใหม่ภายหลัง ประมาณ 10 นาที'} "
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold leading-relaxed pt-1 border-t border-amber-200 dark:border-amber-800">
+                เนื่องจากการประมวลผลฐานข้อมูลสารสนเทศนักเรียนรายบุคคลกำลังทำงานเต็มประสิทธิภาพ ขอแนะนำให้ท่านลองเข้าใช้งานอีกครั้งในอีกประมาณ 10 นาที เพื่อความรวดเร็วในการเรียกดูข้อมูล
+              </p>
+            </div>
+
+            {/* Timer countdown simulation box */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[#FFF9F5] dark:bg-[#251b1e] border-2 border-[#33272A] dark:border-[#FFD3B6]/40 text-xs font-bold">
+              <span className="text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-amber-500" /> ระยะเวลาแนะนำเข้าใหม่:
+              </span>
+              <span className="px-3 py-1 rounded-lg bg-amber-400 text-[#33272A] font-black font-mono">
+                10:00 นาที
+              </span>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsHighTrafficNoticeOpen(false)}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#FF8BA7] hover:bg-[#ff7597] text-[#33272A] border-2 border-[#33272A] text-xs font-black cursor-pointer shadow-[3px_3px_0px_#33272A] transition-transform active:scale-95"
+              >
+                รับทราบ (ลองเข้ามาใหม่ภายหลัง)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SESSION NOTICE MODAL (Kicked / Concurrency Blocked) */}
+      {sessionNoticeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#33272A]/75 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-lg card p-6 space-y-4 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A]">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 rounded-2xl bg-rose-100 dark:bg-rose-950 border-2 border-rose-500">
+                <AlertTriangle className="h-7 w-7 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-[#33272A] dark:text-[#FFF9F5]">
+                  {sessionNoticeModal.title}
+                </h3>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  การแจ้งเตือนจากระบบการจัดการผู้เข้าใช้งานและความปลอดภัย
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 text-xs sm:text-sm font-extrabold text-[#33272A] dark:text-[#FFF9F5] leading-relaxed">
+              {sessionNoticeModal.message}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSessionNoticeModal(null)}
+                className="px-6 py-2.5 rounded-xl bg-[#FF8BA7] hover:bg-[#ff7597] text-[#33272A] border-2 border-[#33272A] text-xs font-black cursor-pointer shadow-[3px_3px_0px_#33272A]"
+              >
+                รับทราบ และตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
