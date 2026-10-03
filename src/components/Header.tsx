@@ -220,6 +220,26 @@ export default function Header({
             </button>
           </div>
 
+          {/* Super Admin Quick Hostatom Button */}
+          {userProfile?.role === 'super_admin' && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('admin');
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('open-hostatom-modal'));
+                }, 100);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-black rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95 shrink-0"
+              title="เปิดเครื่องมือย้ายไป Hostatom / ดาวน์โหลดชุดติดตั้ง"
+            >
+              <Server className="h-3.5 w-3.5 text-amber-300" />
+              <span className="hidden sm:inline">ย้ายไป Hostatom</span>
+              <span className="sm:hidden">Hostatom</span>
+              <span className="bg-amber-400 text-slate-900 text-[9px] font-black px-1 rounded">NEW</span>
+            </button>
+          )}
+
           {/* Super Admin Notification Bell for pending registrations */}
           {userProfile?.role === 'super_admin' && onRefreshPendingUsers && onQuickApproveUser && onQuickRejectUser && (
             <SuperAdminNotificationBell

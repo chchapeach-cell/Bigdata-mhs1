@@ -634,6 +634,16 @@ export default function AdminPanel({
     }
   }, [initialAdminTab]);
 
+  useEffect(() => {
+    const handleOpenHostatom = () => {
+      setIsHostatomModalOpen(true);
+    };
+    window.addEventListener('open-hostatom-modal', handleOpenHostatom);
+    return () => {
+      window.removeEventListener('open-hostatom-modal', handleOpenHostatom);
+    };
+  }, []);
+
   // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม, สถิติระบบ, ตั้งค่าระบบ และย้ายฐานข้อมูล)
   useEffect(() => {
     if (!isSuperAdmin && (
@@ -2544,11 +2554,12 @@ export default function AdminPanel({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setIsHostatomModalOpen(true)}
-              className="button bg-indigo-600 text-white hover:bg-indigo-700 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-3.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
-              title="เปิดเครื่องมือย้ายฐานข้อมูลไป Hostatom และระบบสำรองข้อมูล"
+              className="button bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-purple-800 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-3.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[3px_3px_0px_0px_#33272A] dark:shadow-[3px_3px_0px_0px_#FFD3B6] transition-transform active:scale-95"
+              title="เปิดเครื่องมือย้ายฐานข้อมูลไป Hostatom และดาวน์โหลดชุดติดตั้ง"
             >
-              <Server className="h-4 w-4" />
-              <span>ย้ายไป Hostatom &amp; สำรองข้อมูล</span>
+              <Server className="h-4 w-4 text-amber-300 animate-pulse" />
+              <span>📦 ย้ายไป Hostatom (ชุดที่ 2)</span>
+              <span className="bg-amber-300 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-xs">NEW</span>
             </button>
             <button
               onClick={() => setIsSupabaseModalOpen(true)}
@@ -2598,8 +2609,19 @@ export default function AdminPanel({
             </div>
           </div>
 
-          <div className="font-bold text-[10px] text-[#33272A]/80 dark:text-[#FFF9F5]/80">
-            Project ID: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">mhs1-dmc</span>
+          <div className="flex items-center gap-2 font-bold text-[10px] text-[#33272A]/80 dark:text-[#FFF9F5]/80">
+            <span>Project ID: <span className="font-mono bg-white/60 dark:bg-black/30 px-1.5 py-0.5 rounded border border-[#33272A]/20">mhs1-dmc</span></span>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setIsHostatomModalOpen(true)}
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-2.5 py-1 rounded-xl border border-[#33272A] text-[10px] font-black cursor-pointer shadow-xs transition-transform active:scale-95"
+                title="เปิดเครื่องมือย้ายไป Hostatom"
+              >
+                <Server className="h-3 w-3 text-amber-300" />
+                <span>📦 ย้ายไป Hostatom</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -2634,6 +2656,22 @@ export default function AdminPanel({
                     {noAdminSchoolsCount}
                   </span>
                 )}
+              </button>
+
+              {/* Tab: ย้ายไป Hostatom (แถวแรก ไม่ต้องเลื่อนจอ) */}
+              <button
+                onClick={() => setAdminTab('hostatom_migration')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'hostatom_migration' 
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-indigo-50 text-indigo-900 border-indigo-400 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-400'
+                }`}
+              >
+                <Server className="h-4 w-4 text-indigo-600 dark:text-indigo-300 animate-pulse" />
+                <span>📦 ย้ายไป Hostatom (ชุดที่ 2)</span>
+                <span className="bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                  ใหม่
+                </span>
               </button>
             </>
           )}
@@ -2740,18 +2778,6 @@ export default function AdminPanel({
               >
                 <Settings className="h-4 w-4" />
                 <span>ตั้งค่าระบบ</span>
-              </button>
-
-              <button
-                onClick={() => setAdminTab('hostatom_migration')}
-                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  adminTab === 'hostatom_migration' 
-                    ? 'bg-indigo-600 text-white shadow-[2px_2px_0px_#33272A]' 
-                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-                }`}
-              >
-                <Server className="h-4 w-4 text-amber-300" />
-                <span>ย้ายไป Hostatom &amp; สำรอง</span>
               </button>
             </>
           )}
