@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
-import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity } from '../lib/dbAdapter';
+import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity, dbFetchSchoolImages } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import { determineQualityLevel, matchSchoolId } from '../utils/academicData';
@@ -193,6 +193,26 @@ export default function SchoolDetailView({
     }
 
     setClassrooms(school.classrooms || []);
+
+    // Lazy load รูปภาพของโรงเรียนนี้จากฐานข้อมูลแบบ On-demand (โหลดเฉพาะโรงเรียนที่เปิดดู รวดเร็วระดับเสี้ยววินาที)
+    if (school.id && (!school.imageUrl && !school.logoUrl && !school.directorImageUrl)) {
+      dbFetchSchoolImages(school.id).then(imgs => {
+        if (imgs) {
+          if (imgs.imageUrl) {
+            setEditImageUrl(imgs.imageUrl);
+            school.imageUrl = imgs.imageUrl;
+          }
+          if (imgs.logoUrl) {
+            setEditLogoUrl(imgs.logoUrl);
+            school.logoUrl = imgs.logoUrl;
+          }
+          if (imgs.directorImageUrl) {
+            setEditDirectorImageUrl(imgs.directorImageUrl);
+            school.directorImageUrl = imgs.directorImageUrl;
+          }
+        }
+      }).catch(() => {});
+    }
   }, [school]);
 
   // คำนวณยอดรวมครูและบุคลากรอัตโนมัติในโหมดแก้ไข (ครูวิชาเอกข้าราชการ/อัตราจ้าง + ธุรการ + ภารโรง + อื่นๆ)

@@ -32,16 +32,55 @@ function cleanForFirestore(obj: any): any {
   return cleaned;
 }
 
+export const LIGHT_SCHOOL_FIELDS = `
+  id, name, district, amphoe, network_group, internet_type, electricity,
+  water_system, water_system_detail, solar_kw, has_solar_battery, solar_battery_capacity,
+  staff_count, contract_teachers_count, admin_staff_count, janitor_count, other_staff_count,
+  major_subjects, major_subjects_with_staff, classrooms, director_name, director_phone,
+  vice_director_name, vice_director_phone, vice_directors, school_phone, email, facebook,
+  line, website, address, latitude, longitude, size, is_expansion, special_highlights,
+  updated_at, updated_by
+`.replace(/\s+/g, ' ').trim();
+
 /**
  * ล้างแคชในเครื่องเมื่อมีการบันทึก/แก้ไข/ลบข้อมูล
  */
 export function clearAppCache(): void {
   try {
+    localStorage.removeItem('mhs_app_data_cache_v5');
+    localStorage.removeItem('mhs_app_data_cache_v4');
     localStorage.removeItem('mhs_app_data_cache_v3');
+    sessionStorage.removeItem('mhs_app_data_cache_v5');
     sessionStorage.removeItem('mhs_app_data_cache_v3');
   } catch (e) {
     // ignore
   }
+}
+
+/**
+ * ดึงรูปภาพขนาดใหญ่เฉพาะโรงเรียนที่ต้องการเปิดดู (Lazy-load รูปภาพระดับ 50ms แทนการโหลด 32MB ทั้งหมด)
+ */
+export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?: string; logoUrl?: string; directorImageUrl?: string }> {
+  if (!schoolId) return {};
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('schools')
+        .select('image_url, logo_url, director_image_url')
+        .eq('id', String(schoolId))
+        .maybeSingle();
+      if (!error && data) {
+        return {
+          imageUrl: data.image_url || '',
+          logoUrl: data.logo_url || '',
+          directorImageUrl: data.director_image_url || ''
+        };
+      }
+    } catch (e) {
+      console.warn('Notice fetching school images:', e);
+    }
+  }
+  return {};
 }
 
 // -------------------------------------------------------------

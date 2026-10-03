@@ -17,7 +17,7 @@ import { SupabaseMigrationModal } from './SupabaseMigrationModal';
 import { HostatomDatabaseModal } from './HostatomDatabaseModal';
 import { UserActivityLogView } from './UserActivityLogView';
 import { SchoolSummaryDashboard } from './SchoolSummaryDashboard';
-import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
+import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser, clearAppCache } from '../lib/dbAdapter';
 import { generateHostatomMySQLDump, generateFullJsonArchive, getHostatomConfig, HOSTATOM_PHP_CONNECTOR_CODE, downloadAsFile } from '../lib/hostatom';
 import { compressImage } from '../utils/imageCompressor';
 
@@ -5878,7 +5878,7 @@ export default function AdminPanel({
                   <button
                     onClick={() => {
                       if (window.confirm('คุณต้องการล้างแคชข้อมูลระบบทั้งหมดใช่หรือไม่? ระบบจะทำการโหลดหน้าเว็บใหม่')) {
-                        localStorage.removeItem('mhs_app_data_cache_v3');
+                        clearAppCache();
                         window.location.reload();
                       }
                     }}
