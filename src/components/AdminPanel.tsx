@@ -7,7 +7,8 @@ import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import * as XLSX from 'xlsx';
-import { getSchoolSize, SCHOOL_GROUPS_LIST, getAmphoeAndNetwork, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
+import { getSchoolSize, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { removeUndefinedFields } from '../utils/errorHelper';
 import DatabaseQuotaMonitor from './DatabaseQuotaMonitor';
 import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';

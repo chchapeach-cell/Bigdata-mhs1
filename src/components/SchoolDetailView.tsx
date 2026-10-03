@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
 import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity, dbFetchSchoolImages } from '../lib/dbAdapter';
 import { compressImage } from '../utils/imageCompressor';
-import { getSchoolSize, getSchoolSizeLabel, getAmphoeAndNetwork, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
+import { getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { determineQualityLevel, matchSchoolId } from '../utils/academicData';
 import { generatePdfReport } from '../utils/exportPdf';
 import { 

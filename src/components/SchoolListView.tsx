@@ -5,7 +5,8 @@ import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { generatePdfReport } from '../utils/exportPdf';
-import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears, getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears, getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { determineQualityLevel } from '../utils/academicData';
 
 interface SchoolListViewProps {

@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { School, StudentData, StudentGData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine, LabelList } from 'recharts';
 import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkles, AlertCircle, MapPin, Map as MapIcon, Calendar, TrendingUp, TrendingDown, Database, Layers, BookOpen, Search, Smartphone, Download, Share2, HelpCircle, Zap, ZapOff, Wifi, WifiOff, Globe, Radio, BarChart2, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Percent, Filter, Sun, Droplets, Clock, CheckCircle2 } from 'lucide-react';
-import { getAmphoeAndNetwork, getSchoolSize, SCHOOL_GROUPS_LIST, getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { getSchoolSize, SCHOOL_GROUPS_LIST, getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
 
 interface DashboardViewProps {

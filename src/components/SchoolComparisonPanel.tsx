@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { getAmphoeAndNetwork, getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
+import { getSchoolSize, getSchoolSizeLabel } from '../utils/initialData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 
 interface SchoolComparisonPanelProps {
   schools: School[];
