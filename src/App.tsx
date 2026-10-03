@@ -128,7 +128,7 @@ export default function App() {
   // สถานะคำขอสมัครสมาชิกใหม่สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [isLoadingPendingUsers, setIsLoadingPendingUsers] = useState<boolean>(false);
-  const [adminPanelInitialTab, setAdminPanelInitialTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme' | undefined>(undefined);
+  const [adminPanelInitialTab, setAdminPanelInitialTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme' | 'hostatom_migration' | undefined>(undefined);
   const prevPendingCountRef = React.useRef<number>(0);
   const hasInitializedPendingRef = React.useRef<boolean>(false);
 
@@ -1150,6 +1150,7 @@ export default function App() {
                     schools={schools}
                     studentData={studentData}
                     studentGData={studentGData}
+                    academicRecords={academicRecords}
                     onRefreshData={() => fetchAllData(true)}
                     systemConfig={systemConfig}
                     serverStatus={serverStatus}

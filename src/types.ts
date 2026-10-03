@@ -197,6 +197,7 @@ export interface SystemConfig {
   contactTitle?: string; // หัวข้อหน้าติดต่อ
   contactSubtitle?: string; // คำอธิบายหน้าติดต่อ
   contactEnabled?: boolean; // เปิด-ปิดการแสดงผลเมนูติดต่อสำหรับทุกคน (Super Admin เป็นผู้กำหนด)
+  hostatomConfig?: any; // ตั้งค่าการเชื่อมต่อ Hostatom และการสำรองข้อมูล
   updatedAt?: any;
 }
 

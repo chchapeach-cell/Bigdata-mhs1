@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการติดตั้ง MHS1 BIGDATA บน Hostatom (cPanel / DirectAdmin)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Prompt', sans-serif; background: #FFF9F5; color: #33272A; margin: 0; padding: 20px; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; background: #ffffff; border: 3px solid #33272A; border-radius: 20px; padding: 30px; box-shadow: 6px 6px 0px #33272A; }
+    h1 { font-size: 26px; color: #1e1b4b; border-bottom: 2px dashed #33272A; padding-bottom: 12px; margin-top: 0; }
+    .badge { display: inline-block; background: #A0E7E5; border: 2px solid #33272A; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-bottom: 15px; }
+    .step-box { background: #F8FAFC; border: 2px solid #33272A; border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 4px 4px 0px rgba(0,0,0,0.06); }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: #FF8BA7; color: #33272A; font-weight: 900; border-radius: 50%; border: 2px solid #33272A; margin-right: 10px; }
+    .step-title { font-size: 18px; font-weight: 700; display: inline-flex; align-items: center; }
+    code, pre { background: #1e293b; color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 14px; }
+    pre { padding: 15px; overflow-x: auto; border: 2px solid #33272A; border-radius: 10px; }
+    .tip-box { background: #FEF3C7; border: 2px solid #D97706; border-radius: 10px; padding: 15px; margin: 15px 0; font-size: 14px; }
+    .success-box { background: #DCFCE7; border: 2px solid #15803d; border-radius: 10px; padding: 15px; margin: 15px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">🚀 ชุดไฟล์สำหรับติดตั้งบน Hostatom (Standalone Web & MySQL)</span>
+    <h1>คู่มือการติดตั้งระบบ MHS1 BIGDATA บน Hostatom</h1>
+    <p>ชุดไฟล์นี้เป็นชุดที่แยกออกมาโดยเฉพาะสำหรับติดตั้งบน Web Hosting ของ Hostatom โดยที่ระบบเดิมบนคลาวด์ยังคงอยู่ครบถ้วน 100%</p>
+
+    <div class="step-box">
+      <div class="step-title"><span class="step-num">1</span> อัปโหลดไฟล์ทั้งหมดขึ้น Hostatom ผ่าน File Manager</div>
+      <p>1. เข้าสู่ <strong>cPanel</strong> ของ Hostatom แล้วคลิกที่เมนู <strong>File Manager</strong></p>
+      <p>2. ดับเบิ้ลคลิกเข้าโฟลเดอร์ <code>public_html</code> (หรือโฟลเดอร์ของ Subdomain)</p>
+      <p>3. คลิกปุ่ม <strong>Upload</strong> ด้านบน แล้วเลือกไฟล์ ZIP ชุดนี้อัปโหลดขึ้นไป</p>
+      <p>4. เมื่ออัปโหลดเสร็จ ให้คลิกขวาที่ไฟล์ ZIP แล้วเลือก <strong>Extract (แตกไฟล์)</strong> ลงใน <code>public_html</code></p>
+    </div>
+
+    <div class="step-box">
+      <div class="step-title"><span class="step-num">2</span> สร้างฐานข้อมูล MySQL และ User ใน cPanel</div>
+      <p>1. ใน cPanel คลิกเมนู <strong>MySQL Databases</strong> (หรือ MySQL Database Wizard)</p>
+      <p>2. สร้างชื่อฐานข้อมูลใหม่ เช่น <code>mhs1db</code></p>
+      <p>3. สร้างผู้ใช้ (Create New User) และตั้งรหัสผ่านที่ปลอดภัย</p>
+      <p>4. <strong>สำคัญมาก:</strong> เลื่อนลงมาที่หัวข้อ <em>Add User To Database</em> เลือก User และ Database ที่เพิ่งสร้าง แล้วกด Add จากนั้นติ๊กเลือก <strong>ALL PRIVILEGES</strong> แล้วกด Make Changes</p>
+    </div>
+
+    <div class="step-box">
+      <div class="step-title"><span class="step-num">3</span> นำเข้าโครงสร้างตารางผ่าน phpMyAdmin</div>
+      <p>1. กลับมาที่หน้าหลักของ cPanel คลิกเปิด <strong>phpMyAdmin</strong></p>
+      <p>2. คลิกเลือกชื่อฐานข้อมูลของคุณที่แถบเมนูด้านซ้าย</p>
+      <p>3. คลิกแท็บ <strong>Import (นำเข้า)</strong> ด้านบน</p>
+      <p>4. กด Choose File แล้วเลือกไฟล์ <code>database/01_mhs1_schema_mysql.sql</code> จากในเครื่องของคุณ แล้วกด <strong>Import (หรือ Go)</strong> ด้านล่าง</p>
+    </div>
+
+    <div class="step-box">
+      <div class="step-title"><span class="step-num">4</span> ตั้งค่ารหัสผ่านฐานข้อมูลใน api/config.php</div>
+      <p>1. ใน File Manager บน cPanel เข้าไปที่โฟลเดอร์ <code>public_html/api/</code></p>
+      <p>2. คลิกขวาที่ไฟล์ <code>config.php</code> แล้วเลือก <strong>Edit</strong></p>
+      <p>3. กรอกชื่อฐานข้อมูล, ชื่อผู้ใช้, และรหัสผ่าน MySQL ที่สร้างไว้ในข้อ 2:</p>
+      <pre>
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'ชื่อ_cpanel_mhs1db');  // เปลี่ยนเป็นของคุณ
+define('DB_USER', 'ชื่อ_cpanel_dbuser');  // เปลี่ยนเป็นของคุณ
+define('DB_PASS', 'รหัสผ่านของคุณ');      // เปลี่ยนเป็นของคุณ
+define('API_SECRET', 'mhs1_bigdata_secret_2026');
+      </pre>
+      <p>4. กด <strong>Save Changes</strong></p>
+    </div>
+
+    <div class="success-box">
+      <strong>🎉 เสร็จสมบูรณ์!</strong> เปิดเบราว์เซอร์ไปที่ <code>https://โดเมนของคุณ.com/api/test.php</code> เพื่อตรวจสอบสถานะ หากขึ้นสีเขียวว่าเชื่อมต่อสำเร็จ เว็บไซต์ของคุณก็พร้อมใช้งานได้อย่างสมบูรณ์แบบ 100%
+    </div>
+  </div>
+</body>
+</html>

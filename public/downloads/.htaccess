@@ -1,0 +1,39 @@
+# ==============================================================================
+# MHS1 BIGDATA - Apache Configuration (.htaccess) สำหรับ Hostatom
+# รองรับ React Single Page Application (SPA), REST API, และความปลอดภัย
+# ==============================================================================
+
+Options -Indexes
+RewriteEngine On
+
+# 1. อนุญาตให้โฟลเดอร์ api และไฟล์จริงทำงานได้ปกติ
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 2. ส่ง Request อื่นๆ ทั้งหมดไปยัง index.html เพื่อรองรับ SPA Client Routing
+RewriteRule ^ index.html [L]
+
+# 3. เปิดใช้งาน GZIP Compression เพื่อลดขนาดและเพิ่มความเร็วในการโหลด
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# 4. แคชไฟล์ Assets (JS/CSS/รูปภาพ) 1 เดือน เพื่อประหยัด Bandwidth
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 day"
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
+
+# 5. ความปลอดภัย HTTP Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>

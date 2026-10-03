@@ -2,8 +2,8 @@ import { auth } from '../firebase';
 import { updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
-import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject } from '../types';
-import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award, ArrowUpDown, ChevronUp, ChevronDown, Cpu } from 'lucide-react';
+import { School, StudentData, UserProfile, StudentGData, SystemConfig, InfrastructureOption, ThemeStyle, DesignStyle, ViceDirectorItem, MajorSubject, AcademicRecord } from '../types';
+import { Shield, Upload, Edit3, UserCheck, Save, AlertCircle, RefreshCw, Phone, Zap, Globe, Droplets, Users, GraduationCap, Building, Database, Trash2, History, List, Key, User, Search, Eye, Layers, FileSpreadsheet, Sparkles, Settings, Plus, ToggleLeft, ToggleRight, Download, CheckCircle2, Activity, Server, Palette, Sun, Moon, Clock, Image as ImageIcon, Lock, Layout, Smartphone, Monitor, Info, AlertTriangle, X, BarChart3, TrendingUp, Award, ArrowUpDown, ChevronUp, ChevronDown, Cpu, FileCode, BookOpen } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import * as XLSX from 'xlsx';
@@ -14,9 +14,11 @@ import ActiveUserSessionMonitor from './ActiveUserSessionMonitor';
 import SystemSessionAndRamMonitor from './SystemSessionAndRamMonitor';
 import InfrastructureView from './InfrastructureView';
 import { SupabaseMigrationModal } from './SupabaseMigrationModal';
+import { HostatomDatabaseModal } from './HostatomDatabaseModal';
 import { UserActivityLogView } from './UserActivityLogView';
 import { SchoolSummaryDashboard } from './SchoolSummaryDashboard';
 import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser } from '../lib/dbAdapter';
+import { generateHostatomMySQLDump, generateFullJsonArchive, getHostatomConfig, HOSTATOM_PHP_CONNECTOR_CODE, downloadAsFile } from '../lib/hostatom';
 import { compressImage } from '../utils/imageCompressor';
 
 interface AdminPanelProps {
@@ -24,6 +26,7 @@ interface AdminPanelProps {
   schools: School[];
   studentData: StudentData[];
   studentGData?: StudentGData[];
+  academicRecords?: AcademicRecord[];
   onRefreshData: () => Promise<void>;
   systemConfig?: SystemConfig;
   serverStatus?: 'green' | 'yellow' | 'red';
@@ -37,7 +40,7 @@ interface AdminPanelProps {
   setAcademicYear?: (year: string) => void;
   availableYears?: string[];
   onSelectSchool?: (id: string) => void;
-  initialAdminTab?: 'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme';
+  initialAdminTab?: 'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme' | 'hostatom_migration';
 }
 
 export default function AdminPanel({
@@ -58,10 +61,12 @@ export default function AdminPanel({
   setAcademicYear,
   availableYears,
   onSelectSchool,
-  initialAdminTab
+  initialAdminTab,
+  academicRecords = []
 }: AdminPanelProps) {
   const isSuperAdmin = userProfile.role === 'super_admin' || userProfile.email === 'tamrri@gmail.com' || userProfile.email === 'ch.chapeach@gmail.com';
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isHostatomModalOpen, setIsHostatomModalOpen] = useState(false);
 
   // เลือกโรงเรียนที่ต้องการแก้ไข (สำหรับ Super Admin สามารถเลือกได้ทั้งหมด ส่วน School Admin จะถูกล็อกไว้ที่โรงเรียนตนเอง)
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
@@ -616,7 +621,7 @@ export default function AdminPanel({
     );
     return schools.filter(s => !approvedSchoolIds.has(s.id)).length;
   }, [schools, approvedUsers]);
-  const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme'>(
+  const [adminTab, setAdminTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'system_monitor' | 'settings' | 'theme' | 'hostatom_migration'>(
     initialAdminTab || (isSuperAdmin ? 'students_center' : 'schools')
   );
   const [studentSubTab, setStudentSubTab] = useState<'bigdata' | 'g_students'>('bigdata');
@@ -629,7 +634,7 @@ export default function AdminPanel({
     }
   }, [initialAdminTab]);
 
-  // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม, สถิติระบบ และตั้งค่าระบบ)
+  // ป้องกันกรณีผู้ที่ไม่ใช่ Super Admin เข้าถึงเมนูพิเศษ (ศูนย์ข้อมูลนักเรียน, สรุปภาพรวม, ทะเบียนผู้ใช้, ประวัติดาวน์โหลด, บันทึกกิจกรรม, สถิติระบบ, ตั้งค่าระบบ และย้ายฐานข้อมูล)
   useEffect(() => {
     if (!isSuperAdmin && (
       adminTab === 'students_center' || 
@@ -638,7 +643,8 @@ export default function AdminPanel({
       adminTab === 'logs' || 
       adminTab === 'activity_logs' || 
       adminTab === 'system_monitor' || 
-      adminTab === 'settings'
+      adminTab === 'settings' ||
+      adminTab === 'hostatom_migration'
     )) {
       setAdminTab('schools');
     }
@@ -2537,6 +2543,14 @@ export default function AdminPanel({
         {isSuperAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              onClick={() => setIsHostatomModalOpen(true)}
+              className="button bg-indigo-600 text-white hover:bg-indigo-700 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-3.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
+              title="เปิดเครื่องมือย้ายฐานข้อมูลไป Hostatom และระบบสำรองข้อมูล"
+            >
+              <Server className="h-4 w-4" />
+              <span>ย้ายไป Hostatom &amp; สำรองข้อมูล</span>
+            </button>
+            <button
               onClick={() => setIsSupabaseModalOpen(true)}
               className="button bg-emerald-600 text-white hover:bg-emerald-700 border-2 border-[#33272A] dark:border-[#FFD3B6] py-2 px-3.5 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6]"
             >
@@ -2715,17 +2729,31 @@ export default function AdminPanel({
           </button>
 
           {isSuperAdmin && (
-            <button
-              onClick={() => setAdminTab('settings')}
-              className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                adminTab === 'settings' 
-                  ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
-                  : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
-              }`}
-            >
-              <Settings className="h-4 w-4" />
-              <span>ตั้งค่าระบบ</span>
-            </button>
+            <>
+              <button
+                onClick={() => setAdminTab('settings')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'settings' 
+                    ? 'bg-[#A0E7E5] text-[#33272A] shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Settings className="h-4 w-4" />
+                <span>ตั้งค่าระบบ</span>
+              </button>
+
+              <button
+                onClick={() => setAdminTab('hostatom_migration')}
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-black border-2 border-[#33272A] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  adminTab === 'hostatom_migration' 
+                    ? 'bg-indigo-600 text-white shadow-[2px_2px_0px_#33272A]' 
+                    : 'bg-white text-[#33272A]/70 hover:bg-[#FFD3B6]/30 dark:bg-slate-800 dark:text-[#FFF9F5]/70'
+                }`}
+              >
+                <Server className="h-4 w-4 text-amber-300" />
+                <span>ย้ายไป Hostatom &amp; สำรอง</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -5811,6 +5839,29 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* จัดการฐานข้อมูลหลัก & ฐานข้อมูลสำรอง (Hostatom & Supabase Backup) */}
+              <div className="bg-[#A0E7E5]/20 dark:bg-[#1a1214] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] mt-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                      <Server className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                      การเชื่อมต่อฐานข้อมูลหลัก &amp; สำรอง (Hostatom MySQL &amp; Supabase Backup)
+                    </h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-bold">
+                      ย้ายฐานข้อมูลไปใช้งาน MySQL บน Hostatom cPanel พร้อมเปิดระบบสำรองข้อมูลอัตโนมัติ (Dual-Write Failover) ไปยัง Supabase
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHostatomModalOpen(true)}
+                    className="button bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black py-2.5 px-4 rounded-xl flex items-center gap-2 shrink-0 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>จัดการฐานข้อมูล Hostatom &amp; ดาวน์โหลด</span>
+                  </button>
+                </div>
+              </div>
+
               {/* จัดการแคชข้อมูล */}
               <div className="bg-[#FFF9F5] dark:bg-[#251b1e] p-5 rounded-2xl border-2 border-[#33272A] dark:border-[#FFD3B6] mt-6">
                 <h4 className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2 border-b border-[#33272A]/20 pb-2 mb-4">
@@ -5835,6 +5886,225 @@ export default function AdminPanel({
                   >
                     <Trash2 className="h-4 w-4" /> ล้างแคชทั้งหมด
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: การย้ายฐานข้อมูลไป Hostatom & ระบบสำรองข้อมูล (เฉพาะ Super Admin) */}
+          {adminTab === 'hostatom_migration' && isSuperAdmin && (
+            <div className="space-y-6 animate-fade-in">
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-6 rounded-3xl border-3 border-[#33272A] dark:border-[#FFD3B6] text-white shadow-[4px_4px_0px_#33272A] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-white text-indigo-700 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A]">
+                      <Server className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-black">
+                        การย้ายฐานข้อมูลไปใช้ Hostatom &amp; รักษา Supabase เป็นฐานข้อมูลสำรอง
+                      </h3>
+                      <p className="text-xs font-bold text-white/90">
+                        เครื่องมือส่งออกฐานข้อมูล แปลงเป็น MySQL สำเร็จรูป พร้อมไฟล์ PHP Connector สำหรับ cPanel
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHostatomModalOpen(true)}
+                    className="bg-white hover:bg-amber-100 text-[#33272A] font-black text-xs px-4 py-2.5 rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] flex items-center gap-1.5 shrink-0 cursor-pointer transition-transform active:scale-95"
+                  >
+                    <Zap className="h-4 w-4 text-amber-500" />
+                    <span>เปิดหน้าต่างตัวช่วยติดตั้งฉบับเต็ม</span>
+                  </button>
+                </div>
+
+                <div className="bg-white/20 backdrop-blur-xs p-3 rounded-2xl border border-white/30 text-xs font-bold flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-amber-300" />
+                    <span>สถานะความปลอดภัย: รองรับระบบ Dual-Write Failover (เมื่อบันทึกข้อมูล จะสำรองข้อมูลคู่ขนานไปยัง Supabase เสมอ)</span>
+                  </div>
+                  <span className="bg-white text-indigo-900 px-2.5 py-0.5 rounded-full text-[10px] font-black">
+                    Primary: {getHostatomConfig().primaryDb.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Hero Download Card for Hostatom ZIP */}
+              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white p-5 rounded-2xl border-3 border-[#33272A] shadow-[4px_4px_0px_#33272A] flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-300 text-[#33272A] font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase">
+                      ชุดที่ 2 สำเร็จรูป
+                    </span>
+                    <h4 className="font-black text-base sm:text-lg">ชุดไฟล์ติดตั้งบน Hostatom (Hostatom Deploy Pack .ZIP)</h4>
+                  </div>
+                  <p className="text-xs text-white/90 font-medium">
+                    ระบบเดิมยังคงอยู่ปกติ 100% ชุดนี้รวม Web App + REST API + ฐานข้อมูล MySQL + .htaccess + คู่มือภาษาไทย พร้อมนำไปแตกไฟล์ใน public_html บน Hostatom
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                  <a
+                    href="/downloads/mhs1_bigdata_hostatom_deploy_pack.zip"
+                    download="mhs1_bigdata_hostatom_deploy_pack.zip"
+                    className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-[#33272A] font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>ดาวน์โหลด ZIP (1.25 MB)</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setIsHostatomModalOpen(true)}
+                    className="bg-white hover:bg-slate-100 text-[#33272A] font-black py-2.5 px-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <span>ดูรายละเอียด</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Quick Action Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Card 1: ดาวน์โหลด MySQL Dump */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-emerald-500 shadow-[3px_3px_0px_#10b981] flex flex-col justify-between space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Database className="h-4 w-4" />
+                        1. ดาวน์โหลดข้อมูลจาก Supabase
+                      </span>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-300">
+                        MySQL Format
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 font-medium leading-relaxed">
+                      แปลงข้อมูลสถานศึกษา ({schools.length} แห่ง) และสถิตินักเรียนทั้งหมดในระบบ เป็นคำสั่ง SQL พร้อมนำเข้าสู่ phpMyAdmin บน Hostatom ทันที
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sql = generateHostatomMySQLDump(schools, studentData, studentGData, approvedUsers, systemConfig, academicRecords);
+                      const dateStr = new Date().toISOString().slice(0, 10);
+                      downloadAsFile(`mhs1_database_hostatom_mysql_${dateStr}.sql`, sql, 'text/sql');
+                    }}
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>ดาวน์โหลด MySQL Dump (.sql)</span>
+                  </button>
+                </div>
+
+                {/* Card 2: สคริปต์ PHP Connector */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-indigo-500 shadow-[3px_3px_0px_#6366f1] flex flex-col justify-between space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                        <FileCode className="h-4 w-4" />
+                        2. ไฟล์ PHP Connector
+                      </span>
+                      <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-300">
+                        สำหรับ cPanel
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 font-medium leading-relaxed">
+                      ไฟล์ <code>mhs1_db.php</code> สำหรับนำไปวางใน <code>public_html/api/</code> บนโฮสต์ Hostatom เพื่อทำหน้าที่เชื่อมต่อกับ MySQL ผ่าน REST API ที่ปลอดภัย
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadAsFile('mhs1_db.php', HOSTATOM_PHP_CONNECTOR_CODE, 'application/x-php');
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>ดาวน์โหลดไฟล์ mhs1_db.php</span>
+                  </button>
+                </div>
+
+                {/* Card 3: สำรองข้อมูล JSON ทั้งระบบ */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-[3px_3px_0px_#33272A] flex flex-col justify-between space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                        <Layers className="h-4 w-4" />
+                        3. สำรองข้อมูลฉุกเฉิน (JSON)
+                      </span>
+                      <span className="bg-slate-100 dark:bg-slate-900 text-gray-800 dark:text-gray-200 text-[10px] font-black px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-700">
+                        Universal Archive
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 font-medium leading-relaxed">
+                      สำรองข้อมูลทุกอย่างในระบบ (โรงเรียน, นักเรียน, ตัว G, บัญชีผู้ใช้, นโยบาย) เป็นไฟล์ JSON ก้อนเดียว ปลอดภัยสูงสุด
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const jsonStr = generateFullJsonArchive(schools, studentData, studentGData, approvedUsers, systemConfig, academicRecords);
+                      const dateStr = new Date().toISOString().slice(0, 10);
+                      downloadAsFile(`mhs1_full_backup_${dateStr}.json`, jsonStr, 'application/json');
+                    }}
+                    className="w-full bg-[#FF8BA7] hover:bg-[#ff7597] text-[#33272A] font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>ดาวน์โหลด Full Backup (.json)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 5 ขั้นตอนสรุปแบบชัดเจน */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 shadow-[3px_3px_0px_#33272A] space-y-4">
+                <div className="flex items-center justify-between border-b-2 border-[#33272A]/10 pb-3">
+                  <h4 className="text-sm font-black flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-indigo-600" />
+                    สรุป 5 ขั้นตอนการย้ายไป Hostatom และการรักษาฐานข้อมูลเดิมเป็นสำรอง
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsHostatomModalOpen(true)}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-black cursor-pointer"
+                  >
+                    ดูคู่มือฉบับละเอียด ➔
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs leading-relaxed">
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-200 text-emerald-900 font-black shrink-0 text-[11px] border border-emerald-400">1</span>
+                    <div>
+                      <strong>ดาวน์โหลดฐานข้อมูลจากระบบ:</strong> กดปุ่ม "ดาวน์โหลด MySQL Dump (.sql)" ด้านบน เพื่อรับไฟล์สคริปต์ SQL ที่แปลงโครงสร้างและรวมข้อมูลสถานศึกษาทั้งหมดเรียบร้อยแล้ว
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-200 text-emerald-900 font-black shrink-0 text-[11px] border border-emerald-400">2</span>
+                    <div>
+                      <strong>สร้างฐานข้อมูลบน Hostatom:</strong> เข้าสู่ cPanel ของ Hostatom ➔ ไปที่ "MySQL Databases" ➔ สร้างฐานข้อมูลใหม่ และสร้าง User พร้อมกำหนดสิทธิ์ "ALL PRIVILEGES"
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-200 text-emerald-900 font-black shrink-0 text-[11px] border border-emerald-400">3</span>
+                    <div>
+                      <strong>นำเข้าข้อมูลผ่าน phpMyAdmin:</strong> ใน cPanel ของ Hostatom ➔ เปิด "phpMyAdmin" ➔ คลิกเลือกฐานข้อมูลที่เพิ่งสร้าง ➔ กดแท็บ "Import (นำเข้า)" ➔ เลือกไฟล์ .sql แล้วกด Go
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-200 text-emerald-900 font-black shrink-0 text-[11px] border border-emerald-400">4</span>
+                    <div>
+                      <strong>อัปโหลดไฟล์ PHP Connector:</strong> ดาวน์โหลดไฟล์ <code>mhs1_db.php</code> ไปวางในโฟลเดอร์ <code>public_html/api/</code> บนโฮสต์ Hostatom พร้อมแก้ชื่อฐานข้อมูลและรหัสผ่านในไฟล์ให้ตรงกัน
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <span className="flex items-center justify-center h-5 w-5 rounded-full bg-emerald-200 text-emerald-900 font-black shrink-0 text-[11px] border border-emerald-400">5</span>
+                    <div>
+                      <strong>เปิดใช้งานและเก็บ Supabase เป็นสำรอง:</strong> คลิกปุ่ม <em>"เปิดหน้าต่างตัวช่วยติดตั้งฉบับเต็ม"</em> ➔ กรอก URL ของไฟล์ PHP ➔ กดทดสอบ (Ping Test) ➔ เมื่อสำเร็จให้เลือก Hostatom เป็นฐานข้อมูลหลัก และคงเปิดตัวเลือก <em>"สำรองข้อมูลไปยัง Supabase อัตโนมัติ (Dual-Write)"</em> ไว้เสมอ
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -6319,6 +6589,18 @@ export default function AdminPanel({
         studentData={studentData}
         studentGData={studentGData}
         systemConfig={systemConfig}
+      />
+
+      {/* Hostatom Database Migration & Backup Modal */}
+      <HostatomDatabaseModal
+        isOpen={isHostatomModalOpen}
+        onClose={() => setIsHostatomModalOpen(false)}
+        schools={schools}
+        studentData={studentData}
+        studentGData={studentGData}
+        users={[...pendingUsers, ...approvedUsers]}
+        systemConfig={systemConfig}
+        academicRecords={academicRecords}
       />
     </div>
   );
