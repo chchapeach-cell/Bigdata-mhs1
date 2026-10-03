@@ -1576,7 +1576,7 @@ export default function AdminPanel({
         district: 'สพป.แม่ฮ่องสอน เขต 1',
         amphoe: newSchoolAmphoe,
         networkGroup: newSchoolNetworkGroup.trim() || `เครือข่าย ${newSchoolAmphoe}`,
-        size: newSchoolSize === 'extra_large' ? 'special_large' : newSchoolSize,
+        size: (newSchoolSize as string) === 'extra_large' ? 'special_large' : newSchoolSize,
         isExpansion: newSchoolIsExpansion,
         electricity: newSchoolElectricity,
         internetType: newSchoolInternet,
@@ -5376,7 +5376,7 @@ export default function AdminPanel({
                                   style={{
                                     height: `${headerBannerHeight}px`,
                                     maxHeight: `${headerBannerHeight}px`,
-                                    objectFit: headerBannerFit,
+                                    objectFit: (headerBannerFit === 'auto' ? 'contain' : headerBannerFit) || 'contain',
                                     width: headerBannerFit === 'fill' || headerBannerFit === 'cover' ? '100%' : 'auto'
                                   }}
                                   className="max-w-full block"

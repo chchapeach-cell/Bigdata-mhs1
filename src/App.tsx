@@ -6,7 +6,7 @@ import { getAmphoeAndNetwork, getSchoolSize, getCurrentBEYear, getDefaultAvailab
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { dbFetchUserProfile, dbFetchAcademicRecords, dbFetchUsersByStatus, dbUpdateUserStatus, dbDeleteUser, dbLogUserActivity, LIGHT_SCHOOL_FIELDS, clearAppCache } from './lib/dbAdapter';
+import { dbFetchUserProfile, dbFetchAcademicRecords, dbFetchUsersByStatus, dbUpdateUserStatus, dbDeleteUser, dbLogUserActivity, LIGHT_SCHOOL_FIELDS, clearAppCache, dbFetchSystemConfig } from './lib/dbAdapter';
 import { playNotificationChime } from './lib/soundEffects';
 import { notifyNewUserRegistration, requestBrowserNotificationPermission, getBrowserNotificationPermission } from './lib/browserNotification';
 import SuperAdminFloatingAlert from './components/SuperAdminFloatingAlert';
@@ -387,7 +387,6 @@ export default function App() {
     let isMounted = true;
     const fetchConfig = async () => {
       try {
-        const { dbFetchSystemConfig } = await import('./lib/dbAdapter');
         const data = await dbFetchSystemConfig();
         if (data && isMounted) {
           setSystemConfig({

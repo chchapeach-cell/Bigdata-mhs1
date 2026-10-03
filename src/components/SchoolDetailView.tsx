@@ -724,7 +724,7 @@ export default function SchoolDetailView({
   };
 
   // ดึงรายชื่อวิชาเอกพร้อมระบุจำนวนครู
-  const displayMajors = useMemo(() => {
+  const displayMajors = useMemo<MajorSubject[]>(() => {
     if (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.length > 0) {
       return school.majorSubjectsWithStaff;
     }
@@ -2667,7 +2667,7 @@ export default function SchoolDetailView({
                 <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" /> นักเรียนตัว G ({selectedYear})
               </span>
               <span className="text-sm font-black text-amber-900 dark:text-amber-100">
-                {effectiveGData ? (effectiveGData.totalGStudents || effectiveGData.นักเรียนตัวGรวม || 0) : 0} คน
+                {effectiveGData ? ((effectiveGData as any).totalGStudents || (effectiveGData as any)['นักเรียนตัวGรวม'] || 0) : 0} คน
               </span>
             </div>
           </div>

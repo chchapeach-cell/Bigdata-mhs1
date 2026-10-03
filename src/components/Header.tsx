@@ -65,7 +65,7 @@ export default function Header({
             style={{
               height: systemConfig.headerBannerHeight ? `${systemConfig.headerBannerHeight}px` : '100px',
               maxHeight: systemConfig.headerBannerHeight ? `${systemConfig.headerBannerHeight}px` : '350px',
-              objectFit: systemConfig.headerBannerFit || 'contain',
+              objectFit: (systemConfig.headerBannerFit === 'auto' ? 'contain' : systemConfig.headerBannerFit) || 'contain',
               width: systemConfig.headerBannerFit === 'fill' || systemConfig.headerBannerFit === 'cover' ? '100%' : 'auto'
             }}
             className="max-w-full block transition-all"
