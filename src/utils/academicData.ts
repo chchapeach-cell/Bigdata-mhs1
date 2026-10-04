@@ -66,7 +66,7 @@ export const RAW_INITIAL_NT_DATA = [
   { order: 53, schoolId: "58010150", name: "บ้านดอยผีลู", amphoe: "ปาย", mathScore: 34.20, mathPercentage: 34.20, thaiScore: 44.65, thaiPercentage: 44.65, totalScore: 39.42, totalPercentage: 39.42, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 54, schoolId: "58010150-1", name: "บ้านดอยผีลู สาขาบ้านในของ", amphoe: "ปาย", mathScore: 31.62, mathPercentage: 31.62, thaiScore: 36.06, thaiPercentage: 36.06, totalScore: 33.84, totalPercentage: 33.84, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 55, schoolId: "58010151", name: "บ้านหมอแปง", amphoe: "ปาย", mathScore: 34.20, mathPercentage: 34.20, thaiScore: 49.75, thaiPercentage: 49.75, totalScore: 41.97, totalPercentage: 41.97, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
-  { order: 56, schoolId: "58010152", name: "บ้านป่ายาง", amphoe: "ปาย", mathScore: 41.00, mathPercentage: 41.00, thaiScore: 53.90, thaiPercentage: 53.90, totalScore: 47.45, totalPercentage: 47.45, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "ดี" },
+  { order: 56, schoolId: "58010123", name: "บ้านป่ายาง", amphoe: "ปาย", mathScore: 41.00, mathPercentage: 41.00, thaiScore: 53.90, thaiPercentage: 53.90, totalScore: 47.45, totalPercentage: 47.45, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 57, schoolId: "58010154", name: "บ้านโป่งสา", amphoe: "ปาย", mathScore: 35.66, mathPercentage: 35.66, thaiScore: 73.08, thaiPercentage: 73.08, totalScore: 54.37, totalPercentage: 54.37, mathQuality: "พอใช้", thaiQuality: "ดีมาก", totalQuality: "ดี" },
   { order: 58, schoolId: "58010155", name: "ปางตองประชาสรรค์", amphoe: "ปาย", mathScore: 25.20, mathPercentage: 25.20, thaiScore: 43.80, thaiPercentage: 43.80, totalScore: 34.50, totalPercentage: 34.50, mathQuality: "ปรับปรุง", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 59, schoolId: "58010156", name: "บ้านขุนสาใน", amphoe: "ปาย", mathScore: 36.23, mathPercentage: 36.23, thaiScore: 45.65, thaiPercentage: 45.65, totalScore: 40.94, totalPercentage: 40.94, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
@@ -97,7 +97,7 @@ export const RAW_INITIAL_NT_DATA = [
   { order: 84, schoolId: "58010031", name: "บ้านห้วยเดื่อ", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 69.33, mathPercentage: 69.33, thaiScore: 66.91, thaiPercentage: 66.91, totalScore: 68.12, totalPercentage: 68.12, mathQuality: "ดีมาก", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 85, schoolId: "58010032", name: "อนุบาลเมือง (ป่าปุ๊มิตรภาพที่ 29)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 29.75, mathPercentage: 29.75, thaiScore: 56.87, thaiPercentage: 56.87, totalScore: 43.31, totalPercentage: 43.31, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "พอใช้" },
   { order: 86, schoolId: "58010033", name: "บ้านน้ำเพียงดิน", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 28.83, mathPercentage: 28.83, thaiScore: 43.20, thaiPercentage: 43.20, totalScore: 36.02, totalPercentage: 36.02, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
-  { order: 87, schoolId: "58010034", name: "บ้านห้วยเสือเฒ่า(เจ้ากอแก้วอุปถัมภ์)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 27.25, mathPercentage: 27.25, thaiScore: 66.50, thaiPercentage: 66.50, totalScore: 46.87, totalPercentage: 46.87, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "พอใช้" },
+  { order: 87, schoolId: "58010016", name: "บ้านห้วยเสือเฒ่า(เจ้ากอแก้วอุปถัมภ์)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 27.25, mathPercentage: 27.25, thaiScore: 66.50, thaiPercentage: 66.50, totalScore: 46.87, totalPercentage: 46.87, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "พอใช้" },
   { order: 88, schoolId: "58010040", name: "บ้านห้วยโป่ง", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 67.40, mathPercentage: 67.40, thaiScore: 72.70, thaiPercentage: 72.70, totalScore: 70.05, totalPercentage: 70.05, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 89, schoolId: "58010036", name: "บ้านยอดดอยวิทยา", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 27.05, mathPercentage: 27.05, thaiScore: 35.97, thaiPercentage: 35.97, totalScore: 31.51, totalPercentage: 31.51, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 90, schoolId: "58010037", name: "บ้านกลาง", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 76.66, mathPercentage: 76.66, thaiScore: 63.33, thaiPercentage: 63.33, totalScore: 70.00, totalPercentage: 70.00, mathQuality: "ดีมาก", thaiQuality: "ดี", totalQuality: "ดีมาก" },
@@ -127,7 +127,7 @@ export const RAW_INITIAL_NT_DATA = [
   { order: 114, schoolId: "58010170", name: "บ้านเมืองแพม", amphoe: "ปางมะผ้า", mathScore: 26.77, mathPercentage: 26.77, thaiScore: 39.16, thaiPercentage: 39.16, totalScore: 32.97, totalPercentage: 32.97, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 115, schoolId: "58010171", name: "บ้านน้ำริน", amphoe: "ปางมะผ้า", mathScore: 35.25, mathPercentage: 35.25, thaiScore: 57.75, thaiPercentage: 57.75, totalScore: 46.50, totalPercentage: 46.50, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "พอใช้" },
   { order: 116, schoolId: "58010172", name: "บ้านถ้ำลอด", amphoe: "ปางมะผ้า", mathScore: 43.35, mathPercentage: 43.35, thaiScore: 50.85, thaiPercentage: 50.85, totalScore: 47.10, totalPercentage: 47.10, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "ดี" },
-  { order: 117, schoolId: "58010152", name: "ศูนย์ปางมะผ้าในโครงการตามพระราชดำริ", amphoe: "ปางมะผ้า", mathScore: 34.83, mathPercentage: 34.83, thaiScore: 47.08, thaiPercentage: 47.08, totalScore: 40.95, totalPercentage: 40.95, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
+  { order: 117, schoolId: "58010154", name: "ศูนย์ปางมะผ้าในโครงการตามพระราชดำริ", amphoe: "ปางมะผ้า", mathScore: 34.83, mathPercentage: 34.83, thaiScore: 47.08, thaiPercentage: 47.08, totalScore: 40.95, totalPercentage: 40.95, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 118, schoolId: "58010173", name: "บ้านกึ้ดสามสิบ", amphoe: "ปางมะผ้า", mathScore: 38.25, mathPercentage: 38.25, thaiScore: 48.00, thaiPercentage: 48.00, totalScore: 43.12, totalPercentage: 43.12, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 119, schoolId: "58010174", name: "บ้านผามอน", amphoe: "ปางมะผ้า", mathScore: 30.77, mathPercentage: 30.77, thaiScore: 40.44, thaiPercentage: 40.44, totalScore: 35.61, totalPercentage: 35.61, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 120, schoolId: "58010175", name: "บ้านห้วยแห้ง", amphoe: "ปางมะผ้า", mathScore: 37.50, mathPercentage: 37.50, thaiScore: 51.31, thaiPercentage: 51.31, totalScore: 44.40, totalPercentage: 44.40, mathQuality: "พอใช้", thaiQuality: "ดี", totalQuality: "พอใช้" },
@@ -197,7 +197,7 @@ export const RAW_INITIAL_RT_DATA = [
   { order: 52, schoolId: "58010150", name: "บ้านดอยผีลู", amphoe: "ปาย", mathScore: 29.89, mathPercentage: 59.78, thaiScore: 30.26, thaiPercentage: 60.52, totalScore: 60.15, totalPercentage: 60.15, mathQuality: "ดี", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 53, schoolId: "58010150-1", name: "บ้านดอยผีลู สาขาบ้านในของ", amphoe: "ปาย", mathScore: 27.42, mathPercentage: 54.85, thaiScore: 31.71, thaiPercentage: 63.42, totalScore: 59.14, totalPercentage: 59.14, mathQuality: "ดี", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 54, schoolId: "58010151", name: "บ้านหมอแปง", amphoe: "ปาย", mathScore: 42.00, mathPercentage: 84.00, thaiScore: 34.75, thaiPercentage: 69.50, totalScore: 76.75, totalPercentage: 76.75, mathQuality: "ดีมาก", thaiQuality: "ดี", totalQuality: "ดีมาก" },
-  { order: 55, schoolId: "58010152", name: "บ้านป่ายาง", amphoe: "ปาย", mathScore: 40.14, mathPercentage: 80.28, thaiScore: 41.28, thaiPercentage: 82.57, totalScore: 81.42, totalPercentage: 81.42, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
+  { order: 55, schoolId: "58010123", name: "บ้านป่ายาง", amphoe: "ปาย", mathScore: 40.14, mathPercentage: 80.28, thaiScore: 41.28, thaiPercentage: 82.57, totalScore: 81.42, totalPercentage: 81.42, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 56, schoolId: "58010154", name: "บ้านโป่งสา", amphoe: "ปาย", mathScore: 49.60, mathPercentage: 99.20, thaiScore: 49.00, thaiPercentage: 98.00, totalScore: 98.60, totalPercentage: 98.60, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 57, schoolId: "58010155", name: "ปางตองประชาสรรค์", amphoe: "ปาย", mathScore: 26.50, mathPercentage: 53.00, thaiScore: 33.00, thaiPercentage: 66.00, totalScore: 59.50, totalPercentage: 59.50, mathQuality: "ดี", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 58, schoolId: "58010156", name: "บ้านขุนสาใน", amphoe: "ปาย", mathScore: 40.28, mathPercentage: 80.56, thaiScore: 41.72, thaiPercentage: 83.44, totalScore: 82.00, totalPercentage: 82.00, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
@@ -229,7 +229,7 @@ export const RAW_INITIAL_RT_DATA = [
   { order: 84, schoolId: "58010031", name: "บ้านห้วยเดื่อ", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 48.70, mathPercentage: 97.40, thaiScore: 40.20, thaiPercentage: 80.40, totalScore: 88.90, totalPercentage: 88.90, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 85, schoolId: "58010032", name: "อนุบาลเมือง (ป่าปุ๊มิตรภาพที่ 29)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 35.25, mathPercentage: 70.50, thaiScore: 37.62, thaiPercentage: 75.25, totalScore: 72.87, totalPercentage: 72.87, mathQuality: "ดี", thaiQuality: "ดีมาก", totalQuality: "ดี" },
   { order: 86, schoolId: "58010033", name: "บ้านน้ำเพียงดิน", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 32.53, mathPercentage: 65.06, thaiScore: 27.13, thaiPercentage: 54.26, totalScore: 59.66, totalPercentage: 59.66, mathQuality: "ดี", thaiQuality: "ดี", totalQuality: "ดี" },
-  { order: 87, schoolId: "58010034", name: "บ้านห้วยเสือเฒ่า(เจ้ากอแก้วอุปถัมภ์)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 43.20, mathPercentage: 86.40, thaiScore: 38.73, thaiPercentage: 77.46, totalScore: 81.93, totalPercentage: 81.93, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
+  { order: 87, schoolId: "58010016", name: "บ้านห้วยเสือเฒ่า(เจ้ากอแก้วอุปถัมภ์)", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 43.20, mathPercentage: 86.40, thaiScore: 38.73, thaiPercentage: 77.46, totalScore: 81.93, totalPercentage: 81.93, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 88, schoolId: "58010040", name: "บ้านห้วยโป่ง", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 49.66, mathPercentage: 99.33, thaiScore: 44.66, thaiPercentage: 89.33, totalScore: 94.33, totalPercentage: 94.33, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 89, schoolId: "58010036", name: "บ้านยอดดอยวิทยา", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 35.00, mathPercentage: 70.00, thaiScore: 32.56, thaiPercentage: 65.12, totalScore: 67.56, totalPercentage: 67.56, mathQuality: "ดี", thaiQuality: "ดี", totalQuality: "ดี" },
   { order: 90, schoolId: "58010037", name: "บ้านกลาง", amphoe: "เมืองแม่ฮ่องสอน", mathScore: 41.25, mathPercentage: 82.50, thaiScore: 38.00, thaiPercentage: 76.00, totalScore: 79.25, totalPercentage: 79.25, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
@@ -261,7 +261,7 @@ export const RAW_INITIAL_RT_DATA = [
   { order: 116, schoolId: "58010170", name: "บ้านเมืองแพม", amphoe: "ปางมะผ้า", mathScore: 36.14, mathPercentage: 72.28, thaiScore: 41.71, thaiPercentage: 83.42, totalScore: 77.85, totalPercentage: 77.85, mathQuality: "ดี", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 117, schoolId: "58010171", name: "บ้านน้ำริน", amphoe: "ปางมะผ้า", mathScore: 39.16, mathPercentage: 78.33, thaiScore: 38.00, thaiPercentage: 76.00, totalScore: 77.16, totalPercentage: 77.16, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 118, schoolId: "58010172", name: "บ้านถ้ำลอด", amphoe: "ปางมะผ้า", mathScore: 43.80, mathPercentage: 87.60, thaiScore: 33.96, thaiPercentage: 67.92, totalScore: 77.76, totalPercentage: 77.76, mathQuality: "ดีมาก", thaiQuality: "ดี", totalQuality: "ดีมาก" },
-  { order: 119, schoolId: "58010152", name: "ศูนย์ปางมะผ้าในโครงการตามพระราชดำริ", amphoe: "ปางมะผ้า", mathScore: 26.62, mathPercentage: 53.25, thaiScore: 19.50, thaiPercentage: 39.00, totalScore: 46.12, totalPercentage: 46.12, mathQuality: "ดี", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
+  { order: 119, schoolId: "58010154", name: "ศูนย์ปางมะผ้าในโครงการตามพระราชดำริ", amphoe: "ปางมะผ้า", mathScore: 26.62, mathPercentage: 53.25, thaiScore: 19.50, thaiPercentage: 39.00, totalScore: 46.12, totalPercentage: 46.12, mathQuality: "ดี", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 120, schoolId: "58010173", name: "บ้านกึ้ดสามสิบ", amphoe: "ปางมะผ้า", mathScore: 40.62, mathPercentage: 81.25, thaiScore: 43.12, thaiPercentage: 86.25, totalScore: 83.75, totalPercentage: 83.75, mathQuality: "ดีมาก", thaiQuality: "ดีมาก", totalQuality: "ดีมาก" },
   { order: 121, schoolId: "58010174", name: "บ้านผามอน", amphoe: "ปางมะผ้า", mathScore: 24.50, mathPercentage: 49.00, thaiScore: 23.75, thaiPercentage: 47.50, totalScore: 48.25, totalPercentage: 48.25, mathQuality: "พอใช้", thaiQuality: "พอใช้", totalQuality: "พอใช้" },
   { order: 122, schoolId: "58010175", name: "บ้านห้วยแห้ง", amphoe: "ปางมะผ้า", mathScore: 39.00, mathPercentage: 78.00, thaiScore: 36.18, thaiPercentage: 72.36, totalScore: 75.18, totalPercentage: 75.18, mathQuality: "ดีมาก", thaiQuality: "ดี", totalQuality: "ดีมาก" },
@@ -309,7 +309,30 @@ export function matchSchoolId(rawCode: string, name: string, amphoe: string, sch
   const cleanName = name.replace(/^โรงเรียน/, '').trim();
   const normalized = normalizeThaiName(name);
 
-  // 2. ค้นหาจาก Master RAW_INITIAL_NT_DATA และ RAW_INITIAL_RT_DATA
+  // 2. ค้นหาจากรายชื่อ schools ในระบบเป็นอันดับแรกเพื่อความถูกต้อง 100%
+  if (schools && schools.length > 0) {
+    const exact = schools.find(s => s.name === name || s.name === cleanName || s.name === `โรงเรียน${cleanName}` || normalizeThaiName(s.name) === normalized);
+    if (exact) return exact.id;
+
+    const sameAmphoe = schools.filter(s => !amphoe || (s.amphoe && s.amphoe.includes(amphoe)));
+    const fuzzy = sameAmphoe.find(s => {
+      const sClean = s.name.replace(/^โรงเรียน/, '').trim();
+      const sNorm = normalizeThaiName(s.name);
+      return sClean.includes(cleanName) || cleanName.includes(sClean) || sNorm.includes(normalized) || normalized.includes(sNorm);
+    });
+    if (fuzzy) return fuzzy.id;
+  }
+
+  // 3. ตรวจจับกรณีโรงเรียนพิเศษ
+  if (name.includes('ตชด') && name.includes('60')) {
+    const tcd = schools.find(s => s.name.includes('ตชด') && s.name.includes('60'));
+    if (tcd) return tcd.id;
+    return '58010074';
+  }
+  if (name.includes('ราชประชานุเคราะห์ 59') || name.includes('รปค.59')) return '58010180';
+  if (name.includes('ราชประชานุเคราะห์ 22') || name.includes('รปค.22')) return '58010181';
+
+  // 4. ค้นหาจาก Master RAW_INITIAL_NT_DATA และ RAW_INITIAL_RT_DATA
   const masterMatchNT = RAW_INITIAL_NT_DATA.find(r => {
     const rClean = r.name.replace(/^โรงเรียน/, '').trim();
     const rNorm = normalizeThaiName(r.name);
@@ -330,20 +353,6 @@ export function matchSchoolId(rawCode: string, name: string, amphoe: string, sch
   });
   if (masterMatchRT && masterMatchRT.schoolId) {
     return masterMatchRT.schoolId;
-  }
-
-  // 3. ค้นหาจากรายชื่อ schools ในระบบ
-  if (schools && schools.length > 0) {
-    const exact = schools.find(s => s.name === name || s.name === cleanName || s.name === `โรงเรียน${cleanName}` || normalizeThaiName(s.name) === normalized);
-    if (exact) return exact.id;
-
-    const sameAmphoe = schools.filter(s => !amphoe || (s.amphoe && s.amphoe.includes(amphoe)));
-    const fuzzy = sameAmphoe.find(s => {
-      const sClean = s.name.replace(/^โรงเรียน/, '').trim();
-      const sNorm = normalizeThaiName(s.name);
-      return sClean.includes(cleanName) || cleanName.includes(sClean) || sNorm.includes(normalized) || normalized.includes(sNorm);
-    });
-    if (fuzzy) return fuzzy.id;
   }
 
   return cleanCode || '';
@@ -699,7 +708,7 @@ export function generateInitialAcademicRecords(
 ): AcademicRecord[] {
   const ntRecords: AcademicRecord[] = RAW_INITIAL_NT_DATA.map((row) => {
     const schoolId = row.schoolId || matchSchoolId('', row.name, row.amphoe, schools) || `5801${String(row.order).padStart(4, '0')}`;
-    const id = `${schoolId}_${academicYear}_NT`;
+    const id = `${schoolId}_${academicYear}_NT_${row.order}`;
 
     return {
       id,
@@ -726,7 +735,7 @@ export function generateInitialAcademicRecords(
 
   const rtRecords: AcademicRecord[] = RAW_INITIAL_RT_DATA.map((row) => {
     const schoolId = row.schoolId || matchSchoolId('', row.name, row.amphoe, schools) || `5801${String(row.order).padStart(4, '0')}`;
-    const id = `${schoolId}_${academicYear}_RT`;
+    const id = `${schoolId}_${academicYear}_RT_${row.order}`;
 
     return {
       id,

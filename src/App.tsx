@@ -2,7 +2,10 @@ import { auth } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { useState, useEffect, Suspense } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
-import { getSchoolSize, getCurrentBEYear, getDefaultAvailableYears } from './utils/initialData';
+import { getSchoolSize, getCurrentBEYear, getDefaultAvailableYears, parseInitialData } from './utils/initialData';
+import { generateInitialAcademicRecords } from './utils/academicData';
+import rawStudentsData from './utils/studentsData.json';
+import rawStudentsGData from './utils/studentsGData.json';
 import { getAmphoeAndNetwork } from './utils/geoHelper';
 import { registerActiveSession, sendSessionHeartbeat, removeActiveSession, CONCURRENCY_BLOCKED_MESSAGE } from './utils/sessionHelper';
 import { formatDatabaseError } from './utils/errorHelper';
@@ -90,10 +93,10 @@ export function App() {
     setSelectedSchoolId(null); // เคลียร์สถานะการเลือกโรงเรียนรายบุคคลเพื่อเปิดหน้าตารางรายชื่อแบบกรอง
   };
   
-  // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล)
-  const [schools, setSchools] = useState<School[]>([]);
-  const [studentData, setStudentData] = useState<StudentData[]>([]);
-  const [studentGData, setStudentGData] = useState<StudentGData[]>([]);
+  // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล 131 โรงเรียน)
+  const [schools, setSchools] = useState<School[]>(() => parseInitialData());
+  const [studentData, setStudentData] = useState<StudentData[]>(() => rawStudentsData as any[]);
+  const [studentGData, setStudentGData] = useState<StudentGData[]>(() => rawStudentsGData as any[]);
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   
@@ -136,6 +139,7 @@ export function App() {
   
   // สถานะคำขอสมัครสมาชิกใหม่สำหรับ Super Admin
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [allUsersList, setAllUsersList] = useState<UserProfile[]>([]);
   const [isLoadingPendingUsers, setIsLoadingPendingUsers] = useState<boolean>(false);
   const [adminPanelInitialTab, setAdminPanelInitialTab] = useState<'students_center' | 'summary' | 'schools' | 'users' | 'logs' | 'activity_logs' | 'settings' | 'theme' | 'hostatom_migration' | undefined>(undefined);
   const prevPendingCountRef = React.useRef<number>(0);
@@ -657,7 +661,7 @@ export function App() {
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    const CACHE_KEY = 'mhs_app_data_cache_v5';
+    const CACHE_KEY = 'mhs_app_data_cache_v7';
     const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
 
     // 1. ตรวจสอบแคชในเบราว์เซอร์ก่อน หากมีแคชให้นำมาแสดงผลบนหน้าจอทันที (0ms Instant Load ไม่ต้องรอ!)
@@ -670,6 +674,9 @@ export function App() {
           setStudentData(parsed.studentData || []);
           setStudentGData(parsed.studentGData || []);
           setAcademicRecords(parsed.academicRecords || []);
+          if (parsed.allUsers && Array.isArray(parsed.allUsers)) {
+            setAllUsersList(parsed.allUsers);
+          }
           if (parsed.systemConfig) {
             setSystemConfig(prev => ({ ...prev, ...parsed.systemConfig }));
           }
@@ -695,12 +702,13 @@ export function App() {
       if (supabase && isSupabaseConfigured()) {
         try {
           // ดึงข้อมูลทั้งหมดจาก Supabase แบบคู่ขนาน (ใช้ LIGHT_SCHOOL_FIELDS เพื่อลดขนาดจาก 32MB เหลือ 500KB โหลดเร็วขึ้น 60 เท่า!)
-          const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords] = await Promise.all([
+          const [schoolsRes, studentsRes, studentsGRes, settingsRes, acRecords, allUsersRes] = await Promise.all([
             supabase.from('schools').select(LIGHT_SCHOOL_FIELDS).limit(2000).order('id', { ascending: true }),
             supabase.from('students').select('*').limit(5000),
             supabase.from('students_g').select('*').limit(5000),
             supabase.from('settings').select('config').eq('id', 'system_config').maybeSingle(),
-            dbFetchAcademicRecords().catch(() => [])
+            dbFetchAcademicRecords().catch(() => []),
+            dbFetchUsersByStatus('all').catch(() => [])
           ]);
 
           const suSchools = schoolsRes.data;
@@ -871,7 +879,15 @@ export function App() {
               setAcademicYear(defaultYear);
             }
 
-            setAcademicRecords(acRecords || []);
+            const finalAcRecords = (acRecords && acRecords.length > 0)
+              ? acRecords
+              : generateInitialAcademicRecords(mappedSchools, '2567');
+
+            setAcademicRecords(finalAcRecords);
+
+            if (allUsersRes && Array.isArray(allUsersRes) && allUsersRes.length > 0) {
+              setAllUsersList(allUsersRes);
+            }
 
             // บันทึกลงแคชเพื่อป้องกันการดึงข้อมูลซ้ำเมื่อเปิดหน้าเว็บใหม่
             try {
@@ -880,7 +896,8 @@ export function App() {
                 schools: mappedSchools,
                 studentData: mappedStudents,
                 studentGData: mappedStudentsG,
-                academicRecords: acRecords || [],
+                academicRecords: finalAcRecords,
+                allUsers: allUsersRes || [],
                 systemConfig: (settingsRes as any)?.data?.config || null,
                 availableYears: years
               }));
@@ -888,7 +905,7 @@ export function App() {
               console.warn('Cache write notice:', cacheWriteErr);
             }
 
-            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${acRecords?.length || 0} academic records, ${mappedStudentsG.length} students G`);
+            console.log(`✅ Loaded from Supabase: ${mappedSchools.length} schools, ${mappedStudents.length} student records, ${finalAcRecords.length} academic records, ${mappedStudentsG.length} students G, ${allUsersRes?.length || 0} registered users`);
             setIsLoading(false);
             return;
           } else {
@@ -1308,9 +1325,9 @@ export function App() {
         schools={schools}
         studentData={studentData}
         studentGData={studentGData}
-        users={userProfile ? [userProfile] : []}
+        users={allUsersList && allUsersList.length > 0 ? allUsersList : (userProfile ? [userProfile] : [])}
         systemConfig={systemConfig}
-        academicRecords={academicRecords}
+        academicRecords={academicRecords && academicRecords.length > 0 ? academicRecords : generateInitialAcademicRecords(schools, '2567')}
       />
     </div>
   );

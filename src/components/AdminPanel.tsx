@@ -6013,7 +6013,10 @@ export default function AdminPanel({
                   <button
                     type="button"
                     onClick={() => {
-                      const sql = generateHostatomMySQLDump(schools, studentData, studentGData, approvedUsers, systemConfig, academicRecords);
+                      const allUsers = (approvedUsers.length > 0 || pendingUsers.length > 0)
+                        ? [...approvedUsers, ...pendingUsers]
+                        : [userProfile];
+                      const sql = generateHostatomMySQLDump(schools, studentData, studentGData, allUsers, systemConfig, academicRecords);
                       const dateStr = new Date().toISOString().slice(0, 10);
                       downloadAsFile(`mhs1_database_hostatom_mysql_${dateStr}.sql`, sql, 'text/sql');
                     }}

@@ -47,9 +47,13 @@ export const LIGHT_SCHOOL_FIELDS = `
  */
 export function clearAppCache(): void {
   try {
+    localStorage.removeItem('mhs_app_data_cache_v7');
+    localStorage.removeItem('mhs_app_data_cache_v6');
     localStorage.removeItem('mhs_app_data_cache_v5');
     localStorage.removeItem('mhs_app_data_cache_v4');
     localStorage.removeItem('mhs_app_data_cache_v3');
+    sessionStorage.removeItem('mhs_app_data_cache_v7');
+    sessionStorage.removeItem('mhs_app_data_cache_v6');
     sessionStorage.removeItem('mhs_app_data_cache_v5');
     sessionStorage.removeItem('mhs_app_data_cache_v3');
   } catch (e) {
@@ -1137,7 +1141,7 @@ export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
     const ntFields = 'id, order_num, school_id, school_name, amphoe, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_at, updated_by';
     for (const tbl of candidateTables) {
       try {
-        let query = supabase.from(tbl).select(ntFields);
+        let query = supabase.from(tbl).select(ntFields).limit(5000);
         if (tbl === 'academic_assessments') {
           query = query.eq('test_type', 'NT');
         }
@@ -1145,9 +1149,9 @@ export async function dbFetchNTRecords(): Promise<AcademicRecord[]> {
         let res = await query.order('order_num', { ascending: true });
         if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
           // If order_num column doesn't exist, query raw
-          res = await supabase.from(tbl).select(ntFields);
+          res = await supabase.from(tbl).select(ntFields).limit(5000);
           if (tbl === 'academic_assessments') {
-            res = await supabase.from(tbl).select(ntFields).eq('test_type', 'NT');
+            res = await supabase.from(tbl).select(ntFields).limit(5000).eq('test_type', 'NT');
           }
         }
 
@@ -1347,7 +1351,7 @@ export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
     const rtFields = 'id, order_num, school_id, school_name, amphoe, reading_aloud_score, reading_aloud_percentage, reading_comprehension_score, reading_comprehension_percentage, math_score, math_percentage, thai_score, thai_percentage, total_score, total_percentage, reading_aloud_quality, reading_comprehension_quality, math_quality, thai_quality, total_quality, academic_year, test_type, test_title, notes, updated_at, updated_by';
     for (const tbl of candidateTables) {
       try {
-        let query = supabase.from(tbl).select(rtFields);
+        let query = supabase.from(tbl).select(rtFields).limit(5000);
         if (tbl === 'academic_assessments') {
           query = query.eq('test_type', 'RT');
         }
@@ -1355,9 +1359,9 @@ export async function dbFetchRTRecords(): Promise<AcademicRecord[]> {
         let res = await query.order('order_num', { ascending: true });
         if (res.error && (res.error.code === '42703' || res.error.message?.includes('order_num'))) {
           // If order_num column doesn't exist, query raw
-          res = await supabase.from(tbl).select(rtFields);
+          res = await supabase.from(tbl).select(rtFields).limit(5000);
           if (tbl === 'academic_assessments') {
-            res = await supabase.from(tbl).select(rtFields).eq('test_type', 'RT');
+            res = await supabase.from(tbl).select(rtFields).limit(5000).eq('test_type', 'RT');
           }
         }
 

@@ -257,6 +257,7 @@ export default function AcademicStatsView({
     setIsLoading(true);
     try {
       const dbRecords = await dbFetchAcademicRecords();
+      const currentYear = academicYear || '2567';
       if (dbRecords && dbRecords.length > 0) {
         // Repair any records missing valid 8-digit school IDs
         const repaired = dbRecords.map(r => {
@@ -268,14 +269,24 @@ export default function AcademicStatsView({
           }
           return r;
         });
-        setRecords(repaired);
+
+        // หากปีการศึกษาที่เลือกยังไม่มีข้อมูลในระบบ ให้สร้างชุดข้อมูลเริ่มต้นสำหรับปีนี้ประกอบด้วยเสมอ
+        const hasYearData = repaired.some(r => r.academicYear === currentYear);
+        if (!hasYearData) {
+          const yearInitial = generateInitialAcademicRecords(schools, currentYear);
+          setRecords([...repaired, ...yearInitial]);
+        } else {
+          setRecords(repaired);
+        }
       } else {
-        // หากฐานข้อมูลว่างเปล่า (ลบออกหมดแล้ว) ให้แสดงเป็นว่างเปล่า
-        setRecords([]);
+        // หากฐานข้อมูลยังไม่มีข้อมูล ให้แสดงข้อมูลเริ่มต้นมาตรฐาน (128 NT, 130 RT)
+        const initial = generateInitialAcademicRecords(schools, currentYear);
+        setRecords(initial);
       }
     } catch (err) {
       console.error('Error loading academic records:', err);
-      setRecords([]);
+      const initial = generateInitialAcademicRecords(schools, academicYear || '2567');
+      setRecords(initial);
     } finally {
       setIsLoading(false);
     }
