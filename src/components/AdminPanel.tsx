@@ -5975,6 +5975,8 @@ export default function AdminPanel({
                   <a
                     href="/downloads/mhs1_bigdata_hostatom_deploy_pack.zip"
                     download="mhs1_bigdata_hostatom_deploy_pack.zip"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-[#33272A] font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95"
                   >
                     <Download className="h-4 w-4" />

@@ -1083,7 +1083,7 @@ export async function generateLiveHostatomZipBlob(
   zip.file('.htaccess', HOSTATOM_HTACCESS_CODE);
 
   // 4. Instructions
-  zip.file('คู่มือการติดตั้ง_บน_HOSTATOM.html', HOSTATOM_INSTALL_MANUAL_HTML);
+  zip.file('HOSTATOM_INSTALL_MANUAL.html', HOSTATOM_INSTALL_MANUAL_HTML);
   zip.file('README_HOSTATOM.txt', `================================================================================
 MHS1 BIGDATA - HOSTATOM DEPLOYMENT PACKAGE
 สพป.แม่ฮ่องสอน เขต 1
@@ -1099,7 +1099,7 @@ MHS1 BIGDATA - HOSTATOM DEPLOYMENT PACKAGE
 4. แก้ไขชื่อฐานข้อมูลและรหัสผ่านในไฟล์ api/config.php
 5. ทดสอบเปิดเว็บไซต์ของคุณหรือเปิด https://yourdomain.com/api/test.php
 
-ดูคู่มือฉบับเต็มพร้อมภาพประกอบได้ที่ไฟล์: คู่มือการติดตั้ง_บน_HOSTATOM.html
+ดูคู่มือฉบับเต็มพร้อมภาพประกอบได้ที่ไฟล์: HOSTATOM_INSTALL_MANUAL.html
 `);
 
   return await zip.generateAsync({

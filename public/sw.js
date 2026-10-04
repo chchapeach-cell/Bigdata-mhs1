@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mhs1-bigdata-v1';
+const CACHE_NAME = 'mhs1-bigdata-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -37,6 +37,19 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests and local assets
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
     return;
+  }
+
+  // CRITICAL: NEVER intercept downloads, archives, database dumps, or API files!
+  const url = event.request.url.toLowerCase();
+  if (
+    url.includes('/downloads/') ||
+    url.endsWith('.zip') ||
+    url.includes('.zip?') ||
+    url.endsWith('.sql') ||
+    url.endsWith('.php') ||
+    url.includes('/api/')
+  ) {
+    return; // Pass through to standard browser network stack
   }
 
   event.respondWith(

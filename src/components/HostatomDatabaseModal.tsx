@@ -76,6 +76,7 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
 
   // Package & Live Zip states
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+  const [isDownloadingPrebuilt, setIsDownloadingPrebuilt] = useState(false);
 
   // Ping test states
   const [isTesting, setIsTesting] = useState(false);
@@ -179,10 +180,47 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
     downloadAsFile('sync_hostatom_tables_with_supabase.sql', HOSTATOM_SYNC_SUPABASE_TABLES_SQL, 'text/sql');
   };
 
-  const handleDownloadPrebuiltPackage = () => {
+  const handleDownloadPrebuiltPackage = async () => {
+    setIsDownloadingPrebuilt(true);
+    try {
+      const cacheBustUrl = `${HOSTATOM_PREBUILT_PACKAGE_URL}?t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP status: ${response.status}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength < 50000) {
+        throw new Error(`ไฟล์ที่ได้รับมีขนาดไม่ครบถ้วน (${arrayBuffer.byteLength} bytes) กรุณาใช้ปุ่ม 'เปิดดาวน์โหลดในแท็บใหม่'`);
+      }
+      const uint8 = new Uint8Array(arrayBuffer.slice(0, 4));
+      if (uint8[0] !== 0x50 || uint8[1] !== 0x4b || uint8[2] !== 0x03 || uint8[3] !== 0x04) {
+        throw new Error('ข้อมูลที่ได้รับไม่ใช่ไฟล์ ZIP ที่สมบูรณ์ กรุณาใช้ปุ่ม "เปิดดาวน์โหลดในแท็บใหม่"');
+      }
+      const zipBlob = new Blob([arrayBuffer], { type: 'application/zip' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mhs1_bigdata_hostatom_deploy_pack.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err: any) {
+      console.warn('Fetch blob download failed, falling back to new tab:', err);
+      window.open(HOSTATOM_PREBUILT_PACKAGE_URL, '_blank');
+    } finally {
+      setIsDownloadingPrebuilt(false);
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    window.open(HOSTATOM_PREBUILT_PACKAGE_URL, '_blank');
+  };
+
+  const handleDownloadTestPhp = () => {
     const a = document.createElement('a');
-    a.href = HOSTATOM_PREBUILT_PACKAGE_URL;
-    a.download = 'mhs1_bigdata_hostatom_deploy_pack.zip';
+    a.href = '/downloads/test.php';
+    a.download = 'test.php';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -423,13 +461,34 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
                     </ul>
                   </div>
 
-                  <button
-                    onClick={handleDownloadPrebuiltPackage}
-                    className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm border-2 border-[#33272A] shadow-[3px_3px_0px_#33272A] flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
-                  >
-                    <Download className="h-5 w-5" />
-                    <span>ดาวน์โหลด ZIP แพ็กเกจสำหรับ Hostatom</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleDownloadPrebuiltPackage}
+                      disabled={isDownloadingPrebuilt}
+                      className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-2xl font-black text-sm border-2 border-[#33272A] shadow-[3px_3px_0px_#33272A] flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                    >
+                      {isDownloadingPrebuilt ? (
+                        <>
+                          <RefreshCw className="h-5 w-5 animate-spin" />
+                          <span>กำลังตรวจสอบ &amp; ดาวน์โหลด ZIP...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-5 w-5" />
+                          <span>1. ดาวน์โหลด ZIP โดยตรง (1.20 MB)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenInNewTab}
+                      className="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-black text-xs border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span>2. เปิดดาวน์โหลดในแท็บใหม่ (แนะนำมากหาก WinRAR ฟ้องไฟล์เสีย)</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* ตัวเลือกที่ 2: สร้างไฟล์ ZIP สดพร้อมข้อมูลจริงทั้งหมดในระบบ */}
@@ -487,11 +546,30 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
                 </div>
               </div>
 
+              {/* กล่องวิธีแก้ไขกรณี WinRAR ฟ้องไฟล์เสียหาย */}
+              <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border-2 border-amber-400 text-amber-950 dark:text-amber-200 text-xs space-y-1.5 shadow-[2px_2px_0px_#d97706]">
+                <div className="flex items-center gap-2 font-black text-amber-900 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>วิธีแก้ไขปัญหา: WinRAR แจ้งว่า &quot;The archive is either in unknown format or damaged&quot;</span>
+                </div>
+                <div className="text-[11px] leading-relaxed pl-6 space-y-1">
+                  <p>
+                    • <strong>สาเหตุ:</strong> หากดาวน์โหลดภายในหน้าต่างแอปนี้ (Iframe) เบราว์เซอร์อาจจำกัดและทำให้ดาวน์โหลดไฟล์ได้ไม่สมบูรณ์ (ขนาดไฟล์ไม่ถึง 1.2 MB) หรือเกิดการเข้ารหัสชื่อภาษาไทย
+                  </p>
+                  <p>
+                    • <strong>วิธีแก้แบบง่ายที่สุด:</strong> กดปุ่มสีฟ้า <strong className="text-sky-700 dark:text-sky-300">&quot;2. เปิดดาวน์โหลดในแท็บใหม่&quot;</strong> ระบบจะสั่งให้เบราว์เซอร์ดาวน์โหลดไฟล์ ZIP ตัวเต็มขนาด 1.20 MB โดยตรง แตกไฟล์บน Windows และเปิดใน WinRAR ได้อย่างราบรื่น 100%
+                  </p>
+                  <p>
+                    • <strong>วิธีแก้ทางเลือก:</strong> สามารถกดดาวน์โหลดแยกเป็นรายไฟล์ตามปุ่มด้านล่างนี้ได้เลย โดยไม่ต้องแตกไฟล์ ZIP ครับ
+                  </p>
+                </div>
+              </div>
+
               {/* ปุ่มดาวน์โหลดไฟล์แยกตามความต้องการ */}
               <div className="bg-[#FFF9F5] dark:bg-slate-950 p-5 rounded-2xl border-2 border-[#33272A] dark:border-slate-700 space-y-3">
                 <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-2">
                   <Download className="h-4 w-4 text-emerald-600" />
-                  หรือเลือกดาวน์โหลดเฉพาะไฟล์ที่ต้องการแยกต่างหาก:
+                  หรือเลือกดาวน์โหลดเฉพาะไฟล์ที่ต้องการแยกต่างหาก (Single Files):
                 </h4>
                 <div className="flex flex-wrap gap-2.5">
                   <button
@@ -519,11 +597,19 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
                   </button>
 
                   <button
+                    onClick={handleDownloadTestPhp}
+                    className="button bg-white dark:bg-slate-800 text-xs font-black py-2 px-3.5 rounded-xl border-2 border-[#33272A] hover:bg-amber-100 flex items-center gap-1.5 shadow-[2px_2px_0px_#33272A] cursor-pointer"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>4. ไฟล์ทดสอบเชื่อมต่อ (test.php)</span>
+                  </button>
+
+                  <button
                     onClick={handleDownloadHtaccess}
                     className="button bg-white dark:bg-slate-800 text-xs font-black py-2 px-3.5 rounded-xl border-2 border-[#33272A] hover:bg-amber-100 flex items-center gap-1.5 shadow-[2px_2px_0px_#33272A] cursor-pointer"
                   >
                     <FileCode className="h-4 w-4 text-teal-600" />
-                    <span>4. ไฟล์ Apache (.htaccess)</span>
+                    <span>5. ไฟล์ Apache (.htaccess)</span>
                   </button>
 
                   <button
@@ -531,7 +617,7 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
                     className="button bg-white dark:bg-slate-800 text-xs font-black py-2 px-3.5 rounded-xl border-2 border-[#33272A] hover:bg-amber-100 flex items-center gap-1.5 shadow-[2px_2px_0px_#33272A] cursor-pointer"
                   >
                     <BookOpen className="h-4 w-4 text-rose-600" />
-                    <span>5. คู่มือการติดตั้งภาษาไทย (.html)</span>
+                    <span>6. คู่มือการติดตั้งภาษาไทย (.html)</span>
                   </button>
                 </div>
               </div>
