@@ -536,14 +536,17 @@ export function generateHostatomMySQLDump(
   // 1. Schools
   if (effectiveSchools && effectiveSchools.length > 0) {
     parts.push(`-- 1. ข้อมูลโรงเรียน (${effectiveSchools.length} รายการ)`);
+    parts.push(`ALTER TABLE \`schools\` MODIFY COLUMN \`electricity\` LONGTEXT DEFAULT NULL;`);
     for (const s of effectiveSchools) {
       let elecVal: any = s.electricity;
       if (typeof elecVal === 'boolean') {
         elecVal = elecVal ? '1' : '0';
       } else if (typeof elecVal === 'object' && elecVal !== null) {
         elecVal = JSON.stringify(elecVal);
+      } else if (elecVal !== undefined && elecVal !== null && String(elecVal).trim() !== '') {
+        elecVal = String(elecVal);
       } else {
-        elecVal = elecVal ? String(elecVal) : 'has_electric';
+        elecVal = '1';
       }
       const sql = `INSERT INTO \`schools\` (\`id\`, \`name\`, \`district\`, \`amphoe\`, \`network_group\`, \`internet_type\`, \`electricity\`, \`water_system\`, \`water_system_detail\`, \`solar_kw\`, \`has_solar_battery\`, \`solar_battery_capacity\`, \`staff_count\`, \`contract_teachers_count\`, \`admin_staff_count\`, \`janitor_count\`, \`other_staff_count\`, \`major_subjects\`, \`major_subjects_with_staff\`, \`classrooms\`, \`director_name\`, \`director_phone\`, \`vice_director_name\`, \`vice_director_phone\`, \`vice_directors\`, \`school_phone\`, \`email\`, \`facebook\`, \`line\`, \`website\`, \`address\`, \`image_url\`, \`logo_url\`, \`director_image_url\`, \`latitude\`, \`longitude\`, \`size\`, \`is_expansion\`, \`special_highlights\`, \`updated_by\`) VALUES (${escapeSql(s.id)}, ${escapeSql(s.name)}, ${escapeSql(s.district || 'สพป.แม่ฮ่องสอน เขต 1')}, ${escapeSql(s.amphoe)}, ${escapeSql(s.networkGroup)}, ${escapeSql(s.internetType || 'fiber')}, ${escapeSql(elecVal)}, ${escapeSql(s.waterSystem || 'government')}, ${escapeSql(s.waterSystemDetail)}, ${escapeSql(s.solarKw)}, ${s.hasSolarBattery ? 1 : 0}, ${escapeSql(s.solarBatteryCapacity)}, ${Number(s.staffCount) || 0}, ${Number(s.contractTeachersCount) || 0}, ${Number(s.adminStaffCount) || 0}, ${Number(s.janitorCount) || 0}, ${Number(s.otherStaffCount) || 0}, ${escapeSql(s.majorSubjects || [])}, ${escapeSql(s.majorSubjectsWithStaff || [])}, ${escapeSql(s.classrooms || [])}, ${escapeSql(s.directorName)}, ${escapeSql(s.directorPhone)}, ${escapeSql(s.viceDirectors?.[0]?.name || s.viceDirectorName)}, ${escapeSql(s.viceDirectors?.[0]?.phone || s.viceDirectorPhone)}, ${escapeSql(s.viceDirectors || [])}, ${escapeSql(s.schoolPhone)}, ${escapeSql(s.email)}, ${escapeSql(s.facebook)}, ${escapeSql(s.line)}, ${escapeSql(s.website)}, ${escapeSql(s.address)}, ${escapeSql(s.imageUrl)}, ${escapeSql(s.logoUrl)}, ${escapeSql(s.directorImageUrl)}, ${Number(s.latitude) || 0}, ${Number(s.longitude) || 0}, ${escapeSql(s.size || 'small')}, ${s.isExpansion ? 1 : 0}, ${escapeSql(s.specialHighlights)}, ${escapeSql(s.updatedBy || 'Migration')}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`), \`staff_count\`=VALUES(\`staff_count\`), \`updated_at\`=NOW();`;
       parts.push(sql);

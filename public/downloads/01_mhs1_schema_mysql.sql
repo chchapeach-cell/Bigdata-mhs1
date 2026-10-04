@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS \`schools\` (
   KEY \`idx_network_group\` (\`network_group\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE `schools` MODIFY COLUMN `electricity` LONGTEXT DEFAULT NULL;
+
 -- -------------------------------------------------------------
 -- 2. ตารางสถิตินักเรียน Big Data (students)
 -- -------------------------------------------------------------
