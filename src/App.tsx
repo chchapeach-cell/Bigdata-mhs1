@@ -52,12 +52,20 @@ import InfrastructureView from './components/InfrastructureView';
 import ContactView from './components/ContactView';
 import VisitorCounter from './components/VisitorCounter';
 import InactivityLogoutHandler from './components/InactivityLogoutHandler';
+import { HostatomDatabaseModal } from './components/HostatomDatabaseModal';
 
 import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle, Users, Clock, X } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
+  const [isHostatomModalOpen, setIsHostatomModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOpenHostatom = () => setIsHostatomModalOpen(true);
+    window.addEventListener('open-hostatom-modal', handleOpenHostatom);
+    return () => window.removeEventListener('open-hostatom-modal', handleOpenHostatom);
+  }, []);
   
   // สถานะตัวกรองจากหน้านำทางแดชบอร์ด
   const [initialFilters, setInitialFilters] = useState<{
@@ -1292,6 +1300,18 @@ export function App() {
           </div>
         </div>
       )}
+
+      {/* Hostatom Database Migration & Deployment Modal */}
+      <HostatomDatabaseModal
+        isOpen={isHostatomModalOpen}
+        onClose={() => setIsHostatomModalOpen(false)}
+        schools={schools}
+        studentData={studentData}
+        studentGData={studentGData}
+        users={userProfile ? [userProfile] : []}
+        systemConfig={systemConfig}
+        academicRecords={academicRecords}
+      />
     </div>
   );
 }
