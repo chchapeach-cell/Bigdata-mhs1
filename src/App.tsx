@@ -55,7 +55,7 @@ import InactivityLogoutHandler from './components/InactivityLogoutHandler';
 
 import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle, Users, Clock, X } from 'lucide-react';
 
-export default function App() {
+export function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   
@@ -1295,3 +1295,5 @@ export default function App() {
     </div>
   );
 }
+
+export default App;

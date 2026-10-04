@@ -478,7 +478,7 @@ export default function SchoolListView({
       }
 
       // 2. ดำเนินการสร้างไฟล์ Excel ด้วย xlsx
-      let exportRows = [];
+      let exportRows: any[] = [];
 
       if (downloadTarget && downloadTarget.id === 'filtered') {
         // ดาวน์โหลดเฉพาะโรงเรียนที่ผ่านการคัดกรองอยู่ปัจจุบัน
@@ -1930,7 +1930,7 @@ export default function SchoolListView({
                         </div>
                         {hasAnyNTData ? (
                           <div className="space-y-2">
-                            {compareSchools.map((s, idx) => {
+                            {compareSchools.map((s: any, idx: number) => {
                               const ntRec = getSchoolAcademicRecord(s.id, s.name, 'NT', compareAcademicYear);
                               const totalPct = ntRec ? Number(ntRec.totalPercentage || ntRec.totalScore || 0) : 0;
                               const mathPct = ntRec ? Number(ntRec.mathPercentage || ntRec.mathScore || 0) : 0;
@@ -1992,7 +1992,7 @@ export default function SchoolListView({
                         </div>
                         {hasAnyRTData ? (
                           <div className="space-y-2">
-                            {compareSchools.map((s, idx) => {
+                            {compareSchools.map((s: any, idx: number) => {
                               const rtRec = getSchoolAcademicRecord(s.id, s.name, 'RT', compareAcademicYear);
                               const totalPct = rtRec ? Number(rtRec.totalPercentage || rtRec.totalScore || 0) : 0;
                               const readAloudPct = rtRec ? Number(rtRec.mathPercentage || rtRec.mathScore || 0) : 0;

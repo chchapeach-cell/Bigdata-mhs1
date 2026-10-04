@@ -23,7 +23,7 @@ interface SummaryTableProps {
 export const SummaryTable: React.FC<SummaryTableProps> = ({ schools }) => {
   const summaryByAmphoe = useMemo(() => {
     // Unique list of amphoe
-    const amphoeList = Array.from(new Set(schools.map(s => s.amphoe).filter(Boolean)));
+    const amphoeList = Array.from(new Set(schools.map(s => s.amphoe).filter((x): x is string => Boolean(x))));
     // Sort so เมืองแม่ฮ่องสอน comes first, then other amphoes
     amphoeList.sort((a, b) => {
       if (a.includes('เมือง')) return -1;

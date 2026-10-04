@@ -91,6 +91,50 @@ export interface School {
   femaleCount?: number; // จำนวนนักเรียนหญิงคำนวณจาก StudentData
   updatedAt?: string | any; // เวลาอัปเดตข้อมูลล่าสุด
   updatedBy?: string; // ผู้ทำการแก้ไขข้อมูลล่าสุด
+
+  // Compatibility fields (snake_case)
+  network_group?: string;
+  internet_type?: string;
+  water_system?: string;
+  water_system_detail?: string;
+  solar_kw?: string;
+  has_solar_battery?: boolean;
+  solar_battery_capacity?: string;
+  staff_count?: number;
+  contract_teachers_count?: number;
+  admin_staff_count?: number;
+  janitor_count?: number;
+  other_staff_count?: number;
+  major_subjects?: string[];
+  major_subjects_with_staff?: MajorSubject[];
+  director_name?: string;
+  director_phone?: string;
+  school_phone?: string;
+  vice_director_name?: string;
+  vice_director_phone?: string;
+}
+
+export type DatabaseSourceType = 'local' | 'hostatom' | 'firebase' | 'supabase';
+
+export interface DatabaseConfig {
+  primarySource: DatabaseSourceType;
+  hostatom?: {
+    apiUrl: string;
+    apiKey: string;
+    databaseName: string;
+    tableName: string;
+    isConnected: boolean;
+    lastSynced?: string;
+  };
+  firebase?: {
+    projectId: string;
+    isConnected: boolean;
+  };
+  supabase?: {
+    url?: string;
+    anonKey?: string;
+    isConnected?: boolean;
+  };
 }
 
 export interface GradeData {

@@ -221,7 +221,7 @@ export const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, on
             </h3>
             {school.major_subjects_with_staff && school.major_subjects_with_staff.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {school.major_subjects_with_staff.map((subj, idx) => (
+                {school.major_subjects_with_staff.map((subj: any, idx: number) => (
                   <div
                     key={idx}
                     className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs shadow-2xs"
@@ -235,7 +235,7 @@ export const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, on
               </div>
             ) : school.major_subjects && school.major_subjects.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {school.major_subjects.map((subj, idx) => (
+                {school.major_subjects.map((subj: any, idx: number) => (
                   <span
                     key={idx}
                     className="px-3 py-1 bg-white border border-slate-200 text-slate-800 text-xs rounded-lg font-bold shadow-2xs"
