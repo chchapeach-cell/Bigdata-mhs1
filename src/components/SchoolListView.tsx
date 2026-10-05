@@ -1356,35 +1356,40 @@ export default function SchoolListView({
                             <button
                               type="button"
                               onClick={() => toggleCompareSchool(school.id)}
-                              className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                              className={`flex-1 text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5 ${
                                 selectedForCompare.includes(school.id)
-                                  ? 'bg-purple-600 text-white border-purple-800'
-                                  : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                                  ? 'bg-purple-600 text-white border-purple-900 shadow-[2px_2px_0px_#33272A]'
+                                  : 'bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200'
                               }`}
                             >
-                              <GitCompare className="h-4 w-4" />
-                              {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
+                              <GitCompare className="h-3.5 w-3.5" />
+                              <span>{selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}</span>
                             </button>
                             {(school.schoolPhone || school.directorPhone) && (
                               <a
                                 href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
-                                className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                                className="bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
                                 title="โทรติดต่อ"
                               >
-                                <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
+                                <Phone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>โทร</span>
                               </a>
                             )}
                             <button
+                              type="button"
                               onClick={() => onSelectSchool(school.id)}
-                              className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                              className="flex-1 bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                             >
-                              <Eye className="h-4 w-4" /> รายละเอียด
+                              <Eye className="h-3.5 w-3.5 text-[#33272A] dark:text-[#FFD3B6]" />
+                              <span>รายละเอียด</span>
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleOpenDownload(school.id, school.name)}
-                              className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                              className="flex-1 bg-[#A0E7E5] hover:bg-[#8ee2e0] text-[#33272A] text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                             >
-                              <Download className="h-4 w-4" /> โหลด
+                              <Download className="h-3.5 w-3.5 text-[#33272A]" />
+                              <span>โหลด</span>
                             </button>
                           </div>
                         </motion.div>
@@ -1562,35 +1567,40 @@ export default function SchoolListView({
                           <button
                             type="button"
                             onClick={() => toggleCompareSchool(school.id)}
-                            className={`flex-1 btn-cute text-xs font-black py-2 border-2 border-[#33272A] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                            className={`flex-1 text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5 ${
                               selectedForCompare.includes(school.id)
-                                ? 'bg-purple-600 text-white border-purple-800'
-                                : 'bg-purple-50 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 border-purple-300'
+                                ? 'bg-purple-600 text-white border-purple-900 shadow-[2px_2px_0px_#33272A]'
+                                : 'bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200'
                             }`}
                           >
-                            <GitCompare className="h-4 w-4" />
-                            {selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}
+                            <GitCompare className="h-3.5 w-3.5" />
+                            <span>{selectedForCompare.includes(school.id) ? 'เลือกแล้ว' : 'เทียบ'}</span>
                           </button>
                           {(school.schoolPhone || school.directorPhone) && (
                             <a
                               href={`tel:${(school.schoolPhone || school.directorPhone).replace(/[^0-9+]/g, '')}`}
-                              className="btn-cute bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 border-2 border-[#33272A] dark:border-emerald-400 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100 px-3 py-2 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
                               title="โทรติดต่อ"
                             >
-                              <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> โทร
+                              <Phone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>โทร</span>
                             </a>
                           )}
                           <button
+                            type="button"
                             onClick={() => onSelectSchool(school.id)}
-                            className="flex-1 btn-cute bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            className="flex-1 bg-white hover:bg-[#FFD3B6]/30 text-[#33272A] text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] dark:bg-[#33272A] dark:text-[#FFF9F5] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                           >
-                            <Eye className="h-4 w-4" /> รายละเอียด
+                            <Eye className="h-3.5 w-3.5 text-[#33272A] dark:text-[#FFD3B6]" />
+                            <span>รายละเอียด</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleOpenDownload(school.id, school.name)}
-                            className="flex-1 btn-cute bg-[#A0E7E5] hover:opacity-90 text-[#33272A] text-xs font-black py-2 border-2 border-[#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            className="flex-1 bg-[#A0E7E5] hover:bg-[#8ee2e0] text-[#33272A] text-xs font-black py-2 px-3 rounded-2xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] dark:border-[#FFD3B6] flex items-center justify-center gap-1.5 transition-all cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                           >
-                            <Download className="h-4 w-4" /> โหลด
+                            <Download className="h-3.5 w-3.5 text-[#33272A]" />
+                            <span>โหลด</span>
                           </button>
                         </div>
                       </motion.div>

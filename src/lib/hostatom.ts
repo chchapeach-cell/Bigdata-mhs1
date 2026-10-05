@@ -1131,6 +1131,76 @@ switch ($action) {
         break;
 
     // -------------------------------------------------------------
+    // USERS & AUTH MANAGEMENT
+    // -------------------------------------------------------------
+    case 'get_users':
+        $stmt = $pdo->query("SELECT * FROM \`users\` ORDER BY \`created_at\` DESC");
+        echo json_encode(['status' => 'ok', 'data' => $stmt->fetchAll()]);
+        break;
+
+    case 'save_user':
+        $data = $input;
+        $uid = $data['uid'] ?? '';
+        if (!$uid) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Missing user uid']);
+            exit;
+        }
+
+        $sql = "INSERT INTO \`users\` (
+            \`uid\`, \`email\`, \`first_name\`, \`last_name\`, \`school_id\`, \`school_name\`, \`role\`, \`status\`, \`created_at\`
+        ) VALUES (
+            :uid, :email, :first_name, :last_name, :school_id, :school_name, :role, :status, NOW()
+        ) ON DUPLICATE KEY UPDATE 
+            \`email\` = VALUES(\`email\`),
+            \`first_name\` = VALUES(\`first_name\`),
+            \`last_name\` = VALUES(\`last_name\`),
+            \`school_id\` = VALUES(\`school_id\`),
+            \`school_name\` = VALUES(\`school_name\`),
+            \`role\` = VALUES(\`role\`),
+            \`status\` = VALUES(\`status\`)";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':uid' => $uid,
+            ':email' => $data['email'] ?? '',
+            ':first_name' => $data['firstName'] ?? $data['first_name'] ?? '',
+            ':last_name' => $data['lastName'] ?? $data['last_name'] ?? '',
+            ':school_id' => $data['schoolId'] ?? $data['school_id'] ?? null,
+            ':school_name' => $data['schoolName'] ?? $data['school_name'] ?? null,
+            ':role' => $data['role'] ?? 'school_admin',
+            ':status' => $data['status'] ?? 'pending'
+        ]);
+
+        echo json_encode(['status' => 'ok', 'message' => 'User saved successfully', 'uid' => $uid]);
+        break;
+
+    case 'update_user_status':
+        $uid = $input['uid'] ?? $_REQUEST['uid'] ?? '';
+        $status = $input['status'] ?? $_REQUEST['status'] ?? '';
+        if (!$uid || !$status) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Missing uid or status']);
+            exit;
+        }
+        $stmt = $pdo->prepare("UPDATE \`users\` SET \`status\` = :status WHERE \`uid\` = :uid");
+        $stmt->execute([':status' => $status, ':uid' => $uid]);
+        echo json_encode(['status' => 'ok', 'message' => 'User status updated']);
+        break;
+
+    case 'delete_user':
+        $uid = $input['uid'] ?? $_REQUEST['uid'] ?? '';
+        if (!$uid) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Missing uid']);
+            exit;
+        }
+        $stmt = $pdo->prepare("DELETE FROM \`users\` WHERE \`uid\` = :uid");
+        $stmt->execute([':uid' => $uid]);
+        echo json_encode(['status' => 'ok', 'message' => 'User deleted']);
+        break;
+
+    // -------------------------------------------------------------
     // DEFAULT 404
     // -------------------------------------------------------------
     default:

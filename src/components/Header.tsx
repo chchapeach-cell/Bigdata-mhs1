@@ -261,10 +261,10 @@ export default function Header({
           ) : (
             <button
               onClick={onLoginClick}
-              className="btn-cute bg-[#FF8BA7] hover:bg-[#ff7094] text-[#33272A] px-2.5 py-1.5 sm:px-3.5 sm:py-1.5 text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-[2px_2px_0px_#33272A] shrink-0"
-              title="เข้าสู่ระบบ / แอดมิน"
+              className="bg-gradient-to-r from-[#FF8BA7] to-[#FFAAA5] hover:from-[#ff7596] hover:to-[#ff9b95] text-[#33272A] px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-black flex items-center gap-1.5 rounded-full border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer shrink-0"
+              title="เข้าสู่ระบบสารสนเทศ / จัดการข้อมูล"
             >
-              <LogIn className="h-4 w-4 shrink-0" />
+              <LogIn className="h-4 w-4 shrink-0 text-[#33272A]" />
               <span className="text-[11px] sm:text-xs">เข้าสู่ระบบ</span>
             </button>
           )}

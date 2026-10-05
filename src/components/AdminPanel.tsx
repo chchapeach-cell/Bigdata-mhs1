@@ -5970,6 +5970,10 @@ export default function AdminPanel({
                   <p className="text-xs text-white/90 font-medium">
                     ระบบเดิมยังคงอยู่ปกติ 100% ชุดนี้รวม Web App + REST API + ฐานข้อมูล MySQL + .htaccess + คู่มือภาษาไทย พร้อมนำไปแตกไฟล์ใน public_html บน Hostatom
                   </p>
+                  <div className="flex items-center gap-1.5 text-[11px] font-black text-amber-200 mt-1">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                    <span>อัปเดตล่าสุด: 5 ตุลาคม 2569 เวลา 23:25 น. (เวอร์ชันล่าสุด พร้อมติดตั้งทันที)</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                   <a
@@ -5980,7 +5984,7 @@ export default function AdminPanel({
                     className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-[#33272A] font-black py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95"
                   >
                     <Download className="h-4 w-4" />
-                    <span>ดาวน์โหลด ZIP (1.25 MB)</span>
+                    <span>ดาวน์โหลดชุดไฟล์สำเร็จรูป ZIP (25.9 MB)</span>
                   </a>
                   <button
                     type="button"

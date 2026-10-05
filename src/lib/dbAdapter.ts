@@ -349,6 +349,7 @@ export async function dbDeleteUser(uid: string, email?: string): Promise<void> {
 }
 
 export async function dbFetchUserProfile(uid: string, email?: string): Promise<UserProfile | null> {
+  // 1. ตรวจสอบจาก Supabase
   if (supabase && isSupabaseConfigured()) {
     try {
       let suUser: any = null;
@@ -379,9 +380,28 @@ export async function dbFetchUserProfile(uid: string, email?: string): Promise<U
     } catch (err) {
       console.warn('Supabase dbFetchUserProfile warning:', err);
     }
-    return null;
   }
 
+  // 2. ตรวจสอบจาก Hostatom (MariaDB)
+  try {
+    const { getHostatomConfig, hostatomFetchUsers } = await import('./hostatom');
+    const hConfig = getHostatomConfig();
+    if (hConfig && hConfig.enabled) {
+      const hUsers = await hostatomFetchUsers();
+      const cleanEmail = (email || '').toLowerCase().trim();
+      const hUser = hUsers.find(u => 
+        u.uid === uid || 
+        (cleanEmail && u.email?.toLowerCase().trim() === cleanEmail)
+      );
+      if (hUser) {
+        return hUser;
+      }
+    }
+  } catch (hErr) {
+    console.warn('Hostatom dbFetchUserProfile check warning:', hErr);
+  }
+
+  // 3. ตรวจสอบจาก Firestore
   try {
     const userDocSnap = await getDoc(doc(db, 'users', uid));
     if (userDocSnap.exists()) {
