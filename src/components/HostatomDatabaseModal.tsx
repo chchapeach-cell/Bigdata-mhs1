@@ -42,6 +42,7 @@ import {
   generateLiveHostatomZipBlob
 } from '../lib/hostatom';
 import { SUPABASE_SCHEMA_SQL, SUPABASE_URL } from '../lib/supabase';
+import { clearAppCache } from '../lib/dbAdapter';
 
 interface HostatomDatabaseModalProps {
   isOpen: boolean;
@@ -68,8 +69,8 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
 
   // Config states
   const [config, setConfig] = useState(getHostatomConfig());
-  const [apiUrl, setApiUrl] = useState(config.apiUrl);
-  const [apiKey, setApiKey] = useState(config.apiKey);
+  const [apiUrl, setApiUrl] = useState(config.apiUrl || 'https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php');
+  const [apiKey, setApiKey] = useState(config.apiKey || 'mhs1_bigdata_secret_2026');
   const [primaryDb, setPrimaryDb] = useState<'hostatom' | 'supabase' | 'firestore'>(config.primaryDb || 'supabase');
   const [autoBackup, setAutoBackup] = useState<boolean>(config.autoBackupToSupabase ?? true);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -87,10 +88,10 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
   const [copiedSchema, setCopiedSchema] = useState(false);
   const [copiedSyncSql, setCopiedSyncSql] = useState(false);
 
-  // Custom PHP generator inputs
-  const [dbName, setDbName] = useState('your_cpanel_mhs1db');
-  const [dbUser, setDbUser] = useState('your_cpanel_dbuser');
-  const [dbPass, setDbPass] = useState('your_db_password');
+  // Custom PHP generator inputs - ฟิกค่าจริงที่เชื่อมต่อกับ Hostatom Plesk ของผู้ใช้
+  const [dbName, setDbName] = useState('mhs1_bigdata');
+  const [dbUser, setDbUser] = useState('mhs1_admin');
+  const [dbPass, setDbPass] = useState('m96?25aGr');
 
   if (!isOpen) return null;
 
@@ -131,16 +132,18 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
     });
     setConfig(updated);
     setSaveSuccess(true);
+    clearAppCache();
+    window.dispatchEvent(new CustomEvent('refresh-all-data'));
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   // สร้างโค้ด PHP แบบกำหนดค่าฐานข้อมูลตามที่ผู้ใช้กรอก
   const getCustomizedPhpCode = () => {
     let code = HOSTATOM_PHP_CONNECTOR_CODE;
-    code = code.replace("your_cpanel_mhs1db", dbName.trim() || 'your_cpanel_mhs1db');
-    code = code.replace("your_cpanel_dbuser", dbUser.trim() || 'your_cpanel_dbuser');
-    code = code.replace("your_database_password", dbPass.trim() || 'your_db_password');
-    code = code.replace("mhs1_bigdata_secret_2026", apiKey.trim() || 'mhs1_bigdata_secret_2026');
+    code = code.replace(/mhs1_bigdata|your_cpanel_mhs1db/g, dbName.trim() || 'mhs1_bigdata');
+    code = code.replace(/mhs1_admin|your_cpanel_dbuser/g, dbUser.trim() || 'mhs1_admin');
+    code = code.replace(/m96\?25aGr|your_database_password/g, dbPass.trim() || 'm96?25aGr');
+    code = code.replace(/mhs1_bigdata_secret_2026/g, apiKey.trim() || 'mhs1_bigdata_secret_2026');
     return code;
   };
 
@@ -1184,7 +1187,7 @@ export const HostatomDatabaseModal: React.FC<HostatomDatabaseModalProps> = ({
                       type="url"
                       value={apiUrl}
                       onChange={(e) => setApiUrl(e.target.value)}
-                      placeholder="https://yourdomain.com/api/mhs1_db.php"
+                      placeholder="https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php"
                       className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#33272A] dark:border-slate-600 font-mono text-xs bg-slate-50 dark:bg-slate-900"
                     />
                     <span className="text-[10px] text-gray-500 mt-1 block">

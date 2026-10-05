@@ -15,8 +15,8 @@ export interface HostatomConfig {
 }
 
 export const DEFAULT_HOSTATOM_CONFIG: HostatomConfig = {
-  enabled: false,
-  apiUrl: '',
+  enabled: true,
+  apiUrl: 'https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php',
   apiKey: 'mhs1_bigdata_secret_2026',
   primaryDb: 'supabase', // ค่าเริ่มต้นคือ Supabase (หรือสลับเป็น Hostatom เมื่อตั้งค่าพร้อม)
   autoBackupToSupabase: true
@@ -61,19 +61,19 @@ export async function testHostatomConnection(apiUrl: string, apiKey: string): Pr
     cleanUrl = 'https://' + cleanUrl;
   }
 
+  const testUrl = new URL(cleanUrl);
+  testUrl.searchParams.set('action', 'ping');
+  testUrl.searchParams.set('key', apiKey.trim());
+
+  // 1. ลองยิงตรงแบบ Simple Request (ไม่แนบ Header พิเศษเพื่อเลี่ยงการติด CORS Preflight บล็อกในเบราว์เซอร์)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 วินาที timeout
-
-    const testUrl = new URL(cleanUrl);
-    testUrl.searchParams.set('action', 'ping');
-    testUrl.searchParams.set('key', apiKey.trim());
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(testUrl.toString(), {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
-        'X-Api-Key': apiKey.trim()
+        'Accept': 'application/json'
       },
       signal: controller.signal
     });
@@ -81,43 +81,49 @@ export async function testHostatomConnection(apiUrl: string, apiKey: string): Pr
     clearTimeout(timeoutId);
     const latencyMs = Date.now() - startTime;
 
-    if (!response.ok) {
-      return {
-        success: false,
-        message: `เซิร์ฟเวอร์ Hostatom ตอบกลับด้วยสถานะ HTTP ${response.status} (${response.statusText})`,
-        latencyMs
-      };
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'ok' || data.success) {
+        return {
+          success: true,
+          message: data.message || `เชื่อมต่อ Hostatom Database สำเร็จ! (MySQL: ${data.mysql_version || 'พร้อมใช้งาน'})`,
+          latencyMs
+        };
+      }
     }
-
-    const data = await response.json();
-    if (data.status === 'ok' || data.success) {
-      return {
-        success: true,
-        message: data.message || `เชื่อมต่อ Hostatom Database สำเร็จ! (MySQL เวอร์ชั่น: ${data.mysql_version || 'พร้อมใช้งาน'})`,
-        latencyMs
-      };
-    } else {
-      return {
-        success: false,
-        message: data.error || data.message || 'API ตอบกลับไม่สำเร็จ แต่เชื่อมต่อเซิร์ฟเวอร์ได้',
-        latencyMs
-      };
-    }
-  } catch (err: any) {
-    const latencyMs = Date.now() - startTime;
-    if (err.name === 'AbortError') {
-      return {
-        success: false,
-        message: 'หมดเวลาเชื่อมต่อ (Connection Timeout) เซิร์ฟเวอร์ไม่ตอบกลับภายใน 12 วินาที',
-        latencyMs
-      };
-    }
-    return {
-      success: false,
-      message: `ไม่สามารถเชื่อมต่อได้: ${err.message || 'CORS Error หรือไม่พบไฟล์ API บนโฮสต์'}`,
-      latencyMs
-    };
+  } catch (directErr: any) {
+    console.warn('Direct fetch notice, trying proxy fallback:', directErr);
   }
+
+  // 2. สำรอง: หากเบราว์เซอร์มีนโยบายบล็อก Cross-Origin ข้ามโดเมน ให้ผ่าน Server Proxy อัตโนมัติ
+  try {
+    const proxyUrl = `/api/hostatom-proxy?url=${encodeURIComponent(testUrl.toString())}`;
+    const proxyRes = await fetch(proxyUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    const latencyMs = Date.now() - startTime;
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.status === 'ok' || data.success) {
+        return {
+          success: true,
+          message: data.message || `เชื่อมต่อ Hostatom Database สำเร็จ! (MySQL: ${data.mysql_version || 'พร้อมใช้งาน'})`,
+          latencyMs
+        };
+      }
+    }
+  } catch (proxyErr: any) {
+    console.warn('Proxy test notice:', proxyErr);
+  }
+
+  const latencyMs = Date.now() - startTime;
+  return {
+    success: false,
+    message: 'ไม่สามารถเชื่อมต่อได้: กรุณาตรวจสอบไฟล์ api/config.php และ api/mhs1_db.php บน Hostatom',
+    latencyMs
+  };
 }
 
 /**
@@ -133,6 +139,209 @@ export function downloadAsFile(filename: string, content: string, mimeType: stri
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * เรียก API ของ Hostatom แบบปลอดภัย รองรับทั้ง GET และ POST
+ */
+export async function callHostatomApi(action: string, payload?: any, method: 'GET' | 'POST' = 'GET'): Promise<any> {
+  const config = getHostatomConfig();
+  if (!config.apiUrl) throw new Error('Hostatom API URL not configured');
+
+  let cleanUrl = config.apiUrl.trim();
+  if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+    cleanUrl = 'https://' + cleanUrl;
+  }
+
+  const url = new URL(cleanUrl);
+  url.searchParams.set('action', action);
+  url.searchParams.set('key', config.apiKey.trim());
+
+  // 1. ลองเรียกตรง
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const res = await fetch(url.toString(), {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: method === 'POST' && payload ? JSON.stringify(payload) : undefined,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const json = await res.json();
+      return json.data || json;
+    }
+  } catch (directErr) {
+    console.warn(`Direct Hostatom call (${action}) notice, attempting proxy:`, directErr);
+  }
+
+  // 2. สำรอง: เรียกผ่าน Server Proxy ในกรณีที่เบราว์เซอร์ติดบล็อก CORS
+  try {
+    const proxyUrl = `/api/hostatom-proxy?url=${encodeURIComponent(url.toString())}`;
+    const pRes = await fetch(proxyUrl, {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: method === 'POST' && payload ? JSON.stringify(payload) : undefined
+    });
+    if (pRes.ok) {
+      const json = await pRes.json();
+      return json.data || json;
+    }
+  } catch (pErr) {
+    console.error(`Hostatom proxy call failed for ${action}:`, pErr);
+  }
+
+  throw new Error(`Failed to call Hostatom API action: ${action}`);
+}
+
+export async function hostatomFetchSchools(): Promise<School[]> {
+  const data = await callHostatomApi('get_schools');
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    district: r.district || 'สพป.แม่ฮ่องสอน เขต 1',
+    amphoe: r.amphoe,
+    networkGroup: r.network_group || r.networkGroup,
+    internetType: r.internet_type || r.internetType || 'fiber',
+    electricity: r.electricity !== undefined ? r.electricity : true,
+    waterSystem: r.water_system || r.waterSystem || 'government',
+    waterSystemDetail: r.water_system_detail || r.waterSystemDetail,
+    solarKw: r.solar_kw || r.solarKw,
+    hasSolarBattery: Boolean(r.has_solar_battery ?? r.hasSolarBattery),
+    solarBatteryCapacity: r.solar_battery_capacity || r.solarBatteryCapacity,
+    staffCount: Number(r.staff_count ?? r.staffCount ?? 0),
+    contractTeachersCount: Number(r.contract_teachers_count ?? r.contractTeachersCount ?? 0),
+    adminStaffCount: Number(r.admin_staff_count ?? r.adminStaffCount ?? 0),
+    janitorCount: Number(r.janitor_count ?? r.janitorCount ?? 0),
+    otherStaffCount: Number(r.other_staff_count ?? r.otherStaffCount ?? 0),
+    majorSubjects: Array.isArray(r.major_subjects) ? r.major_subjects : [],
+    majorSubjectsWithStaff: Array.isArray(r.major_subjects_with_staff) ? r.major_subjects_with_staff : [],
+    classrooms: Array.isArray(r.classrooms) ? r.classrooms : [],
+    directorName: r.director_name || r.directorName,
+    directorPhone: r.director_phone || r.directorPhone,
+    viceDirectorName: r.vice_director_name || r.viceDirectorName,
+    viceDirectorPhone: r.vice_director_phone || r.viceDirectorPhone,
+    viceDirectors: Array.isArray(r.vice_directors) ? r.vice_directors : [],
+    schoolPhone: r.school_phone || r.schoolPhone,
+    email: r.email,
+    facebook: r.facebook,
+    line: r.line,
+    website: r.website,
+    address: r.address,
+    imageUrl: r.image_url || r.imageUrl,
+    logoUrl: r.logo_url || r.logoUrl,
+    directorImageUrl: r.director_image_url || r.directorImageUrl,
+    latitude: Number(r.latitude) || 0,
+    longitude: Number(r.longitude) || 0,
+    size: r.size || 'small',
+    isExpansion: Boolean(r.is_expansion ?? r.isExpansion),
+    specialHighlights: r.special_highlights || r.specialHighlights,
+    updatedAt: r.updated_at || r.updatedAt,
+    updatedBy: r.updated_by || r.updatedBy
+  }));
+}
+
+export async function hostatomFetchStudents(): Promise<StudentData[]> {
+  const data = await callHostatomApi('get_students');
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    schoolId: r.school_id || r.schoolId,
+    schoolName: r.school_name || r.schoolName,
+    academicYear: r.academic_year || r.academicYear,
+    grades: typeof r.grades === 'string' ? JSON.parse(r.grades) : (r.grades || {}),
+    totalMale: Number(r.total_male ?? r.totalMale ?? 0),
+    totalFemale: Number(r.total_female ?? r.totalFemale ?? 0),
+    totalStudents: Number(r.total_students ?? r.totalStudents ?? 0)
+  }));
+}
+
+export async function hostatomFetchStudentsG(): Promise<StudentGData[]> {
+  const data = await callHostatomApi('get_students_g');
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    schoolId: r.school_id || r.schoolId,
+    schoolName: r.school_name || r.schoolName,
+    academicYear: r.academic_year || r.academicYear,
+    totalGStudents: Number(r.total_g_students ?? r.totalGStudents ?? 0),
+    maleGCount: Number(r.male_g_count ?? r.maleGCount ?? 0),
+    femaleGCount: Number(r.female_g_count ?? r.femaleGCount ?? 0),
+    notes: r.notes || ''
+  }));
+}
+
+export async function hostatomFetchAcademicRecords(): Promise<AcademicRecord[]> {
+  const data = await callHostatomApi('get_academic_records');
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    id: r.id,
+    order: Number(r.order ?? 1),
+    schoolId: r.school_id || r.schoolId,
+    schoolName: r.school_name || r.schoolName,
+    amphoe: r.amphoe,
+    mathScore: Number(r.math_score ?? r.mathScore ?? 0),
+    mathPercentage: Number(r.math_percentage ?? r.mathPercentage ?? 0),
+    thaiScore: Number(r.thai_score ?? r.thaiScore ?? 0),
+    thaiPercentage: Number(r.thai_percentage ?? r.thaiPercentage ?? 0),
+    totalScore: Number(r.total_score ?? r.totalScore ?? 0),
+    totalPercentage: Number(r.total_percentage ?? r.totalPercentage ?? 0),
+    mathQuality: r.math_quality || r.mathQuality || 'ดี',
+    thaiQuality: r.thai_quality || r.thaiQuality || 'ดี',
+    totalQuality: r.total_quality || r.totalQuality || 'ดี',
+    academicYear: r.academic_year || r.academicYear || '2567',
+    testType: r.test_type || r.testType || 'NT',
+    testTitle: r.test_title || r.testTitle,
+    notes: r.notes,
+    updatedAt: r.updated_at || r.updatedAt,
+    updatedBy: r.updated_by || r.updatedBy
+  }));
+}
+
+export async function hostatomFetchUsers(): Promise<UserProfile[]> {
+  const data = await callHostatomApi('get_users');
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any) => ({
+    uid: r.uid || r.id,
+    email: r.email,
+    firstName: r.first_name || r.firstName || '',
+    lastName: r.last_name || r.lastName || '',
+    schoolId: r.school_id || r.schoolId || '',
+    schoolName: r.school_name || r.schoolName || '',
+    role: r.role || 'public',
+    status: r.status || 'pending',
+    createdAt: r.created_at || r.createdAt
+  }));
+}
+
+export async function hostatomSaveSchool(school: School): Promise<void> {
+  await callHostatomApi('save_school', school, 'POST');
+}
+
+export async function hostatomSaveStudents(students: StudentData[]): Promise<void> {
+  await callHostatomApi('save_students', { students }, 'POST');
+}
+
+export async function hostatomSaveStudentsG(studentsG: StudentGData[]): Promise<void> {
+  await callHostatomApi('save_students_g', { students_g: studentsG }, 'POST');
+}
+
+export async function hostatomSaveUser(user: UserProfile): Promise<void> {
+  await callHostatomApi('save_user', user, 'POST');
+}
+
+export async function hostatomSaveAcademicRecord(record: AcademicRecord): Promise<void> {
+  await callHostatomApi('save_academic_record', record, 'POST');
 }
 
 // ============================================================================
@@ -675,11 +884,11 @@ export const HOSTATOM_PHP_CONNECTOR_CODE = `<?php
  * ============================================================================
  */
 
-// 1. ตั้งค่าการเชื่อมต่อฐานข้อมูล MySQL ของคุณบน Hostatom cPanel
+// 1. ตั้งค่าการเชื่อมต่อฐานข้อมูล MySQL ของคุณบน Hostatom Plesk
 $db_host = 'localhost';             // บน Hostatom มักเป็น 'localhost' เสมอ
-$db_name = 'your_cpanel_mhs1db';    // ชื่อฐานข้อมูลที่คุณสร้างใน cPanel
-$db_user = 'your_cpanel_dbuser';    // ชื่อ Database User ใน cPanel
-$db_pass = 'your_database_password';// รหัสผ่าน Database User
+$db_name = 'mhs1_bigdata';          // ชื่อฐานข้อมูลที่คุณสร้างใน Plesk
+$db_user = 'mhs1_admin';            // ชื่อ Database User ใน Plesk
+$db_pass = 'm96?25aGr';             // รหัสผ่าน Database User
 $api_secret = 'mhs1_bigdata_secret_2026'; // ตั้งรหัสลับตรงกับที่กรอกในหน้าเว็บ MHS1
 
 // 2. ตั้งค่า CORS Headers เพื่อให้เว็บแอพสามารถยิง Request มาได้ปลอดภัย
@@ -945,14 +1154,14 @@ export const HOSTATOM_CONFIG_PHP_CODE = `<?php
 // 1. โฮสต์ฐานข้อมูล (บน Hostatom ปกติจะเป็น 'localhost')
 define('DB_HOST', 'localhost');
 
-// 2. ชื่อฐานข้อมูล MySQL ที่สร้างใน cPanel เช่น cpaneluser_mhs1db
-define('DB_NAME', 'your_cpanel_mhs1db');
+// 2. ชื่อฐานข้อมูล MySQL ที่สร้างใน cPanel/Plesk
+define('DB_NAME', 'mhs1_bigdata');
 
-// 3. ชื่อผู้ใช้งานฐานข้อมูล (MySQL User) เช่น cpaneluser_dbuser
-define('DB_USER', 'your_cpanel_dbuser');
+// 3. ชื่อผู้ใช้งานฐานข้อมูล (MySQL User)
+define('DB_USER', 'mhs1_admin');
 
 // 4. รหัสผ่านของผู้ใช้งานฐานข้อมูล
-define('DB_PASS', 'your_database_password');
+define('DB_PASS', 'm96?25aGr');
 
 // 5. รหัสลับสำหรับ API (Security Secret Key) ป้องกันบุคคลภายนอกเรียกใช้งาน
 define('API_SECRET', 'mhs1_bigdata_secret_2026');
@@ -961,6 +1170,127 @@ define('API_SECRET', 'mhs1_bigdata_secret_2026');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ?>`;
+
+export const HOSTATOM_TEST_PHP_CODE = `<?php
+/**
+ * ============================================================================
+ * MHS1 BIGDATA - HOSTATOM DATABASE CONNECTION TEST
+ * สพป.แม่ฮ่องสอน เขต 1
+ * ============================================================================
+ */
+
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+header('Content-Type: text/html; charset=utf-8');
+
+$configFile = __DIR__ . '/config.php';
+$hasConfig = file_exists($configFile);
+
+$dbConnected = false;
+$errorMessage = '';
+$dbDetails = [];
+
+if ($hasConfig) {
+    require_once $configFile;
+    try {
+        $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+        $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+        ]);
+        $dbConnected = true;
+
+        $tablesStmt = $pdo->query("SHOW TABLES");
+        $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $schoolCount = in_array('schools', $tables) ? $pdo->query("SELECT COUNT(*) FROM schools")->fetchColumn() : 0;
+        $studentCount = in_array('students', $tables) ? $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn() : 0;
+        $userCount = in_array('users', $tables) ? $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() : 0;
+        $mysqlVersion = $pdo->query("SELECT VERSION()")->fetchColumn();
+
+        $dbDetails = [
+            'version' => $mysqlVersion,
+            'tables' => $tables,
+            'school_count' => $schoolCount,
+            'student_count' => $studentCount,
+            'user_count' => $userCount
+        ];
+    } catch (Throwable $e) {
+        $dbConnected = false;
+        $errorMessage = $e->getMessage();
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ทดสอบการเชื่อมต่อ Hostatom Database - MHS1 BIGDATA</title>
+  <style>
+    body { font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FFF9F5; color: #33272A; margin: 0; padding: 20px; line-height: 1.6; }
+    .card { max-width: 680px; margin: 30px auto; background: white; border-radius: 20px; border: 3px solid #33272A; box-shadow: 6px 6px 0 #33272A; padding: 30px; }
+    .status-badge { display: inline-block; padding: 6px 16px; border-radius: 999px; font-weight: bold; font-size: 14px; margin-bottom: 15px; }
+    .success { background: #dcfce7; color: #166534; border: 2px solid #22c55e; }
+    .error { background: #fee2e2; color: #991b1b; border: 2px solid #ef4444; }
+    h1 { margin-top: 0; font-size: 22px; }
+    .info-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .info-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+    .info-table td:first-child { font-weight: bold; width: 35%; color: #64748b; }
+    .btn { display: inline-block; background: #FF8BA7; color: #33272A; text-decoration: none; padding: 10px 22px; border-radius: 12px; font-weight: bold; border: 2px solid #33272A; box-shadow: 3px 3px 0 #33272A; margin-top: 20px; }
+    .btn:hover { background: #ff7597; }
+    pre { background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <?php if ($dbConnected): ?>
+      <span class="status-badge success">✅ เชื่อมต่อฐานข้อมูลสำเร็จสมบูรณ์! (Database Connected)</span>
+      <h1>ระบบฐานข้อมูล Hostatom พร้อมใช้งานแล้ว</h1>
+      <p>ระบบ Big Data สพป.แม่ฮ่องสอน เขต 1 สามารถติดต่อกับ MySQL/MariaDB Database บน Hostatom ได้อย่างถูกต้องสมบูรณ์แบบ</p>
+      
+      <table class="info-table">
+        <tr>
+          <td>MariaDB / MySQL Version</td>
+          <td><strong><?php echo htmlspecialchars($dbDetails['version']); ?></strong></td>
+        </tr>
+        <tr>
+          <td>ฐานข้อมูลที่เชื่อมต่อ</td>
+          <td><code><?php echo htmlspecialchars(DB_NAME); ?></code></td>
+        </tr>
+        <tr>
+          <td>จำนวนตารางที่พบ</td>
+          <td><strong><?php echo count($dbDetails['tables']); ?></strong> ตาราง</td>
+        </tr>
+        <tr>
+          <td>ข้อมูลโรงเรียน (Schools)</td>
+          <td><strong><?php echo $dbDetails['school_count']; ?></strong> โรงเรียน</td>
+        </tr>
+        <tr>
+          <td>ข้อมูลสถิตินักเรียน</td>
+          <td><strong><?php echo $dbDetails['student_count']; ?></strong> รายการ</td>
+        </tr>
+        <tr>
+          <td>ผู้ใช้งานในระบบ (Users)</td>
+          <td><strong><?php echo $dbDetails['user_count']; ?></strong> คน</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 25px; text-align: center;">
+        <a href="/" class="btn">🚀 เข้าสู่หน้าหลักของระบบ (Open App)</a>
+      </div>
+
+    <?php else: ?>
+      <span class="status-badge error">❌ ยังไม่สามารถเชื่อมต่อฐานข้อมูลได้</span>
+      <h1>พบข้อผิดพลาดในการเชื่อมต่อ MySQL</h1>
+      <p>กรุณาตรวจสอบชื่อฐานข้อมูล ชื่อผู้ใช้ และรหัสผ่านในไฟล์ <code>api/config.php</code></p>
+      
+      <pre><?php echo htmlspecialchars($errorMessage ?: 'ไม่พบไฟล์ api/config.php'); ?></pre>
+    <?php endif; ?>
+  </div>
+</body>
+</html>`;
 
 export const HOSTATOM_HTACCESS_CODE = `# ==============================================================================
 # MHS1 BIGDATA - Apache Configuration (.htaccess) สำหรับ Hostatom
@@ -1103,6 +1433,7 @@ export async function generateLiveHostatomZipBlob(
   const apiFolder = zip.folder('api');
   apiFolder?.file('config.php', HOSTATOM_CONFIG_PHP_CODE);
   apiFolder?.file('mhs1_db.php', HOSTATOM_PHP_CONNECTOR_CODE);
+  apiFolder?.file('test.php', HOSTATOM_TEST_PHP_CODE);
 
   // 3. Web server .htaccess
   zip.file('.htaccess', HOSTATOM_HTACCESS_CODE);

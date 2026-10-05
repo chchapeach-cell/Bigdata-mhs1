@@ -27,6 +27,39 @@ export default defineConfig(() => {
             }
             next();
           });
+
+          server.middlewares.use(async (req, res, next) => {
+            if (req.url && req.url.startsWith('/api/hostatom-proxy')) {
+              try {
+                const parsedUrl = new URL(req.url, 'http://localhost:3000');
+                const targetUrl = parsedUrl.searchParams.get('url');
+                if (!targetUrl) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ error: 'Missing target url parameter' }));
+                  return;
+                }
+                const fetchRes = await fetch(targetUrl, {
+                  method: req.method,
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                  }
+                });
+                const body = await fetchRes.text();
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.statusCode = fetchRes.status;
+                res.end(body);
+                return;
+              } catch (err: any) {
+                res.statusCode = 502;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ status: 'error', message: err.message }));
+                return;
+              }
+            }
+            next();
+          });
         }
       }
     ],

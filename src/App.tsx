@@ -56,6 +56,14 @@ import ContactView from './components/ContactView';
 import VisitorCounter from './components/VisitorCounter';
 import InactivityLogoutHandler from './components/InactivityLogoutHandler';
 import { HostatomDatabaseModal } from './components/HostatomDatabaseModal';
+import { 
+  getHostatomConfig, 
+  hostatomFetchSchools, 
+  hostatomFetchStudents, 
+  hostatomFetchStudentsG, 
+  hostatomFetchAcademicRecords, 
+  hostatomFetchUsers 
+} from './lib/hostatom';
 
 import { Sparkles, RefreshCw, Award, Heart, HelpCircle, GraduationCap, AlertTriangle, Users, Clock, X } from 'lucide-react';
 
@@ -724,7 +732,35 @@ export function App() {
     }
 
     try {
-      // 0. ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
+      // 0.1 ตรวจสอบว่าผู้ใช้ตั้งค่าให้ Hostatom MySQL เป็นฐานข้อมูลหลักหรือไม่
+      const hConfig = getHostatomConfig();
+      if (hConfig.enabled && hConfig.primaryDb === 'hostatom' && hConfig.apiUrl) {
+        try {
+          console.log('🔄 กำลังดึงข้อมูลจาก Hostatom MySQL เป็นฐานข้อมูลหลัก...');
+          const [hSchools, hStudents, hStudentsG, hRecords, hUsers] = await Promise.all([
+            hostatomFetchSchools(),
+            hostatomFetchStudents(),
+            hostatomFetchStudentsG(),
+            hostatomFetchAcademicRecords().catch(() => []),
+            hostatomFetchUsers().catch(() => [])
+          ]);
+
+          if (hSchools && hSchools.length > 0) {
+            setSchools(hSchools);
+            setStudentData(hStudents);
+            setStudentGData(hStudentsG);
+            if (hRecords.length > 0) setAcademicRecords(hRecords);
+            if (hUsers.length > 0) setAllUsersList(hUsers);
+            setIsLoading(false);
+            console.log(`✅ โหลดข้อมูลจาก Hostatom MySQL สำเร็จ (${hSchools.length} โรงเรียน)`);
+            return;
+          }
+        } catch (hErr) {
+          console.warn('⚠️ Hostatom primary fetch error, failing over smoothly to Supabase:', hErr);
+        }
+      }
+
+      // 0.2 ลองดึงข้อมูลจาก Supabase ก่อนถ้ามีการตั้งค่า Supabase และมีข้อมูลแล้ว
       if (supabase && isSupabaseConfigured()) {
         try {
           // ดึงข้อมูลทั้งหมดจาก Supabase แบบคู่ขนาน (ใช้ LIGHT_SCHOOL_FIELDS เพื่อลดขนาดจาก 32MB เหลือ 500KB โหลดเร็วขึ้น 60 เท่า!)
@@ -955,6 +991,13 @@ export function App() {
   useEffect(() => {
     fetchAllData();
 
+    const handleRefreshAllData = () => {
+      console.log('🔄 Triggering full data reload from selected database...');
+      clearAppCache();
+      fetchAllData(true);
+    };
+    window.addEventListener('refresh-all-data', handleRefreshAllData);
+
     const handleRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason?.message || String(event.reason || '');
       if (reason.includes('Quota') || reason.includes('quota') || reason.includes('RESOURCE_EXHAUSTED') || reason.includes('Free daily read') || reason.includes('resource-exhausted')) {
@@ -962,7 +1005,10 @@ export function App() {
       }
     };
     window.addEventListener('unhandledrejection', handleRejection);
-    return () => window.removeEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener('refresh-all-data', handleRefreshAllData);
+    };
   }, []);
 
   // ออกจากระบบ

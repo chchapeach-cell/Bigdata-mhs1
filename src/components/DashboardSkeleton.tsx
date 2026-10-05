@@ -26,32 +26,6 @@ export default function DashboardSkeleton({ isDarkMode = false }: DashboardSkele
         </div>
       </div>
 
-      {/* 2. LOADING STATE STATUS BANNER (Smooth Perceived Performance) */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-rose-50 via-[#FFF9F5] to-amber-50 dark:from-slate-900 dark:via-[#1e1518] dark:to-rose-950/30 p-3.5 sm:p-4 border-2 border-[#33272A] dark:border-[#FFD3B6]/40 shadow-[3px_3px_0px_#33272A] dark:shadow-[3px_3px_0px_rgba(255,211,182,0.2)]">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm font-extrabold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-                กำลังเชื่อมต่อและจัดโครงสร้างสถิติสารสนเทศนักเรียนรายบุคคล...
-              </p>
-              <p className="text-[11px] font-bold text-[#33272A]/60 dark:text-[#FFF9F5]/60 hidden sm:block">
-                ระบบกำลังดึงข้อมูลเรียลไทม์จากฐานข้อมูล สพป.แม่ฮ่องสอน เขต 1 พร้อมคำนวณสถิติอัตโนมัติ
-              </p>
-            </div>
-          </div>
-          <div className="shrink-0 flex items-center gap-1.5">
-            <div className="h-2 w-16 sm:w-28 bg-rose-200 dark:bg-rose-950 rounded-full overflow-hidden">
-              <div className="h-full bg-rose-500 rounded-full animate-pulse" style={{ width: '70%' }}></div>
-            </div>
-            <span className="text-[10px] font-black text-rose-500 font-mono">LOADING</span>
-          </div>
-        </div>
-      </div>
-
       {/* 3. 4 KPI METRIC CARDS SKELETON */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Metric 1: สถานศึกษาทั้งหมด */}

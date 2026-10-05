@@ -7,6 +7,8 @@
  * ไฟล์นี้ใช้สำหรับตรวจสอบว่าเว็บไซต์บน Hostatom เชื่อมต่อฐานข้อมูล MySQL สำเร็จหรือไม่
  */
 
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 header('Content-Type: text/html; charset=utf-8');
 
 $configFile = __DIR__ . '/config.php';
@@ -23,7 +25,7 @@ if ($hasConfig) {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_TIMEOUT => 5
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
         ]);
         $dbConnected = true;
 
@@ -59,7 +61,7 @@ if ($hasConfig) {
             'student_count' => $studentCount,
             'user_count' => $userCount
         ];
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $dbConnected = false;
         $errorMessage = $e->getMessage();
     }
