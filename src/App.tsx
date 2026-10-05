@@ -63,12 +63,6 @@ export function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [isHostatomModalOpen, setIsHostatomModalOpen] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleOpenHostatom = () => setIsHostatomModalOpen(true);
-    window.addEventListener('open-hostatom-modal', handleOpenHostatom);
-    return () => window.removeEventListener('open-hostatom-modal', handleOpenHostatom);
-  }, []);
   
   // สถานะตัวกรองจากหน้านำทางแดชบอร์ด
   const [initialFilters, setInitialFilters] = useState<{
@@ -95,8 +89,30 @@ export function App() {
   
   // ข้อมูลสถิติหลัก (เริ่มต้นด้วยข้อมูลจริงจากฐานข้อมูล 131 โรงเรียน)
   const [schools, setSchools] = useState<School[]>(() => parseInitialData());
-  const [studentData, setStudentData] = useState<StudentData[]>(() => rawStudentsData as any[]);
-  const [studentGData, setStudentGData] = useState<StudentGData[]>(() => rawStudentsGData as any[]);
+  const [studentData, setStudentData] = useState<StudentData[]>(() => {
+    return (rawStudentsData as any[]).map(st => ({
+      id: st.id,
+      schoolId: st.schoolId || st.school_id,
+      schoolName: st.schoolName || st.school_name,
+      academicYear: st.academicYear || st.academic_year,
+      grades: st.grades || {},
+      totalMale: Number(st.totalMale ?? st.total_male ?? 0),
+      totalFemale: Number(st.totalFemale ?? st.total_female ?? 0),
+      totalStudents: Number(st.totalStudents ?? st.total_students ?? 0)
+    }));
+  });
+  const [studentGData, setStudentGData] = useState<StudentGData[]>(() => {
+    return (rawStudentsGData as any[]).map(sg => ({
+      id: sg.id,
+      schoolId: sg.schoolId || sg.school_id,
+      schoolName: sg.schoolName || sg.school_name,
+      academicYear: sg.academicYear || sg.academic_year,
+      totalGStudents: Number(sg.totalGStudents ?? sg.total_g_students ?? 0),
+      maleGCount: Number(sg.maleGCount ?? sg.male_g_count ?? 0),
+      femaleGCount: Number(sg.femaleGCount ?? sg.female_g_count ?? 0),
+      notes: sg.notes || ''
+    }));
+  });
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
   
@@ -460,6 +476,16 @@ export function App() {
   // 2. ระบบแจ้งเตือนคำขอสมัครสมาชิกใหม่แบบ Real-time สำหรับ Super Admin
   const isSuperAdminUser = userProfile?.role === 'super_admin' || userProfile?.email === 'tamrri@gmail.com' || userProfile?.email === 'ch.chapeach@gmail.com';
 
+  useEffect(() => {
+    const handleOpenHostatom = () => {
+      if (isSuperAdminUser) {
+        setIsHostatomModalOpen(true);
+      }
+    };
+    window.addEventListener('open-hostatom-modal', handleOpenHostatom);
+    return () => window.removeEventListener('open-hostatom-modal', handleOpenHostatom);
+  }, [isSuperAdminUser]);
+
   const fetchPendingRegistrations = async (isBackground = false) => {
     if (!isSuperAdminUser) return;
     if (!isBackground) setIsLoadingPendingUsers(true);
@@ -661,7 +687,7 @@ export function App() {
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    const CACHE_KEY = 'mhs_app_data_cache_v7';
+    const CACHE_KEY = 'mhs_app_data_cache_v8';
     const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
 
     // 1. ตรวจสอบแคชในเบราว์เซอร์ก่อน หากมีแคชให้นำมาแสดงผลบนหน้าจอทันที (0ms Instant Load ไม่ต้องรอ!)
@@ -1318,17 +1344,19 @@ export function App() {
         </div>
       )}
 
-      {/* Hostatom Database Migration & Deployment Modal */}
-      <HostatomDatabaseModal
-        isOpen={isHostatomModalOpen}
-        onClose={() => setIsHostatomModalOpen(false)}
-        schools={schools}
-        studentData={studentData}
-        studentGData={studentGData}
-        users={allUsersList && allUsersList.length > 0 ? allUsersList : (userProfile ? [userProfile] : [])}
-        systemConfig={systemConfig}
-        academicRecords={academicRecords && academicRecords.length > 0 ? academicRecords : generateInitialAcademicRecords(schools, '2567')}
-      />
+      {/* Hostatom Database Migration & Deployment Modal (ONLY for Super Admin) */}
+      {isSuperAdminUser && (
+        <HostatomDatabaseModal
+          isOpen={isHostatomModalOpen}
+          onClose={() => setIsHostatomModalOpen(false)}
+          schools={schools}
+          studentData={studentData}
+          studentGData={studentGData}
+          users={allUsersList && allUsersList.length > 0 ? allUsersList : (userProfile ? [userProfile] : [])}
+          systemConfig={systemConfig}
+          academicRecords={academicRecords && academicRecords.length > 0 ? academicRecords : generateInitialAcademicRecords(schools, '2567')}
+        />
+      )}
     </div>
   );
 }

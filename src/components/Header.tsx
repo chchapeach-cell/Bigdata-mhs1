@@ -54,6 +54,8 @@ export default function Header({
   onQuickRejectUser,
   onOpenAdminUserManagement,
 }: HeaderProps) {
+  const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.email === 'ch.chapeach@gmail.com' || userProfile?.email === 'tamrri@gmail.com';
+
   return (
     <>
       {/* 🖼️ Custom Header Banner Image (เลื่อนหายไปตามการเลื่อนหน้าเว็บ) */}
@@ -219,21 +221,6 @@ export default function Header({
               ก
             </button>
           </div>
-
-          {/* Hostatom Deploy Package Button */}
-          <button
-            type="button"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('open-hostatom-modal'));
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A] cursor-pointer transition-transform active:scale-95 shrink-0"
-            title="เปิดศูนย์ดาวน์โหลดชุดไฟล์ติดตั้ง Hostatom / ฐานข้อมูล MySQL"
-          >
-            <Server className="h-3.5 w-3.5 text-amber-300" />
-            <span className="hidden sm:inline">โหลดไฟล์ขึ้น Hostatom</span>
-            <span className="sm:hidden">Hostatom</span>
-            <span className="bg-amber-400 text-slate-900 text-[9px] font-black px-1 rounded">ZIP</span>
-          </button>
 
           {/* Super Admin Notification Bell for pending registrations */}
           {userProfile?.role === 'super_admin' && onRefreshPendingUsers && onQuickApproveUser && onQuickRejectUser && (

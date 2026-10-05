@@ -47,11 +47,13 @@ export const LIGHT_SCHOOL_FIELDS = `
  */
 export function clearAppCache(): void {
   try {
+    localStorage.removeItem('mhs_app_data_cache_v8');
     localStorage.removeItem('mhs_app_data_cache_v7');
     localStorage.removeItem('mhs_app_data_cache_v6');
     localStorage.removeItem('mhs_app_data_cache_v5');
     localStorage.removeItem('mhs_app_data_cache_v4');
     localStorage.removeItem('mhs_app_data_cache_v3');
+    sessionStorage.removeItem('mhs_app_data_cache_v8');
     sessionStorage.removeItem('mhs_app_data_cache_v7');
     sessionStorage.removeItem('mhs_app_data_cache_v6');
     sessionStorage.removeItem('mhs_app_data_cache_v5');

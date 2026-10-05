@@ -358,9 +358,12 @@ export default function DashboardView({
       .filter(item => item.value > 0);
   }, [schools]);
 
-  // กรองข้อมูลตามปีการศึกษาที่เลือก
+  // กรองข้อมูลตามปีการศึกษาที่เลือก (รองรับทั้ง camelCase และ snake_case)
   const filteredStudents = useMemo(() => {
-    return studentData.filter(s => s.academicYear === academicYear);
+    return studentData.filter(s => {
+      const year = s.academicYear || (s as any).academic_year;
+      return String(year || '').trim() === String(academicYear || '').trim();
+    });
   }, [studentData, academicYear]);
 
   // สถิติจำนวนโรงเรียนจำแนกตามกลุ่มโรงเรียน (14 กลุ่ม)
@@ -424,14 +427,18 @@ export default function DashboardView({
     let expansionSchools = 0;
 
     filteredStudents.forEach(item => {
-      totalStudents += item.totalStudents;
-      totalMale += item.totalMale;
-      totalFemale += item.totalFemale;
+      const male = Number(item.totalMale ?? (item as any).total_male ?? 0);
+      const female = Number(item.totalFemale ?? (item as any).total_female ?? 0);
+      const total = Number(item.totalStudents ?? (item as any).total_students ?? (male + female));
+      totalStudents += total;
+      totalMale += male;
+      totalFemale += female;
     });
 
     schools.forEach(school => {
-      totalTeachers += (school.staffCount || 0);
-      if (school.isExpansion) {
+      const teachers = Number(school.staffCount ?? (school as any).staff_count ?? 0);
+      totalTeachers += teachers;
+      if (school.isExpansion ?? (school as any).is_expansion) {
         expansionSchools++;
       }
     });

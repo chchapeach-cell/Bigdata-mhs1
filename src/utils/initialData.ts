@@ -240,31 +240,66 @@ export function parseInitialData(): School[] {
 
     const classrooms = Array.isArray(item.classrooms) ? item.classrooms : [];
 
-    const school: School = {
+    const school: any = {
       id,
       name,
       district: item.district || 'สพป.แม่ฮ่องสอน เขต 1',
       amphoe: item.amphoe || 'ไม่ระบุอำเภอ',
-      network_group: item.network_group || 'กลุ่มทั่วไป',
-      internet_type: item.internet_type || null,
-      electricity: item.electricity ?? null,
-      water_system: item.water_system || null,
-      water_system_detail: item.water_system_detail || null,
-      solar_kw: item.solar_kw ?? null,
-      has_solar_battery: Boolean(item.has_solar_battery),
-      solar_battery_capacity: item.solar_battery_capacity ?? null,
-      staff_count: Number(item.staff_count) || 0,
-      other_staff_count: Number(item.other_staff_count) || 0,
-      major_subjects: Array.isArray(item.major_subjects) ? item.major_subjects : [],
-      major_subjects_with_staff: Array.isArray(item.major_subjects_with_staff)
-        ? item.major_subjects_with_staff.map((m: any) => ({
+      networkGroup: item.network_group || item.networkGroup || 'กลุ่มทั่วไป',
+      network_group: item.network_group || item.networkGroup || 'กลุ่มทั่วไป',
+      internetType: item.internet_type || item.internetType || 'fiber',
+      internet_type: item.internet_type || item.internetType || 'fiber',
+      electricity: item.electricity ?? true,
+      waterSystem: item.water_system || item.waterSystem || 'government',
+      water_system: item.water_system || item.waterSystem || 'government',
+      waterSystemDetail: item.water_system_detail || item.waterSystemDetail || null,
+      water_system_detail: item.water_system_detail || item.waterSystemDetail || null,
+      solarKw: item.solar_kw ?? item.solarKw ?? null,
+      solar_kw: item.solar_kw ?? item.solarKw ?? null,
+      hasSolarBattery: Boolean(item.has_solar_battery ?? item.hasSolarBattery),
+      has_solar_battery: Boolean(item.has_solar_battery ?? item.hasSolarBattery),
+      solarBatteryCapacity: item.solar_battery_capacity ?? item.solarBatteryCapacity ?? null,
+      solar_battery_capacity: item.solar_battery_capacity ?? item.solarBatteryCapacity ?? null,
+      staffCount: Number(item.staff_count ?? item.staffCount) || 0,
+      staff_count: Number(item.staff_count ?? item.staffCount) || 0,
+      contractTeachersCount: Number(item.contract_teachers_count ?? item.contractTeachersCount) || 0,
+      contract_teachers_count: Number(item.contract_teachers_count ?? item.contractTeachersCount) || 0,
+      adminStaffCount: Number(item.admin_staff_count ?? item.adminStaffCount) || 0,
+      admin_staff_count: Number(item.admin_staff_count ?? item.adminStaffCount) || 0,
+      janitorCount: Number(item.janitor_count ?? item.janitorCount) || 0,
+      janitor_count: Number(item.janitor_count ?? item.janitorCount) || 0,
+      otherStaffCount: Number(item.other_staff_count ?? item.otherStaffCount) || 0,
+      other_staff_count: Number(item.other_staff_count ?? item.otherStaffCount) || 0,
+      majorSubjects: Array.isArray(item.major_subjects ?? item.majorSubjects) ? (item.major_subjects ?? item.majorSubjects) : [],
+      major_subjects: Array.isArray(item.major_subjects ?? item.majorSubjects) ? (item.major_subjects ?? item.majorSubjects) : [],
+      majorSubjectsWithStaff: Array.isArray(item.major_subjects_with_staff ?? item.majorSubjectsWithStaff)
+        ? (item.major_subjects_with_staff ?? item.majorSubjectsWithStaff).map((m: any) => ({
+            name: m.name || '',
+            teachersCount: Number(m.teachersCount) || 0,
+          }))
+        : [],
+      major_subjects_with_staff: Array.isArray(item.major_subjects_with_staff ?? item.majorSubjectsWithStaff)
+        ? (item.major_subjects_with_staff ?? item.majorSubjectsWithStaff).map((m: any) => ({
             name: m.name || '',
             teachersCount: Number(m.teachersCount) || 0,
           }))
         : [],
       classrooms,
-      director_phone: item.director_phone || '',
-      school_phone: item.school_phone || '',
+      directorName: item.director_name || item.directorName || '',
+      director_name: item.director_name || item.directorName || '',
+      directorPhone: item.director_phone || item.directorPhone || '',
+      director_phone: item.director_phone || item.directorPhone || '',
+      viceDirectorName: item.vice_director_name || item.viceDirectorName || '',
+      vice_director_name: item.vice_director_name || item.viceDirectorName || '',
+      viceDirectorPhone: item.vice_director_phone || item.viceDirectorPhone || '',
+      vice_director_phone: item.vice_director_phone || item.viceDirectorPhone || '',
+      schoolPhone: item.school_phone || item.schoolPhone || '',
+      school_phone: item.school_phone || item.schoolPhone || '',
+      size: item.size || 'small',
+      isExpansion: Boolean(item.is_expansion ?? item.isExpansion ?? false),
+      is_expansion: Boolean(item.is_expansion ?? item.isExpansion ?? false),
+      latitude: Number(item.latitude) || 0,
+      longitude: Number(item.longitude) || 0,
     };
 
     // Store in Map to prevent duplicate school IDs
