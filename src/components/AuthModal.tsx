@@ -253,10 +253,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } catch (err: any) {
       console.warn('Google Popup OAuth error:', err);
       setIsLoading(false);
-      // ในระบบจริง หากเบราว์เซอร์บล็อก Popup หรือรันบนโฮสติ้งภายนอกที่ยังไม่ผูกโดเมนใน Google Cloud
+      // หากรันบน Hostatom หรือโดเมนที่ยังไม่ได้ Whitelist ใน Firebase
+      if (!email) {
+        setEmail('ch.chapeach@gmail.com');
+      }
+      const isDomainIssue = err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain');
       setMessage({
         type: 'info',
-        text: `ระบบไม่สามารถเปิดหน้าต่าง Google Popup ได้ (เนื่องจากโดเมนบนเซิร์ฟเวอร์ยังไม่ได้ลงทะเบียนใน Google Cloud Console หรือถูกบล็อก Popup) กรุณาใช้อีเมลและรหัสผ่านเข้าสู่ระบบด้านล่างนี้ได้ตามปกติครับ`
+        text: isDomainIssue 
+          ? `โดเมน "${window.location.hostname}" ยังไม่ได้ถูกเพิ่มใน Authorized Domains ของ Google Firebase Authentication ทำให้ Google บล็อก Pop-up คุณสามารถกรอกรหัสผ่านของคุณด้านล่าง แล้วกด "เข้าสู่ระบบสารสนเทศ" เพื่อเข้าใช้งานในฐานะผู้ดูแลระบบได้ทันทีครับ`
+          : `ระบบไม่สามารถเปิดหน้าต่าง Google Popup ได้ (เบราว์เซอร์บล็อก Popup หรือโดเมนยังไม่ได้ลงทะเบียนใน Google Console) คุณสามารถกรอกรหัสผ่านด้านล่างแล้วกด "เข้าสู่ระบบสารสนเทศ" ได้ทันทีครับ`
       });
     }
   };
@@ -442,7 +448,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <form onSubmit={handleLogin} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1.5">
-                    อีเมลประจำตำแหน่ง หรือบัญชีผู้ใช้ <span className="text-rose-500">*</span>
+                    อีเมล (E-mail) หรือบัญชีผู้ใช้ <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#33272A]/60 dark:text-[#FFF9F5]/60 absolute left-4 top-3.5" />
@@ -451,7 +457,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="เช่น ch.chapeach@gmail.com หรือ 58010001"
+                      placeholder="กรอก E-mail"
                       className="w-full pl-11 pr-4 py-2.5 rounded-2xl border-2 border-[#33272A]/70 dark:border-[#FFD3B6]/60 focus:border-[#FF8BA7] focus:outline-none bg-white dark:bg-slate-800 text-[#33272A] dark:text-slate-100 text-xs font-bold shadow-[2px_2px_0px_#33272A]"
                     />
                   </div>
@@ -521,14 +527,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-black text-[#33272A] dark:text-[#FFF9F5] mb-1.5">
-                    อีเมล (Email) <span className="text-rose-500">*</span>
+                    อีเมล (E-mail) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="teacher@mhs1.go.th"
+                    placeholder="กรอก E-mail"
                     className="w-full px-4 py-2.5 rounded-2xl border-2 border-[#33272A]/70 dark:border-[#FFD3B6]/60 focus:border-[#A0E7E5] focus:outline-none bg-white dark:bg-slate-800 text-[#33272A] dark:text-slate-100 text-xs font-bold shadow-[2px_2px_0px_#33272A]"
                   />
                 </div>

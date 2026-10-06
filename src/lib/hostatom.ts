@@ -16,9 +16,11 @@ export interface HostatomConfig {
 
 export const DEFAULT_HOSTATOM_CONFIG: HostatomConfig = {
   enabled: true,
-  apiUrl: 'https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php',
+  apiUrl: typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('run.app')
+    ? `${window.location.origin}/api/mhs1_db.php`
+    : 'https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php',
   apiKey: 'mhs1_bigdata_secret_2026',
-  primaryDb: 'supabase', // ค่าเริ่มต้นคือ Supabase (หรือสลับเป็น Hostatom เมื่อตั้งค่าพร้อม)
+  primaryDb: 'hostatom', // ตั้ง Hostatom MariaDB เป็นฐานข้อมูลหลักโดยตรงเพื่อความเร็วสูงสุด
   autoBackupToSupabase: true
 };
 
@@ -27,8 +29,17 @@ const STORAGE_KEY = 'mhs1_hostatom_config';
 export function getHostatomConfig(): HostatomConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_HOSTATOM_CONFIG;
-    return { ...DEFAULT_HOSTATOM_CONFIG, ...JSON.parse(raw) };
+    let config = DEFAULT_HOSTATOM_CONFIG;
+    if (raw) {
+      config = { ...DEFAULT_HOSTATOM_CONFIG, ...JSON.parse(raw) };
+    }
+    // หากเข้าใช้งานบนโดเมนของ Hostatom Plesk หรือเว็บจริง ให้ใช้ Hostatom เป็น primaryDb เสมอ
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('run.app')) {
+      config.apiUrl = `${window.location.origin}/api/mhs1_db.php`;
+      config.primaryDb = 'hostatom';
+      config.enabled = true;
+    }
+    return config;
   } catch {
     return DEFAULT_HOSTATOM_CONFIG;
   }

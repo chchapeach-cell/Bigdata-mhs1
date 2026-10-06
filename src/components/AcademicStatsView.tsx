@@ -51,7 +51,8 @@ import {
   calculateAcademicSummary,
   exportAcademicRecordsToExcel,
   determineQualityLevel,
-  matchSchoolId
+  matchSchoolId,
+  generateInitialAcademicRecords
 } from '../utils/academicData';
 import { getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import {

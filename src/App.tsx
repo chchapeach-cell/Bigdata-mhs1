@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { School, StudentData, UserProfile, StudentGData, SystemConfig, ThemeStyle, DesignStyle, AcademicRecord } from './types';
 import { getSchoolSize, getCurrentBEYear, getDefaultAvailableYears, parseInitialData } from './utils/initialData';
 import { generateInitialAcademicRecords } from './utils/academicData';
@@ -42,20 +42,23 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   ],
 };
 
-// นำเข้า Components
+// นำเข้า Components หลักสำหรับหน้าแรก
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import SchoolListView from './components/SchoolListView';
-import SchoolDetailView from './components/SchoolDetailView';
-import AdminPanel from './components/AdminPanel';
-import AcademicStatsView from './components/AcademicStatsView';
-import AuthModal from './components/AuthModal';
-import InfrastructureView from './components/InfrastructureView';
-import ContactView from './components/ContactView';
 import VisitorCounter from './components/VisitorCounter';
 import InactivityLogoutHandler from './components/InactivityLogoutHandler';
-import { HostatomDatabaseModal } from './components/HostatomDatabaseModal';
+
+// Lazy load Components ขนาดใหญ่ เพื่อให้หน้าแรกโหลดเร็วที่สุดระดับเสี้ยววินาที
+const SchoolDetailView = lazy(() => import('./components/SchoolDetailView'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const AcademicStatsView = lazy(() => import('./components/AcademicStatsView'));
+const InfrastructureView = lazy(() => import('./components/InfrastructureView'));
+const ContactView = lazy(() => import('./components/ContactView'));
+const AuthModal = lazy(() => import('./components/AuthModal'));
+const HostatomDatabaseModal = lazy(() => import('./components/HostatomDatabaseModal').then(m => ({ default: m.HostatomDatabaseModal })));
+
 import { 
   getHostatomConfig, 
   hostatomFetchSchools, 
@@ -732,11 +735,13 @@ export function App() {
     }
 
     try {
-      // 0.1 ตรวจสอบว่าผู้ใช้ตั้งค่าให้ Hostatom MySQL เป็นฐานข้อมูลหลักหรือไม่
+      // 0.1 ตรวจสอบและดึงข้อมูลจาก Hostatom MySQL ก่อนเสมอเมื่อเปิดใช้งาน
       const hConfig = getHostatomConfig();
-      if (hConfig.enabled && hConfig.primaryDb === 'hostatom' && hConfig.apiUrl) {
+      const isRunningOnHostatom = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('run.app');
+      
+      if (hConfig.enabled && hConfig.apiUrl && (hConfig.primaryDb === 'hostatom' || isRunningOnHostatom)) {
         try {
-          console.log('🔄 กำลังดึงข้อมูลจาก Hostatom MySQL เป็นฐานข้อมูลหลัก...');
+          console.log('🔄 กำลังดึงข้อมูลจาก Hostatom MySQL...');
           const [hSchools, hStudents, hStudentsG, hRecords, hUsers] = await Promise.all([
             hostatomFetchSchools(),
             hostatomFetchStudents(),
@@ -749,10 +754,32 @@ export function App() {
             setSchools(hSchools);
             setStudentData(hStudents);
             setStudentGData(hStudentsG);
-            if (hRecords.length > 0) setAcademicRecords(hRecords);
+            const finalRecords = (hRecords && hRecords.length > 0) ? hRecords : generateInitialAcademicRecords(hSchools, '2567');
+            setAcademicRecords(finalRecords);
             if (hUsers.length > 0) setAllUsersList(hUsers);
+
+            // คำนวณปีการศึกษาที่มีข้อมูล
+            const studentYears = Array.from(new Set(hStudents.map((s: any) => s.academicYear).filter(Boolean))).sort((a: any, b: any) => Number(b) - Number(a));
+            if (studentYears.length > 0) {
+              setAvailableYears(studentYears as string[]);
+              setAcademicYear((studentYears[0] as string) || '2567');
+            }
+
+            // แคชข้อมูลไว้ในเบราว์เซอร์เพื่อการเปิดครั้งต่อไปที่เร็วทันใจ (0ms)
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify({
+                schools: hSchools,
+                studentData: hStudents,
+                studentGData: hStudentsG,
+                academicRecords: finalRecords,
+                allUsers: hUsers,
+                availableYears: studentYears.length > 0 ? studentYears : ['2567', '2566'],
+                timestamp: Date.now()
+              }));
+            } catch (ce) {}
+
             setIsLoading(false);
-            console.log(`✅ โหลดข้อมูลจาก Hostatom MySQL สำเร็จ (${hSchools.length} โรงเรียน)`);
+            console.log(`✅ โหลดข้อมูลจาก Hostatom MySQL สำเร็จ (${hSchools.length} โรงเรียน, ${hStudents.length} นักเรียน)`);
             return;
           }
         } catch (hErr) {
@@ -1114,10 +1141,11 @@ export function App() {
         {isLoading ? (
           <DashboardSkeleton isDarkMode={isDarkMode} />
         ) : (
-          <div className="animate-fade-in">
-            {/* โชว์หน้ารายละเอียดเมื่อโรงเรียนโดนเลือก */}
-            {selectedSchoolId && selectedSchool ? (
-              <SchoolDetailView
+          <Suspense fallback={<DashboardSkeleton isDarkMode={isDarkMode} />}>
+            <div className="animate-fade-in">
+              {/* โชว์หน้ารายละเอียดเมื่อโรงเรียนโดนเลือก */}
+              {selectedSchoolId && selectedSchool ? (
+                <SchoolDetailView
                 school={selectedSchool}
                 studentData={selectedSchoolStudent}
                 allStudentData={studentData}
@@ -1253,6 +1281,7 @@ export function App() {
               </>
             )}
           </div>
+        </Suspense>
         )}
       </main>
 
@@ -1278,15 +1307,17 @@ export function App() {
       </footer>
 
       {/* LOGIN / SIGNUP MODAL */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        schools={schools}
-        onAuthSuccess={(profile) => {
-          setUserProfile(profile);
-          setActiveTab('admin');
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          schools={schools}
+          onAuthSuccess={(profile) => {
+            setUserProfile(profile);
+            setActiveTab('admin');
+          }}
+        />
+      </Suspense>
 
       {/* AUTO LOGOUT AFTER 30 MIN INACTIVITY */}
       <InactivityLogoutHandler
@@ -1392,16 +1423,18 @@ export function App() {
 
       {/* Hostatom Database Migration & Deployment Modal (ONLY for Super Admin) */}
       {isSuperAdminUser && (
-        <HostatomDatabaseModal
-          isOpen={isHostatomModalOpen}
-          onClose={() => setIsHostatomModalOpen(false)}
-          schools={schools}
-          studentData={studentData}
-          studentGData={studentGData}
-          users={allUsersList && allUsersList.length > 0 ? allUsersList : (userProfile ? [userProfile] : [])}
-          systemConfig={systemConfig}
-          academicRecords={academicRecords && academicRecords.length > 0 ? academicRecords : generateInitialAcademicRecords(schools, '2567')}
-        />
+        <Suspense fallback={null}>
+          <HostatomDatabaseModal
+            isOpen={isHostatomModalOpen}
+            onClose={() => setIsHostatomModalOpen(false)}
+            schools={schools}
+            studentData={studentData}
+            studentGData={studentGData}
+            users={allUsersList && allUsersList.length > 0 ? allUsersList : (userProfile ? [userProfile] : [])}
+            systemConfig={systemConfig}
+            academicRecords={academicRecords && academicRecords.length > 0 ? academicRecords : generateInitialAcademicRecords(schools, '2567')}
+          />
+        </Suspense>
       )}
     </div>
   );
