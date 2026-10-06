@@ -238,10 +238,10 @@ export async function hostatomFetchSchools(): Promise<School[]> {
     majorSubjects: Array.isArray(r.major_subjects) ? r.major_subjects : [],
     majorSubjectsWithStaff: Array.isArray(r.major_subjects_with_staff) ? r.major_subjects_with_staff : [],
     classrooms: Array.isArray(r.classrooms) ? r.classrooms : [],
-    directorName: r.director_name || r.directorName,
-    directorPhone: r.director_phone || r.directorPhone,
-    viceDirectorName: r.vice_director_name || r.viceDirectorName,
-    viceDirectorPhone: r.vice_director_phone || r.viceDirectorPhone,
+    directorName: (r.director_name && r.director_name !== 'null') ? r.director_name : (r.directorName && r.directorName !== 'null' ? r.directorName : ''),
+    directorPhone: (r.director_phone && r.director_phone !== 'null') ? r.director_phone : (r.directorPhone || ''),
+    viceDirectorName: (r.vice_director_name && r.vice_director_name !== 'null') ? r.vice_director_name : (r.viceDirectorName || ''),
+    viceDirectorPhone: (r.vice_director_phone && r.vice_director_phone !== 'null') ? r.vice_director_phone : (r.viceDirectorPhone || ''),
     viceDirectors: Array.isArray(r.vice_directors) ? r.vice_directors : [],
     schoolPhone: r.school_phone || r.schoolPhone,
     email: r.email,
@@ -249,9 +249,9 @@ export async function hostatomFetchSchools(): Promise<School[]> {
     line: r.line,
     website: r.website,
     address: r.address,
-    imageUrl: r.image_url || r.imageUrl,
-    logoUrl: r.logo_url || r.logoUrl,
-    directorImageUrl: r.director_image_url || r.directorImageUrl,
+    imageUrl: (r.image_url && r.image_url !== 'null') ? r.image_url : (r.imageUrl || ''),
+    logoUrl: (r.logo_url && r.logo_url !== 'null') ? r.logo_url : (r.logoUrl || ''),
+    directorImageUrl: (r.director_image_url && r.director_image_url !== 'null') ? r.director_image_url : (r.directorImageUrl || ''),
     latitude: Number(r.latitude) || 0,
     longitude: Number(r.longitude) || 0,
     size: r.size || 'small',
@@ -972,6 +972,25 @@ switch ($action) {
             $r['is_expansion'] = (bool)$r['is_expansion'];
         }
         echo json_encode(['status' => 'ok', 'data' => $rows]);
+        break;
+
+    case 'get_school_detail':
+        $id = $_GET['id'] ?? '';
+        $stmt = $pdo->prepare("SELECT * FROM \`schools\` WHERE \`id\` = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $row['major_subjects'] = json_decode($row['major_subjects'] ?? '[]', true);
+            $row['major_subjects_with_staff'] = json_decode($row['major_subjects_with_staff'] ?? '[]', true);
+            $row['classrooms'] = json_decode($row['classrooms'] ?? '[]', true);
+            $row['vice_directors'] = json_decode($row['vice_directors'] ?? '[]', true);
+            $row['has_solar_battery'] = (bool)$row['has_solar_battery'];
+            $row['is_expansion'] = (bool)$row['is_expansion'];
+            echo json_encode(['status' => 'ok', 'data' => $row]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'School not found']);
+        }
         break;
 
     case 'save_school':

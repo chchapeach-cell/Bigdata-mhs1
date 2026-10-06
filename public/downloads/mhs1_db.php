@@ -79,26 +79,7 @@ switch ($action) {
     // 2. SCHOOLS
     // -------------------------------------------------------------
     case 'get_schools':
-        $includeImages = isset($_GET['full_images']) && $_GET['full_images'] == '1';
-        if ($includeImages) {
-            $stmt = $pdo->query("SELECT * FROM `schools` ORDER BY `id` ASC");
-        } else {
-            // ดึงเฉพาะข้อมูลโรงเรียนที่จำเป็นสำหรับ Dashboard / สรุปสถิติ
-            // กรอง base64 ขนาดใหญ่ (>500 ตัวอักษร) ออก เพื่อให้ JSON เหลือเพียง ~40KB โหลดเร็วทันทีใน 0.2 วินาที!
-            $sql = "SELECT `id`, `name`, `district`, `amphoe`, `network_group`, `internet_type`, 
-                    `electricity`, `water_system`, `water_system_detail`, `solar_kw`, 
-                    `has_solar_battery`, `solar_battery_capacity`, `staff_count`, 
-                    `contract_teachers_count`, `admin_staff_count`, `janitor_count`, `other_staff_count`,
-                    `major_subjects`, `major_subjects_with_staff`, `classrooms`, 
-                    `director_name`, `director_phone`, `vice_director_name`, `vice_director_phone`, `vice_directors`,
-                    `school_phone`, `email`, `facebook`, `line`, `website`, `address`, 
-                    `latitude`, `longitude`, `size`, `is_expansion`, `special_highlights`, `updated_at`, `updated_by`,
-                    IF(LENGTH(`image_url`) < 500, `image_url`, '') AS `image_url`,
-                    IF(LENGTH(`logo_url`) < 500, `logo_url`, '') AS `logo_url`,
-                    IF(LENGTH(`director_image_url`) < 500, `director_image_url`, '') AS `director_image_url`
-                    FROM `schools` ORDER BY `id` ASC";
-            $stmt = $pdo->query($sql);
-        }
+        $stmt = $pdo->query("SELECT * FROM `schools` ORDER BY `id` ASC");
         $rows = $stmt->fetchAll();
         foreach ($rows as &$r) {
             $r['major_subjects'] = json_decode($r['major_subjects'] ?? '[]', true);
@@ -107,6 +88,12 @@ switch ($action) {
             $r['vice_directors'] = json_decode($r['vice_directors'] ?? '[]', true);
             $r['has_solar_battery'] = (bool)$r['has_solar_battery'];
             $r['is_expansion'] = (bool)$r['is_expansion'];
+            // ป้องกันค่า string 'null' ตกค้าง
+            if ($r['director_name'] === 'null') $r['director_name'] = null;
+            if ($r['vice_director_name'] === 'null') $r['vice_director_name'] = null;
+            if ($r['image_url'] === 'null') $r['image_url'] = null;
+            if ($r['logo_url'] === 'null') $r['logo_url'] = null;
+            if ($r['director_image_url'] === 'null') $r['director_image_url'] = null;
         }
         echo json_encode(['status' => 'ok', 'data' => $rows]);
         break;

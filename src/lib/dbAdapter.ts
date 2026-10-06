@@ -68,6 +68,26 @@ export function clearAppCache(): void {
  */
 export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?: string; logoUrl?: string; directorImageUrl?: string }> {
   if (!schoolId) return {};
+
+  // 1. ตรวจสอบจาก Hostatom ก่อน
+  try {
+    const { getHostatomConfig, callHostatomApi } = await import('./hostatom');
+    const hConfig = getHostatomConfig();
+    if (hConfig && hConfig.enabled) {
+      const data = await callHostatomApi(`get_school_detail&id=${encodeURIComponent(schoolId)}`);
+      if (data && typeof data === 'object') {
+        return {
+          imageUrl: (data.image_url && data.image_url !== 'null') ? data.image_url : '',
+          logoUrl: (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '',
+          directorImageUrl: (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : ''
+        };
+      }
+    }
+  } catch (hErr) {
+    // Failover to Supabase
+  }
+
+  // 2. ตรวจสอบจาก Supabase
   if (supabase && isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase
@@ -77,9 +97,9 @@ export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?
         .maybeSingle();
       if (!error && data) {
         return {
-          imageUrl: data.image_url || '',
-          logoUrl: data.logo_url || '',
-          directorImageUrl: data.director_image_url || ''
+          imageUrl: (data.image_url && data.image_url !== 'null') ? data.image_url : '',
+          logoUrl: (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '',
+          directorImageUrl: (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : ''
         };
       }
     } catch (e) {
