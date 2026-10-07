@@ -69,25 +69,7 @@ export function clearAppCache(): void {
 export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?: string; logoUrl?: string; directorImageUrl?: string }> {
   if (!schoolId) return {};
 
-  // 1. ตรวจสอบจาก Hostatom ก่อน
-  try {
-    const { getHostatomConfig, callHostatomApi } = await import('./hostatom');
-    const hConfig = getHostatomConfig();
-    if (hConfig && hConfig.enabled) {
-      const data = await callHostatomApi(`get_school_detail&id=${encodeURIComponent(schoolId)}`);
-      if (data && typeof data === 'object') {
-        return {
-          imageUrl: (data.image_url && data.image_url !== 'null') ? data.image_url : '',
-          logoUrl: (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '',
-          directorImageUrl: (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : ''
-        };
-      }
-    }
-  } catch (hErr) {
-    // Failover to Supabase
-  }
-
-  // 2. ตรวจสอบจาก Supabase
+  // 1. ตรวจสอบจาก Supabase เป็นหลัก เนื่องจากมีภาพเต็มความละเอียดสูง 100% ไม่โดนขีดจำกัด 65KB ของ MySQL
   if (supabase && isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase
@@ -103,9 +85,31 @@ export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?
         };
       }
     } catch (e) {
-      console.warn('Notice fetching school images:', e);
+      console.warn('Notice fetching school images from Supabase:', e);
     }
   }
+
+  // 2. ตรวจสอบจาก Hostatom (กรองกรณีรูปโดนตัดทอน 65535 bytes ออก)
+  try {
+    const { getHostatomConfig, callHostatomApi } = await import('./hostatom');
+    const hConfig = getHostatomConfig();
+    if (hConfig && hConfig.enabled) {
+      const data = await callHostatomApi(`get_school_detail&id=${encodeURIComponent(schoolId)}`);
+      if (data && typeof data === 'object') {
+        const img = (data.image_url && data.image_url !== 'null') ? data.image_url : '';
+        const logo = (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '';
+        const dir = (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : '';
+        return {
+          imageUrl: (img.length !== 65535) ? img : '',
+          logoUrl: (logo.length !== 65535) ? logo : '',
+          directorImageUrl: (dir.length !== 65535) ? dir : ''
+        };
+      }
+    }
+  } catch (hErr) {
+    // Ignore error
+  }
+
   return {};
 }
 

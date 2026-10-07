@@ -46,6 +46,13 @@ try {
             PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
         ]
     );
+
+    // ตรวจสอบและอัปเกรดคอลัมน์เก็บรูปภาพให้เป็น LONGTEXT อัตโนมัติ (ป้องกัน MySQL TEXT ตัดทอนข้อมูลรูปภาพขาดที่ 65KB)
+    try {
+        $pdo->exec("ALTER TABLE `schools` MODIFY `image_url` LONGTEXT DEFAULT NULL");
+        $pdo->exec("ALTER TABLE `schools` MODIFY `logo_url` LONGTEXT DEFAULT NULL");
+        $pdo->exec("ALTER TABLE `schools` MODIFY `director_image_url` LONGTEXT DEFAULT NULL");
+    } catch (Exception $e) {}
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([
@@ -73,6 +80,42 @@ switch ($action) {
             'server_time' => date('Y-m-d H:i:s'),
             'database' => DB_NAME
         ]);
+        break;
+
+    case 'sync_images_from_supabase':
+        // ดึงรูปภาพความละเอียดสูงทั้งหมดจาก Supabase มาอัปเดตลง MySQL (ไม่ถูกตัดทอน 65KB)
+        $suUrl = "https://frpjtkltipmwpevngdrp.supabase.co/rest/v1/schools?select=id,image_url,logo_url,director_image_url&limit=200";
+        $opts = [
+            "http" => [
+                "method" => "GET",
+                "header" => "apikey: sb_publishable_5wJwoIwcwvyjKBJsP1uMdg_x0xhwOB9\r\n"
+            ]
+        ];
+        $context = stream_context_create($opts);
+        $res = @file_get_contents($suUrl, false, $context);
+        if ($res === false) {
+            echo json_encode(['status' => 'error', 'message' => 'Cannot connect to Supabase']);
+            break;
+        }
+        $schools = json_decode($res, true);
+        if (!is_array($schools)) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid Supabase response']);
+            break;
+        }
+        $updated = 0;
+        $upStmt = $pdo->prepare("UPDATE `schools` SET `image_url` = :img, `logo_url` = :logo, `director_image_url` = :dir WHERE `id` = :id");
+        foreach ($schools as $s) {
+            if (!empty($s['image_url']) || !empty($s['logo_url']) || !empty($s['director_image_url'])) {
+                $upStmt->execute([
+                    ':img' => !empty($s['image_url']) ? $s['image_url'] : null,
+                    ':logo' => !empty($s['logo_url']) ? $s['logo_url'] : null,
+                    ':dir' => !empty($s['director_image_url']) ? $s['director_image_url'] : null,
+                    ':id' => $s['id']
+                ]);
+                $updated++;
+            }
+        }
+        echo json_encode(['status' => 'ok', 'message' => "Successfully updated $updated schools with full-resolution images from Supabase!"]);
         break;
 
     // -------------------------------------------------------------

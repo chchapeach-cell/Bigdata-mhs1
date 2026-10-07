@@ -195,19 +195,24 @@ export default function SchoolDetailView({
 
     setClassrooms(school.classrooms || []);
 
-    // Lazy load รูปภาพของโรงเรียนนี้จากฐานข้อมูลแบบ On-demand (โหลดเฉพาะโรงเรียนที่เปิดดู รวดเร็วระดับเสี้ยววินาที)
-    if (school.id && (!school.imageUrl && !school.logoUrl && !school.directorImageUrl)) {
+    // ตรวจสอบและดึงรูปภาพความละเอียดสูงของโรงเรียนจากฐานข้อมูลแบบ On-demand
+    // หากรูปภาพไม่มี หรือเป็นรูปที่ถูกตัดทอน (Truncated 65535 bytes จากข้อจำกัด MySQL TEXT เดิม)
+    const isImgTruncated = !school.imageUrl || school.imageUrl.length === 65535 || (school.imageUrl.startsWith('data:') && school.imageUrl.length < 70000 && school.imageUrl.length > 65000);
+    const isLogoTruncated = !school.logoUrl || school.logoUrl.length === 65535 || (school.logoUrl.startsWith('data:') && school.logoUrl.length < 70000 && school.logoUrl.length > 65000);
+    const isDirTruncated = !school.directorImageUrl || school.directorImageUrl.length === 65535;
+
+    if (school.id && (isImgTruncated || isLogoTruncated || isDirTruncated || !school.imageUrl || !school.logoUrl)) {
       dbFetchSchoolImages(school.id).then(imgs => {
         if (imgs) {
-          if (imgs.imageUrl) {
+          if (imgs.imageUrl && (isImgTruncated || !school.imageUrl)) {
             setEditImageUrl(imgs.imageUrl);
             school.imageUrl = imgs.imageUrl;
           }
-          if (imgs.logoUrl) {
+          if (imgs.logoUrl && (isLogoTruncated || !school.logoUrl)) {
             setEditLogoUrl(imgs.logoUrl);
             school.logoUrl = imgs.logoUrl;
           }
-          if (imgs.directorImageUrl) {
+          if (imgs.directorImageUrl && (isDirTruncated || !school.directorImageUrl)) {
             setEditDirectorImageUrl(imgs.directorImageUrl);
             school.directorImageUrl = imgs.directorImageUrl;
           }
@@ -1221,6 +1226,18 @@ export default function SchoolDetailView({
             loading="lazy"
             decoding="async"
             className="h-full w-full object-cover brightness-90 filter transition-all duration-500"
+            onError={(e) => {
+              // ดึงภาพความละเอียดสูงจาก Supabase มาทดแทนทันทีหาก Base64 เดิมใน MySQL ถูกตัดทอน
+              dbFetchSchoolImages(school.id).then(imgs => {
+                if (imgs && imgs.imageUrl && imgs.imageUrl !== e.currentTarget.src) {
+                  e.currentTarget.src = imgs.imageUrl;
+                } else {
+                  e.currentTarget.src = "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80";
+                }
+              }).catch(() => {
+                e.currentTarget.src = "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80";
+              });
+            }}
           />
 
           {/* ตราโรงเรียนหรือรูปผู้บริหารด้านบนภาพ */}
@@ -1235,6 +1252,13 @@ export default function SchoolDetailView({
                       onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
                       className="h-full w-full object-cover rounded-xl cursor-pointer hover:scale-110 transition-transform duration-300"
                       title="คลิกเพื่อดูรูปขยาย"
+                      onError={(e) => {
+                        dbFetchSchoolImages(school.id).then(imgs => {
+                          if (imgs && imgs.directorImageUrl && imgs.directorImageUrl !== e.currentTarget.src) {
+                            e.currentTarget.src = imgs.directorImageUrl;
+                          }
+                        }).catch(() => {});
+                      }}
                     />
                   ) : (
                     <div className="h-full w-full rounded-xl bg-purple-100 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-800 flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-black text-xs text-center leading-none p-1">
@@ -1250,6 +1274,13 @@ export default function SchoolDetailView({
                       onClick={() => setExpandedImageUrl(isEditing ? editLogoUrl : school.logoUrl || null)}
                       className="h-full w-full object-cover rounded-xl cursor-pointer hover:scale-110 transition-transform duration-300"
                       title="คลิกเพื่อดูรูปขยาย"
+                      onError={(e) => {
+                        dbFetchSchoolImages(school.id).then(imgs => {
+                          if (imgs && imgs.logoUrl && imgs.logoUrl !== e.currentTarget.src) {
+                            e.currentTarget.src = imgs.logoUrl;
+                          }
+                        }).catch(() => {});
+                      }}
                     />
                   ) : (
                     <div className="h-full w-full rounded-xl bg-[#FF8BA7] border border-[#33272A] flex items-center justify-center text-[#33272A] font-black text-base sm:text-lg">
