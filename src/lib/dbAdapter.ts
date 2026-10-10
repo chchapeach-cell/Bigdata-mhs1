@@ -195,6 +195,16 @@ export async function dbSaveSchool(school: School, updatedBy?: string): Promise<
       throw new Error(`Supabase dbSaveSchool error: ${errMsg}`);
     }
     console.log(`✅ Saved school ${schoolId} (${school.name}) to Supabase successfully`);
+    
+    // Dual-Write: ซิงค์บันทึกลง Hostatom MySQL ควบคู่กันเพื่อให้ฐานข้อมูลทั้งสองตรงกัน
+    try {
+      const { getHostatomConfig, hostatomSaveSchool } = await import('./hostatom');
+      const hConfig = getHostatomConfig();
+      if (hConfig && hConfig.enabled) {
+        hostatomSaveSchool(school).catch(hErr => console.warn('Dual-write to Hostatom notice:', hErr));
+      }
+    } catch {}
+
     return;
   }
 

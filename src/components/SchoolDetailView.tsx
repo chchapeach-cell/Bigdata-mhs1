@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, ChangeEvent, FormEvent } from 'react';
 import { School, StudentData, UserProfile, ClassroomItem, StudentGData, ViceDirectorItem, MajorSubject, AcademicRecord, QualityLevel } from '../types';
 import { dbSaveSchool, dbDeleteSchool, dbFetchAcademicRecords, dbLogUserActivity, dbFetchSchoolImages } from '../lib/dbAdapter';
-import { compressImage } from '../utils/imageCompressor';
+import { compressImage, compressSchoolCover, compressSchoolLogo, compressDirectorImage } from '../utils/imageCompressor';
 import { getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears } from '../utils/initialData';
 import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { determineQualityLevel, matchSchoolId } from '../utils/academicData';
@@ -540,7 +540,7 @@ export default function SchoolDetailView({
     setImageUploadStatus('กำลังประมวลผลและบีบอัดรูปภาพ...');
 
     try {
-      const compressed = await compressImage(file);
+      const compressed = await compressSchoolCover(file);
       setImageUploadProgress(100);
       setImageUploadStatus('อัปโหลดรูปภาพเสร็จสิ้น!');
       setEditImageUrl(compressed);
@@ -565,7 +565,7 @@ export default function SchoolDetailView({
     setImageUploadStatus('กำลังประมวลผลและบีบอัดตราโรงเรียน...');
 
     try {
-      const compressed = await compressImage(file);
+      const compressed = await compressSchoolLogo(file);
       setImageUploadProgress(100);
       setImageUploadStatus('อัปโหลดรูปตราโรงเรียนเสร็จสิ้น!');
       setEditLogoUrl(compressed);
@@ -590,7 +590,7 @@ export default function SchoolDetailView({
     setImageUploadStatus('กำลังประมวลผลและบีบอัดรูปผู้บริหาร...');
 
     try {
-      const compressed = await compressImage(file);
+      const compressed = await compressDirectorImage(file);
       setImageUploadProgress(100);
       setImageUploadStatus('อัปโหลดรูปภาพผู้บริหารเสร็จสิ้น!');
       setEditDirectorImageUrl(compressed);
@@ -615,7 +615,7 @@ export default function SchoolDetailView({
     setImageUploadStatus(`กำลังประมวลผลและบีบอัดรูปภาพรอง ผอ. ท่านที่ ${idx + 1}...`);
 
     try {
-      const compressed = await compressImage(file, 600, 0.75, 10);
+      const compressed = await compressDirectorImage(file);
       setImageUploadProgress(100);
       setImageUploadStatus('อัปโหลดรูปภาพรอง ผอ. เสร็จสิ้น!');
       setEditViceDirectors(prev => {
@@ -1254,17 +1254,18 @@ export default function SchoolDetailView({
             <div className="relative">
               <div className="flex h-24 w-24 sm:h-32 sm:w-32 items-center justify-center rounded-2xl bg-white border-3 sm:border-4 border-[#33272A] p-1.5 dark:border-[#FFD3B6] dark:bg-[#1e1518] shadow-2xl overflow-hidden">
                 {hasAdminAccess && adminViewType === 'director' ? (
-                  (isEditing ? editDirectorImageUrl : school.directorImageUrl) ? (
+                  (isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl)) ? (
                     <img
-                      src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
+                      src={isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl)}
                       alt="รูปผู้บริหาร"
-                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl) || null)}
                       className="h-full w-full object-cover rounded-xl cursor-pointer hover:scale-110 transition-transform duration-300"
                       title="คลิกเพื่อดูรูปขยาย"
                       onError={(e) => {
                         dbFetchSchoolImages(school.id).then(imgs => {
                           if (imgs && imgs.directorImageUrl && imgs.directorImageUrl !== e.currentTarget.src) {
                             e.currentTarget.src = imgs.directorImageUrl;
+                            setCurrentDirectorImageUrl(imgs.directorImageUrl);
                           }
                         }).catch(() => {});
                       }}
@@ -1379,7 +1380,7 @@ export default function SchoolDetailView({
                 </h3>
               </div>
               <span className="text-[11px] font-bold text-[#FF8BA7] dark:text-[#A0E7E5] bg-rose-50 dark:bg-rose-950/50 px-2.5 py-0.5 rounded-full border border-[#FF8BA7]/30">
-                📌 แนะนำไฟล์ .JPG / .JPEG • ขนาดไฟล์ไม่เกิน 10 MB (ระบบจะบีบอัดภาพให้อัตโนมัติ)
+                📌 แนะนำไฟล์ .JPG / .PNG • ขนาดไฟล์ไม่เกิน 5 MB (ระบบจะบีบอัดภาพให้อัตโนมัติเพื่อความเร็วสูงสุด)
               </span>
             </div>
 
@@ -1410,8 +1411,8 @@ export default function SchoolDetailView({
                     🏫 ตราสัญลักษณ์โรงเรียน (Logo)
                   </span>
                   <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
-                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">400 × 400 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 3 MB)
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -1420,11 +1421,11 @@ export default function SchoolDetailView({
                   ) : (
                     <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
                       <span>ไม่มีรูปตรา</span>
-                      <span className="text-[9px] text-slate-400/80">(แนะนำ 500x500 .JPG)</span>
+                      <span className="text-[9px] text-slate-400/80">(แนะนำ 400x400)</span>
                     </div>
                   )}
                   <label className="btn-cute bg-[#FF8BA7] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-rose-300 w-full justify-center">
-                    <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน (.JPG)
+                    <Upload className="h-3.5 w-3.5" /> อัปโหลดตราโรงเรียน (.JPG/.PNG)
                     <input
                       type="file"
                       accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -1449,8 +1450,8 @@ export default function SchoolDetailView({
                     📷 รูปภาพโรงเรียน / อาคารสถานที่
                   </span>
                   <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1200 × 675 px</span> (16:9 แนวนอน)<br />
-                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1280 × 720 px</span> (16:9 แนวนอน)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 5 MB)
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -1459,11 +1460,11 @@ export default function SchoolDetailView({
                   ) : (
                     <div className="w-32 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 font-bold text-[10px] text-center p-1">
                       <span>ไม่มีรูปโรงเรียน</span>
-                      <span className="text-[9px] text-slate-400/80">(แนะนำ 1200x675 .JPG)</span>
+                      <span className="text-[9px] text-slate-400/80">(แนะนำ 1280x720)</span>
                     </div>
                   )}
                   <label className="btn-cute bg-[#A0E7E5] text-[#33272A] px-3 py-1.5 text-[11px] font-black flex items-center gap-1 border border-[#33272A] cursor-pointer hover:bg-teal-300 w-full justify-center">
-                    <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน (.JPG)
+                    <Upload className="h-3.5 w-3.5" /> อัปโหลดรูปโรงเรียน (.JPG/.PNG)
                     <input
                       type="file"
                       accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -1488,8 +1489,8 @@ export default function SchoolDetailView({
                     👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
                   </span>
                   <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">600 × 600 px</span> (1:1 หรือ 4:3)<br />
-                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                    📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 หรือ 4:3)<br />
+                    📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 5 MB)
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">

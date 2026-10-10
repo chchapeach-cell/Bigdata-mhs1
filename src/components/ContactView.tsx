@@ -2,6 +2,7 @@ import React, { useState, ChangeEvent } from 'react';
 import { ContactChannel, SystemConfig, UserProfile } from '../types';
 import { removeUndefinedFields } from '../utils/errorHelper';
 import { dbSaveSystemConfig } from '../lib/dbAdapter';
+import { compressQrCode } from '../utils/imageCompressor';
 import { 
   Phone, Mail, MessageCircle, Globe, MapPin, QrCode, Share2, Plus, Trash2, Edit3, 
   Eye, EyeOff, Save, CheckCircle2, Upload, AlertCircle, ExternalLink, X, Shield, Video, Sparkles
@@ -197,25 +198,19 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
   };
 
   // อัปโหลดไฟล์รูปภาพ QR Code
-  const handleQrUpload = (evt: ChangeEvent<HTMLInputElement>, isForNew: boolean, targetId?: string) => {
+  const handleQrUpload = async (evt: ChangeEvent<HTMLInputElement>, isForNew: boolean, targetId?: string) => {
     const file = evt.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('ไฟล์รูปภาพขนาดใหญ่เกินไป (กรุณาใช้ไฟล์ขนาดไม่เกิน 2MB)');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (result) {
-        if (isForNew) {
-          setNewQrUrl(result);
-        } else if (targetId) {
-          setEditedChannels(prev => prev.map(c => c.id === targetId ? { ...c, qrImageUrl: result } : c));
-        }
+    try {
+      const result = await compressQrCode(file);
+      if (isForNew) {
+        setNewQrUrl(result);
+      } else if (targetId) {
+        setEditedChannels(prev => prev.map(c => c.id === targetId ? { ...c, qrImageUrl: result } : c));
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลไฟล์รูปภาพ QR Code ได้');
+    }
   };
 
   // บันทึกฟอร์มใหญ่ทั้งหมด

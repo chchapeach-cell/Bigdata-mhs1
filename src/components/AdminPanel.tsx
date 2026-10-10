@@ -20,7 +20,7 @@ import { UserActivityLogView } from './UserActivityLogView';
 import { SchoolSummaryDashboard } from './SchoolSummaryDashboard';
 import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser, clearAppCache } from '../lib/dbAdapter';
 import { generateHostatomMySQLDump, generateFullJsonArchive, getHostatomConfig, HOSTATOM_PHP_CONNECTOR_CODE, downloadAsFile } from '../lib/hostatom';
-import { compressImage } from '../utils/imageCompressor';
+import { compressImage, compressSchoolCover, compressSchoolLogo, compressDirectorImage } from '../utils/imageCompressor';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -1738,24 +1738,17 @@ export default function AdminPanel({
   const [headerBannerFit, setHeaderBannerFit] = useState<'cover' | 'contain' | 'fill' | 'auto'>(systemConfig?.headerBannerFit || 'contain');
   const [headerBannerEnabled, setHeaderBannerEnabled] = useState<boolean>(systemConfig?.headerBannerEnabled ?? true);
 
-  const handleHeaderBannerUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleHeaderBannerUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!isSuperAdmin) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('ขนาดไฟล์ภาพต้องไม่เกิน 5 MB');
-      return;
+    try {
+      const compressed = await compressSchoolCover(file);
+      setHeaderBannerUrl(compressed);
+    } catch (err: any) {
+      alert(err?.message || 'ไม่สามารถประมวลผลรูปภาพได้');
     }
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setHeaderBannerUrl(result);
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const [newElecId, setNewElecId] = useState('');
@@ -4187,7 +4180,7 @@ export default function AdminPanel({
                                               const file = e.target.files?.[0];
                                               if (!file) return;
                                               try {
-                                                const compressed = await compressImage(file, 600, 0.75, 10);
+                                                const compressed = await compressDirectorImage(file);
                                                 setEditViceDirectors(prev => {
                                                   const copy = [...prev];
                                                   copy[idx] = { ...copy[idx], imageUrl: compressed };
@@ -4283,7 +4276,7 @@ export default function AdminPanel({
                           <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border-2 border-amber-300 dark:border-amber-700/60 text-xs font-bold text-amber-900 dark:text-amber-200 space-y-1">
                             <div className="font-black text-amber-950 dark:text-amber-100 flex items-center gap-1.5 text-[11px]">
                               <span className="px-2 py-0.5 rounded-md bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 text-[10px] font-black">📌 ข้อแนะนำการอัปโหลด</span>
-                              <span>ประเภทไฟล์: <strong>.JPG / .JPEG</strong> • ขนาดไฟล์ต้นฉบับ: <strong>ไม่เกิน 10 MB</strong> (ระบบจะบีบอัดภาพให้อัตโนมัติ)</span>
+                              <span>ประเภทไฟล์: <strong>.JPG / .PNG</strong> • ขนาดไฟล์ต้นฉบับ: <strong>ไม่เกิน 5 MB</strong> (ระบบจะบีบอัดภาพให้อัตโนมัติเพื่อความเร็วสูงสุด)</span>
                             </div>
                           </div>
                         </div>
@@ -4296,8 +4289,8 @@ export default function AdminPanel({
                                 🏫 ตราสัญลักษณ์โรงเรียน (Logo)
                               </span>
                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
-                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">400 × 400 px</span> (1:1 สี่เหลี่ยมจัตุรัส)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 3 MB)
                               </p>
                             </div>
                             <div className="flex flex-col items-center gap-2">
@@ -4318,7 +4311,7 @@ export default function AdminPanel({
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     try {
-                                      const compressed = await compressImage(file);
+                                      const compressed = await compressSchoolLogo(file);
                                       setEditLogoUrl(compressed);
                                     } catch (err: any) {
                                       alert(err.message || 'ไม่สามารถประมวลผลรูปภาพได้');
@@ -4344,8 +4337,8 @@ export default function AdminPanel({
                                 📷 รูปภาพโรงเรียน / อาคารสถานที่
                               </span>
                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1200 × 675 px</span> (16:9 แนวนอน)<br />
-                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">1280 × 720 px</span> (16:9 แนวนอน)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 5 MB)
                               </p>
                             </div>
                             <div className="flex flex-col items-center gap-2">
@@ -4366,7 +4359,7 @@ export default function AdminPanel({
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     try {
-                                      const compressed = await compressImage(file);
+                                      const compressed = await compressSchoolCover(file);
                                       setEditImageUrl(compressed);
                                     } catch (err: any) {
                                       alert(err.message || 'ไม่สามารถประมวลผลรูปภาพได้');
@@ -4392,8 +4385,8 @@ export default function AdminPanel({
                                 👤 รูปภาพ ผอ. / ผู้บริหารโรงเรียน
                               </span>
                               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">600 × 600 px</span> (1:1 หรือ 4:3)<br />
-                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .JPEG</span> (ไม่เกิน 10 MB)
+                                📐 ขนาดแนะนำ: <span className="text-emerald-600 dark:text-emerald-400 font-black">500 × 500 px</span> (1:1 หรือ 4:3)<br />
+                                📁 ไฟล์ประเภท: <span className="text-rose-600 dark:text-rose-400 font-black">.JPG / .PNG</span> (ไม่เกิน 5 MB)
                               </p>
                             </div>
                             <div className="flex flex-col items-center gap-2">
@@ -4414,7 +4407,7 @@ export default function AdminPanel({
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     try {
-                                      const compressed = await compressImage(file);
+                                      const compressed = await compressDirectorImage(file);
                                       setEditDirectorImageUrl(compressed);
                                     } catch (err) {
                                       alert('ไม่สามารถประมวลผลรูปภาพได้');
