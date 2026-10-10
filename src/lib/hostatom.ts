@@ -165,7 +165,16 @@ export async function callHostatomApi(action: string, payload?: any, method: 'GE
   }
 
   const url = new URL(cleanUrl);
-  url.searchParams.set('action', action);
+  if (action.includes('&')) {
+    const parts = action.split('&');
+    url.searchParams.set('action', parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+      const [k, v] = parts[i].split('=');
+      if (k) url.searchParams.set(k, v ? decodeURIComponent(v) : '');
+    }
+  } else {
+    url.searchParams.set('action', action);
+  }
   url.searchParams.set('key', config.apiKey.trim());
 
   // 1. ลองเรียกตรง

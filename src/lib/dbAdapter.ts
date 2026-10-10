@@ -69,6 +69,10 @@ export function clearAppCache(): void {
 export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?: string; logoUrl?: string; directorImageUrl?: string }> {
   if (!schoolId) return {};
 
+  let imageUrl = '';
+  let logoUrl = '';
+  let directorImageUrl = '';
+
   // 1. ตรวจสอบจาก Supabase เป็นหลัก เนื่องจากมีภาพเต็มความละเอียดสูง 100% ไม่โดนขีดจำกัด 65KB ของ MySQL
   if (supabase && isSupabaseConfigured()) {
     try {
@@ -78,39 +82,38 @@ export async function dbFetchSchoolImages(schoolId: string): Promise<{ imageUrl?
         .eq('id', String(schoolId))
         .maybeSingle();
       if (!error && data) {
-        return {
-          imageUrl: (data.image_url && data.image_url !== 'null') ? data.image_url : '',
-          logoUrl: (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '',
-          directorImageUrl: (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : ''
-        };
+        if (data.image_url && data.image_url !== 'null') imageUrl = data.image_url;
+        if (data.logo_url && data.logo_url !== 'null') logoUrl = data.logo_url;
+        if (data.director_image_url && data.director_image_url !== 'null') directorImageUrl = data.director_image_url;
       }
     } catch (e) {
       console.warn('Notice fetching school images from Supabase:', e);
     }
   }
 
-  // 2. ตรวจสอบจาก Hostatom (กรองกรณีรูปโดนตัดทอน 65535 bytes ออก)
-  try {
-    const { getHostatomConfig, callHostatomApi } = await import('./hostatom');
-    const hConfig = getHostatomConfig();
-    if (hConfig && hConfig.enabled) {
-      const data = await callHostatomApi(`get_school_detail&id=${encodeURIComponent(schoolId)}`);
-      if (data && typeof data === 'object') {
-        const img = (data.image_url && data.image_url !== 'null') ? data.image_url : '';
-        const logo = (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '';
-        const dir = (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : '';
-        return {
-          imageUrl: (img.length !== 65535) ? img : '',
-          logoUrl: (logo.length !== 65535) ? logo : '',
-          directorImageUrl: (dir.length !== 65535) ? dir : ''
-        };
+  // 2. หากยังขาดรูปใด ให้ตรวจสอบเพิ่มเติมจาก Hostatom MySQL
+  if (!imageUrl || !logoUrl || !directorImageUrl) {
+    try {
+      const { getHostatomConfig, callHostatomApi } = await import('./hostatom');
+      const hConfig = getHostatomConfig();
+      if (hConfig && hConfig.enabled) {
+        const data = await callHostatomApi(`get_school_detail&id=${encodeURIComponent(schoolId)}`);
+        if (data && typeof data === 'object') {
+          const img = (data.image_url && data.image_url !== 'null') ? data.image_url : '';
+          const logo = (data.logo_url && data.logo_url !== 'null') ? data.logo_url : '';
+          const dir = (data.director_image_url && data.director_image_url !== 'null') ? data.director_image_url : '';
+
+          if (!imageUrl && img && img.length !== 65535) imageUrl = img;
+          if (!logoUrl && logo && logo.length !== 65535) logoUrl = logo;
+          if (!directorImageUrl && dir && dir.length !== 65535) directorImageUrl = dir;
+        }
       }
+    } catch (hErr) {
+      // Ignore error
     }
-  } catch (hErr) {
-    // Ignore error
   }
 
-  return {};
+  return { imageUrl, logoUrl, directorImageUrl };
 }
 
 // -------------------------------------------------------------

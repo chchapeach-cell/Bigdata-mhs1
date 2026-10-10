@@ -142,6 +142,9 @@ export default function SchoolDetailView({
   const [editIsExpansion, setEditIsExpansion] = useState(school.isExpansion);
   const [editLogoUrl, setEditLogoUrl] = useState(school.logoUrl || '');
   const [editDirectorImageUrl, setEditDirectorImageUrl] = useState(school.directorImageUrl || '');
+  const [currentDirectorImageUrl, setCurrentDirectorImageUrl] = useState<string>(school.directorImageUrl || '');
+  const [currentImageUrl, setCurrentImageUrl] = useState<string>(school.imageUrl || '');
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string>(school.logoUrl || '');
   const [editSpecialHighlights, setEditSpecialHighlights] = useState(school.specialHighlights || '');
   const [adminViewType, setAdminViewType] = useState<'logo' | 'director'>('logo');
   const [activeImageTab, setActiveImageTab] = useState<'cover' | 'logo' | 'director'>('cover');
@@ -178,6 +181,9 @@ export default function SchoolDetailView({
     setEditImageUrl(school.imageUrl || '');
     setEditLogoUrl(school.logoUrl || '');
     setEditDirectorImageUrl(school.directorImageUrl || '');
+    setCurrentDirectorImageUrl(school.directorImageUrl || '');
+    setCurrentImageUrl(school.imageUrl || '');
+    setCurrentLogoUrl(school.logoUrl || '');
     setEditSpecialHighlights(school.specialHighlights || '');
     setEditLatitude(school.latitude || 19.3);
     setEditLongitude(school.longitude || 97.9);
@@ -201,19 +207,22 @@ export default function SchoolDetailView({
     const isLogoTruncated = !school.logoUrl || school.logoUrl.length === 65535 || (school.logoUrl.startsWith('data:') && school.logoUrl.length < 70000 && school.logoUrl.length > 65000);
     const isDirTruncated = !school.directorImageUrl || school.directorImageUrl.length === 65535;
 
-    if (school.id && (isImgTruncated || isLogoTruncated || isDirTruncated || !school.imageUrl || !school.logoUrl)) {
+    if (school.id && (isImgTruncated || isLogoTruncated || isDirTruncated || !school.imageUrl || !school.logoUrl || !school.directorImageUrl)) {
       dbFetchSchoolImages(school.id).then(imgs => {
         if (imgs) {
           if (imgs.imageUrl && (isImgTruncated || !school.imageUrl)) {
             setEditImageUrl(imgs.imageUrl);
+            setCurrentImageUrl(imgs.imageUrl);
             school.imageUrl = imgs.imageUrl;
           }
           if (imgs.logoUrl && (isLogoTruncated || !school.logoUrl)) {
             setEditLogoUrl(imgs.logoUrl);
+            setCurrentLogoUrl(imgs.logoUrl);
             school.logoUrl = imgs.logoUrl;
           }
-          if (imgs.directorImageUrl && (isDirTruncated || !school.directorImageUrl)) {
+          if (imgs.directorImageUrl) {
             setEditDirectorImageUrl(imgs.directorImageUrl);
+            setCurrentDirectorImageUrl(imgs.directorImageUrl);
             school.directorImageUrl = imgs.directorImageUrl;
           }
         }
@@ -1557,20 +1566,32 @@ export default function SchoolDetailView({
                   </span>
                 )}
               </div>
-              {(isEditing ? editDirectorImageUrl : school.directorImageUrl) && (
+
+              {/* ส่วนรูปภาพผู้บริหาร (ผอ.) */}
+              {(isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl)) && (
                 <div className="flex items-center gap-3 mt-2 p-2.5 rounded-xl bg-[#FFF9F5] dark:bg-rose-950/20 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 max-w-[280px]">
                   <img
-                    src={isEditing ? editDirectorImageUrl : school.directorImageUrl}
+                    src={isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl)}
                     alt="รูปผู้บริหาร"
-                    onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                    onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl) || null)}
                     className="h-20 w-20 rounded-xl object-cover border-2 border-[#33272A] dark:border-[#FFD3B6] shrink-0 cursor-pointer hover:scale-105 transition-transform duration-200 shadow-md"
                     title="คลิกเพื่อขยายรูป"
+                    onError={(e) => {
+                      dbFetchSchoolImages(school.id).then(imgs => {
+                        if (imgs && imgs.directorImageUrl && imgs.directorImageUrl !== e.currentTarget.src) {
+                          e.currentTarget.src = imgs.directorImageUrl;
+                          setCurrentDirectorImageUrl(imgs.directorImageUrl);
+                        }
+                      }).catch(() => {});
+                    }}
                   />
                   <div>
-                    <div className="font-black text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-tight">รูปภาพผู้บริหาร</div>
+                    <div className="font-black text-[11px] text-[#33272A] dark:text-[#FFF9F5] leading-tight">
+                      รูปภาพผู้บริหาร
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : school.directorImageUrl || null)}
+                      onClick={() => setExpandedImageUrl(isEditing ? editDirectorImageUrl : (currentDirectorImageUrl || school.directorImageUrl) || null)}
                       className="text-[10px] text-[#FF8BA7] dark:text-[#A0E7E5] mt-1 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
                     >
                       <Eye className="h-3 w-3 inline" /> คลิกเพื่อขยาย
