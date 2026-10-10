@@ -698,7 +698,11 @@ export function App() {
   const fetchAllData = async (forceRefresh?: boolean) => {
     setIsLoading(true);
 
-    const CACHE_KEY = 'mhs_app_data_cache_v8';
+    const CACHE_KEY = 'mhs_app_data_cache_v9';
+    try {
+      localStorage.removeItem('mhs_app_data_cache_v8');
+      localStorage.removeItem('mhs_app_data_cache_v7');
+    } catch {}
     const CACHE_TTL_MS = 5 * 60 * 1000; // แคชไว้ 5 นาที ช่วยประหยัด Egress แบนด์วิดท์อย่างมหาศาล
 
     // 1. ตรวจสอบแคชในเบราว์เซอร์ก่อน หากมีแคชให้นำมาแสดงผลบนหน้าจอทันที (0ms Instant Load ไม่ต้องรอ!)

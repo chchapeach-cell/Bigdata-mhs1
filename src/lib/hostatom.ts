@@ -1,5 +1,6 @@
 import { School, StudentData, StudentGData, UserProfile, SystemConfig, AcademicRecord } from '../types';
 import { generateInitialAcademicRecords } from '../utils/academicData';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import rawSchoolsData from '../utils/schoolsData.json';
 import rawStudentsData from '../utils/studentsData.json';
 import rawStudentsGData from '../utils/studentsGData.json';
@@ -255,79 +256,99 @@ export async function callHostatomApi(action: string, payload?: any, method: 'GE
 export async function hostatomFetchSchools(): Promise<School[]> {
   const data = await callHostatomApi('get_schools');
   if (!Array.isArray(data)) return [];
-  return data.map((r: any) => ({
-    id: r.id,
-    name: r.name,
-    district: r.district || 'สพป.แม่ฮ่องสอน เขต 1',
-    amphoe: r.amphoe,
-    networkGroup: r.network_group || r.networkGroup,
-    internetType: r.internet_type || r.internetType || 'fiber',
-    electricity: r.electricity !== undefined ? r.electricity : true,
-    waterSystem: r.water_system || r.waterSystem || 'government',
-    waterSystemDetail: r.water_system_detail || r.waterSystemDetail,
-    solarKw: r.solar_kw || r.solarKw,
-    hasSolarBattery: Boolean(r.has_solar_battery ?? r.hasSolarBattery),
-    solarBatteryCapacity: r.solar_battery_capacity || r.solarBatteryCapacity,
-    staffCount: Number(r.staff_count ?? r.staffCount ?? 0),
-    contractTeachersCount: Number(r.contract_teachers_count ?? r.contractTeachersCount ?? 0),
-    adminStaffCount: Number(r.admin_staff_count ?? r.adminStaffCount ?? 0),
-    janitorCount: Number(r.janitor_count ?? r.janitorCount ?? 0),
-    otherStaffCount: Number(r.other_staff_count ?? r.otherStaffCount ?? 0),
-    majorSubjects: Array.isArray(r.major_subjects) ? r.major_subjects : [],
-    majorSubjectsWithStaff: Array.isArray(r.major_subjects_with_staff) ? r.major_subjects_with_staff : [],
-    classrooms: Array.isArray(r.classrooms) ? r.classrooms : [],
-    directorName: (r.director_name && r.director_name !== 'null') ? r.director_name : (r.directorName && r.directorName !== 'null' ? r.directorName : ''),
-    directorPhone: (r.director_phone && r.director_phone !== 'null') ? r.director_phone : (r.directorPhone || ''),
-    viceDirectorName: (r.vice_director_name && r.vice_director_name !== 'null') ? r.vice_director_name : (r.viceDirectorName || ''),
-    viceDirectorPhone: (r.vice_director_phone && r.vice_director_phone !== 'null') ? r.vice_director_phone : (r.viceDirectorPhone || ''),
-    viceDirectors: Array.isArray(r.vice_directors) ? r.vice_directors : [],
-    schoolPhone: r.school_phone || r.schoolPhone,
-    email: r.email,
-    facebook: r.facebook,
-    line: r.line,
-    website: r.website,
-    address: r.address,
-    imageUrl: (r.image_url && r.image_url !== 'null') ? r.image_url : (r.imageUrl || ''),
-    logoUrl: (r.logo_url && r.logo_url !== 'null') ? r.logo_url : (r.logoUrl || ''),
-    directorImageUrl: (r.director_image_url && r.director_image_url !== 'null') ? r.director_image_url : (r.directorImageUrl || ''),
-    latitude: Number(r.latitude) || 0,
-    longitude: Number(r.longitude) || 0,
-    size: r.size || 'small',
-    isExpansion: Boolean(r.is_expansion ?? r.isExpansion),
-    specialHighlights: r.special_highlights || r.specialHighlights,
-    updatedAt: r.updated_at || r.updatedAt,
-    updatedBy: r.updated_by || r.updatedBy
-  }));
+  return data.map((r: any) => {
+    const localMatch = (rawSchoolsData as any[]).find((s: any) => s.id === r.id);
+    const resolvedName = (r.name && String(r.name).trim()) ? String(r.name).trim() : (localMatch?.name || '');
+    const autoInfo = getAmphoeAndNetwork(r.id, resolvedName);
+    const resolvedAmphoe = (r.amphoe && r.amphoe !== 'NULL' && String(r.amphoe).trim()) 
+      ? String(r.amphoe).trim() 
+      : (localMatch?.amphoe || autoInfo.amphoe);
+    const resolvedNetworkGroup = (r.network_group && r.network_group !== 'NULL' && String(r.network_group).trim())
+      ? String(r.network_group).trim()
+      : (r.networkGroup || localMatch?.networkGroup || autoInfo.networkGroup);
+
+    return {
+      id: r.id,
+      name: resolvedName,
+      district: r.district || localMatch?.district || 'สพป.แม่ฮ่องสอน เขต 1',
+      amphoe: resolvedAmphoe,
+      networkGroup: resolvedNetworkGroup,
+      internetType: r.internet_type || r.internetType || localMatch?.internetType || 'fiber',
+      electricity: r.electricity !== undefined ? r.electricity : true,
+      waterSystem: r.water_system || r.waterSystem || localMatch?.waterSystem || 'government',
+      waterSystemDetail: r.water_system_detail || r.waterSystemDetail || localMatch?.waterSystemDetail,
+      solarKw: r.solar_kw || r.solarKw || localMatch?.solarKw,
+      hasSolarBattery: Boolean(r.has_solar_battery ?? r.hasSolarBattery ?? localMatch?.hasSolarBattery),
+      solarBatteryCapacity: r.solar_battery_capacity || r.solarBatteryCapacity || localMatch?.solarBatteryCapacity,
+      staffCount: Number(r.staff_count ?? r.staffCount ?? localMatch?.staffCount ?? 0),
+      contractTeachersCount: Number(r.contract_teachers_count ?? r.contractTeachersCount ?? localMatch?.contractTeachersCount ?? 0),
+      adminStaffCount: Number(r.admin_staff_count ?? r.adminStaffCount ?? localMatch?.adminStaffCount ?? 0),
+      janitorCount: Number(r.janitor_count ?? r.janitorCount ?? localMatch?.janitorCount ?? 0),
+      otherStaffCount: Number(r.other_staff_count ?? r.otherStaffCount ?? localMatch?.otherStaffCount ?? 0),
+      majorSubjects: Array.isArray(r.major_subjects) ? r.major_subjects : (localMatch?.majorSubjects || []),
+      majorSubjectsWithStaff: Array.isArray(r.major_subjects_with_staff) ? r.major_subjects_with_staff : (localMatch?.majorSubjectsWithStaff || []),
+      classrooms: Array.isArray(r.classrooms) ? r.classrooms : (localMatch?.classrooms || []),
+      directorName: (r.director_name && r.director_name !== 'null') ? r.director_name : (r.directorName && r.directorName !== 'null' ? r.directorName : (localMatch?.directorName || '')),
+      directorPhone: (r.director_phone && r.director_phone !== 'null') ? r.director_phone : (r.directorPhone || localMatch?.directorPhone || ''),
+      viceDirectorName: (r.vice_director_name && r.vice_director_name !== 'null') ? r.vice_director_name : (r.viceDirectorName || localMatch?.viceDirectorName || ''),
+      viceDirectorPhone: (r.vice_director_phone && r.vice_director_phone !== 'null') ? r.vice_director_phone : (r.viceDirectorPhone || localMatch?.viceDirectorPhone || ''),
+      viceDirectors: Array.isArray(r.vice_directors) ? r.vice_directors : (localMatch?.viceDirectors || []),
+      schoolPhone: r.school_phone || r.schoolPhone || localMatch?.schoolPhone,
+      email: r.email || localMatch?.email,
+      facebook: r.facebook || localMatch?.facebook,
+      line: r.line || localMatch?.line,
+      website: r.website || localMatch?.website,
+      address: r.address || localMatch?.address,
+      imageUrl: (r.image_url && r.image_url !== 'null') ? r.image_url : (r.imageUrl || localMatch?.imageUrl || ''),
+      logoUrl: (r.logo_url && r.logo_url !== 'null') ? r.logo_url : (r.logoUrl || localMatch?.logoUrl || ''),
+      directorImageUrl: (r.director_image_url && r.director_image_url !== 'null') ? r.director_image_url : (r.directorImageUrl || localMatch?.directorImageUrl || ''),
+      latitude: Number(r.latitude) || localMatch?.latitude || 0,
+      longitude: Number(r.longitude) || localMatch?.longitude || 0,
+      size: r.size || localMatch?.size || 'small',
+      isExpansion: Boolean(r.is_expansion ?? r.isExpansion ?? localMatch?.isExpansion),
+      specialHighlights: r.special_highlights || r.specialHighlights || localMatch?.specialHighlights,
+      updatedAt: r.updated_at || r.updatedAt,
+      updatedBy: r.updated_by || r.updatedBy
+    };
+  });
 }
 
 export async function hostatomFetchStudents(): Promise<StudentData[]> {
   const data = await callHostatomApi('get_students');
   if (!Array.isArray(data)) return [];
-  return data.map((r: any) => ({
-    id: r.id,
-    schoolId: r.school_id || r.schoolId,
-    schoolName: r.school_name || r.schoolName,
-    academicYear: r.academic_year || r.academicYear,
-    grades: typeof r.grades === 'string' ? JSON.parse(r.grades) : (r.grades || {}),
-    totalMale: Number(r.total_male ?? r.totalMale ?? 0),
-    totalFemale: Number(r.total_female ?? r.totalFemale ?? 0),
-    totalStudents: Number(r.total_students ?? r.totalStudents ?? 0)
-  }));
+  return data.map((r: any) => {
+    const sId = r.school_id || r.schoolId;
+    const localSchool = (rawSchoolsData as any[]).find((s: any) => s.id === sId);
+    return {
+      id: r.id,
+      schoolId: sId,
+      schoolName: (r.school_name && String(r.school_name).trim()) ? String(r.school_name).trim() : (r.schoolName || localSchool?.name || ''),
+      academicYear: r.academic_year || r.academicYear,
+      grades: typeof r.grades === 'string' ? JSON.parse(r.grades) : (r.grades || {}),
+      totalMale: Number(r.total_male ?? r.totalMale ?? 0),
+      totalFemale: Number(r.total_female ?? r.totalFemale ?? 0),
+      totalStudents: Number(r.total_students ?? r.totalStudents ?? 0)
+    };
+  });
 }
 
 export async function hostatomFetchStudentsG(): Promise<StudentGData[]> {
   const data = await callHostatomApi('get_students_g');
   if (!Array.isArray(data)) return [];
-  return data.map((r: any) => ({
-    id: r.id,
-    schoolId: r.school_id || r.schoolId,
-    schoolName: r.school_name || r.schoolName,
-    academicYear: r.academic_year || r.academicYear,
-    totalGStudents: Number(r.total_g_students ?? r.totalGStudents ?? 0),
-    maleGCount: Number(r.male_g_count ?? r.maleGCount ?? 0),
-    femaleGCount: Number(r.female_g_count ?? r.femaleGCount ?? 0),
-    notes: r.notes || ''
-  }));
+  return data.map((r: any) => {
+    const sId = r.school_id || r.schoolId;
+    const localSchool = (rawSchoolsData as any[]).find((s: any) => s.id === sId);
+    return {
+      id: r.id,
+      schoolId: sId,
+      schoolName: (r.school_name && String(r.school_name).trim()) ? String(r.school_name).trim() : (r.schoolName || localSchool?.name || ''),
+      academicYear: r.academic_year || r.academicYear,
+      totalGStudents: Number(r.total_g_students ?? r.totalGStudents ?? 0),
+      maleGCount: Number(r.male_g_count ?? r.maleGCount ?? 0),
+      femaleGCount: Number(r.female_g_count ?? r.femaleGCount ?? 0),
+      notes: r.notes || ''
+    };
+  });
 }
 
 export async function hostatomFetchAcademicRecords(): Promise<AcademicRecord[]> {

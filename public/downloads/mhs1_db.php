@@ -370,8 +370,21 @@ switch ($action) {
         break;
 
     // -------------------------------------------------------------
-    // 4. NT & RT ASSESSMENTS
+    // 4. NT & RT & ACADEMIC ASSESSMENTS
     // -------------------------------------------------------------
+    case 'get_academic_records':
+        $year = $_REQUEST['year'] ?? '';
+        try {
+            $sql = "SELECT * FROM `academic_records`" . ($year ? " WHERE `academic_year` = :year" : "") . " ORDER BY `order_num` ASC";
+            $stmt = $pdo->prepare($sql);
+            if ($year) $stmt->execute([':year' => $year]);
+            else $stmt->execute();
+            echo json_encode(['status' => 'ok', 'data' => $stmt->fetchAll()]);
+        } catch (Exception $e) {
+            echo json_encode(['status' => 'ok', 'data' => []]);
+        }
+        break;
+
     case 'get_nt_assessments':
         $year = $_REQUEST['year'] ?? '';
         $sql = "SELECT * FROM `nt_assessments`" . ($year ? " WHERE `academic_year` = :year" : "") . " ORDER BY `order_num` ASC";
