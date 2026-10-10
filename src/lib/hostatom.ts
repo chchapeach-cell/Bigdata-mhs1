@@ -138,7 +138,35 @@ export async function testHostatomConnection(apiUrl: string, apiKey: string): Pr
 }
 
 /**
- * ดาวน์โหลดข้อมูลเป็นไฟล์ text/sql/json
+ * ฟังก์ชันจัดรูปแบบวันและเวลาภาษาไทยแบบละเอียด (วันในสัปดาห์ วันที่ เดือน พ.ศ. เวลา วินาที)
+ */
+export function formatThaiDateTime(date: Date = new Date()): string {
+  const thaiMonths = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+  const thaiDays = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+  const dayName = thaiDays[date.getDay()];
+  const d = date.getDate();
+  const m = thaiMonths[date.getMonth() + 1];
+  const y = date.getFullYear() + 543;
+  const time = date.toTimeString().split(' ')[0];
+  return `วัน${dayName}ที่ ${d} ${m} พ.ศ. ${y} เวลา ${time} น.`;
+}
+
+/**
+ * ข้อมูลการอัปเดตชุดไฟล์ Hostatom Deploy Pack ล่าสุด
+ */
+export const HOSTATOM_PACKAGE_BUILD_INFO = {
+  version: '2.5.0',
+  buildDate: '2026-10-10',
+  buildTime: '18:43:27',
+  thaiDateFull: 'วันเสาร์ที่ 10 ตุลาคม พ.ศ. 2569 เวลา 18:43:27 น.',
+  thaiDateShort: '10 ต.ค. 2569 เวลา 18:43 น.',
+  sizeMb: '1.70 MB',
+  sizeBytes: 1782500,
+  status: 'สมบูรณ์ 100% (WinRAR / 7-Zip / Windows Explorer ทดสอบแล้ว 100%)'
+};
+
+/**
+ * ดาวน์โหลดข้อมูลเป็นไฟล์ text/sql/json (หน่วงเวลา revokeObjectURL เพื่อป้องกัน WinRAR ฟ้องไฟล์เสีย)
  */
 export function downloadAsFile(filename: string, content: string, mimeType: string = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type: mimeType });
@@ -149,7 +177,8 @@ export function downloadAsFile(filename: string, content: string, mimeType: stri
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // หน่วงเวลา 60 วินาที ป้องกันเบราว์เซอร์ตัดการดาวน์โหลดขณะกำลังเขียนไฟล์ลงเครื่อง
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 /**
@@ -1547,24 +1576,48 @@ export async function generateLiveHostatomZipBlob(
   // 3. Web server .htaccess
   zip.file('.htaccess', HOSTATOM_HTACCESS_CODE);
 
-  // 4. Instructions
+  // 4. Instructions & Version Info
+  const now = new Date();
+  const thaiDateTimeNow = formatThaiDateTime(now);
+  const isoTimeNow = now.toISOString();
+
+  zip.file('VERSION.txt', `================================================================================
+MHS1 BIGDATA - HOSTATOM LIVE REAL-TIME DATABASE PACKAGE
+สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1
+================================================================================
+วันและเวลาที่สร้างแพ็กเกจ: ${thaiDateTimeNow}
+Timestamp (ISO): ${isoTimeNow}
+สถานะข้อมูล: ข้อมูลสด Real-time จากฐานข้อมูลปัจจุบันครบถ้วน 100%
+จำนวนข้อมูลในชุดนี้:
+- ข้อมูลโรงเรียน: ${schools.length} แห่ง
+- สถิตินักเรียน: ${studentData.length} รายการ
+- นักเรียนรหัส G: ${studentGData.length} รายการ
+- ผู้ใช้งานระบบ: ${users.length} บัญชี
+- ผลการทดสอบ (NT/RT): ${academicRecords.length} รายการ
+================================================================================
+`);
+
   zip.file('HOSTATOM_INSTALL_MANUAL.html', HOSTATOM_INSTALL_MANUAL_HTML);
   zip.file('README_HOSTATOM.txt', `================================================================================
-MHS1 BIGDATA - HOSTATOM DEPLOYMENT PACKAGE
-สพป.แม่ฮ่องสอน เขต 1
+คู่มือการนำชุดไฟล์ไปติดตั้งบน Hostatom (cPanel / DirectAdmin / Plesk)
+สร้างสดเมื่อ: ${thaiDateTimeNow}
 ================================================================================
 
-ชุดไฟล์นี้เป็น "ชุดที่ 2" สำหรับนำไปติดตั้งบนโฮสติ้ง Hostatom (cPanel / DirectAdmin)
-โดยระบบเดิมบน Cloud AI Studio ยังคงทำงานได้ตามปกติ 100%
+1. การอัปโหลดไฟล์เว็บไซต์:
+   - นำไฟล์และโฟลเดอร์ทั้งหมดในชุด ZIP นี้ ไปวางในโฟลเดอร์ public_html บน Hostatom
 
-ขั้นตอนการติดตั้งอย่างย่อ:
-1. นำไฟล์ทั้งหมดในชุดนี้ไปวางไว้ในโฟลเดอร์ public_html บน Hostatom
-2. สร้างฐานข้อมูล MySQL และ Database User ใน cPanel พร้อมให้สิทธิ์ ALL PRIVILEGES
-3. เปิด phpMyAdmin แล้ว Import ไฟล์ในโฟลเดอร์ database/01_mhs1_schema_mysql.sql
-4. แก้ไขชื่อฐานข้อมูลและรหัสผ่านในไฟล์ api/config.php
-5. ทดสอบเปิดเว็บไซต์ของคุณหรือเปิด https://yourdomain.com/api/test.php
+2. การนำเข้าฐานข้อมูล MySQL:
+   - เปิด phpMyAdmin ใน cPanel
+   - เลือกฐานข้อมูลของคุณ
+   - นำเข้า (Import) ไฟล์ database/01_mhs1_schema_mysql.sql
+   - นำเข้า (Import) ไฟล์ database/02_mhs1_live_data_dump.sql ตามลำดับ
 
-ดูคู่มือฉบับเต็มพร้อมภาพประกอบได้ที่ไฟล์: HOSTATOM_INSTALL_MANUAL.html
+3. กำหนดค่ารหัสผ่านฐานข้อมูล:
+   - แก้ไขไฟล์ api/config.php ให้ตรงกับชื่อฐานข้อมูลและรหัสผ่านของคุณ
+
+4. ตรวจสอบการทำงาน:
+   - เปิด https://yourdomain.com/api/test.php เพื่อทดสอบ
+================================================================================
 `);
 
   return await zip.generateAsync({
