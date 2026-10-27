@@ -55,17 +55,25 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const hostatomConfig = config.hostatom || {
+    apiUrl: '',
+    apiKey: '',
+    databaseName: 'mhs1_bigdata',
+    tableName: 'schools',
+    isConnected: false,
+  };
+
   const handleTestConnection = async () => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await testHostatomConnection(config.hostatom.apiUrl, config.hostatom.apiKey);
+      const res = await testHostatomConnection(hostatomConfig.apiUrl, hostatomConfig.apiKey);
       setTestResult(res);
       if (res.success) {
-        const updated = {
+        const updated: DatabaseConfig = {
           ...config,
           hostatom: {
-            ...config.hostatom,
+            ...hostatomConfig,
             isConnected: true,
             lastSynced: new Date().toISOString(),
           },
@@ -233,8 +241,8 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                      <span className={config.hostatom.isConnected ? 'text-emerald-700 font-bold' : 'text-slate-500'}>
-                        {config.hostatom.isConnected ? '● เชื่อมต่อสำเร็จ' : '○ รอการตั้งค่า'}
+                      <span className={hostatomConfig.isConnected ? 'text-emerald-700 font-bold' : 'text-slate-500'}>
+                        {hostatomConfig.isConnected ? '● เชื่อมต่อสำเร็จ' : '○ รอการตั้งค่า'}
                       </span>
                       <span className="font-bold text-blue-700">คลิกเลือก</span>
                     </div>
@@ -329,11 +337,11 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
                     </label>
                     <input
                       type="url"
-                      value={config.hostatom.apiUrl}
+                      value={hostatomConfig.apiUrl}
                       onChange={(e) =>
                         setConfig({
                           ...config,
-                          hostatom: { ...config.hostatom, apiUrl: e.target.value },
+                          hostatom: { ...hostatomConfig, apiUrl: e.target.value },
                         })
                       }
                       placeholder="เช่น https://yourdomain.com/api.php หรือ https://mhs1.yourdomain.com/api.php"
@@ -351,11 +359,11 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={config.hostatom.apiKey || ''}
+                        value={hostatomConfig.apiKey || ''}
                         onChange={(e) =>
                           setConfig({
                             ...config,
-                            hostatom: { ...config.hostatom, apiKey: e.target.value },
+                            hostatom: { ...hostatomConfig, apiKey: e.target.value },
                           })
                         }
                         placeholder="ไม่บังคับใส่ (เว้นว่างได้)"
@@ -369,11 +377,11 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={config.hostatom.databaseName}
+                        value={hostatomConfig.databaseName}
                         onChange={(e) =>
                           setConfig({
                             ...config,
-                            hostatom: { ...config.hostatom, databaseName: e.target.value },
+                            hostatom: { ...hostatomConfig, databaseName: e.target.value },
                           })
                         }
                         placeholder="mhs1_bigdata"
@@ -411,7 +419,7 @@ export const DatabaseSettingsModal: React.FC<DatabaseSettingsModalProps> = ({
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <button
                       type="button"
-                      disabled={isTesting || !config.hostatom.apiUrl}
+                      disabled={isTesting || !hostatomConfig.apiUrl}
                       onClick={handleTestConnection}
                       className="px-4 py-2 bg-white border-2 border-blue-600 hover:bg-blue-50 text-blue-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
                     >

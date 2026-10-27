@@ -21,7 +21,9 @@ export const DEFAULT_HOSTATOM_CONFIG: HostatomConfig = {
     ? `${window.location.origin}/api/mhs1_db.php`
     : 'https://naughty-moore.27-254-143-11.plesk.page/api/mhs1_db.php',
   apiKey: 'mhs1_bigdata_secret_2026',
-  primaryDb: 'hostatom', // ตั้ง Hostatom MariaDB เป็นฐานข้อมูลหลักโดยตรงเพื่อความเร็วสูงสุด
+  primaryDb: typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('run.app')
+    ? 'hostatom'
+    : 'supabase',
   autoBackupToSupabase: true
 };
 
@@ -39,6 +41,10 @@ export function getHostatomConfig(): HostatomConfig {
       config.apiUrl = `${window.location.origin}/api/mhs1_db.php`;
       config.primaryDb = 'hostatom';
       config.enabled = true;
+    } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname.includes('run.app'))) {
+      if (!raw) {
+        config.primaryDb = 'supabase';
+      }
     }
     return config;
   } catch {
@@ -210,7 +216,7 @@ export async function callHostatomApi(action: string, payload?: any, method: 'GE
   // 1. ลองเรียกตรง
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const res = await fetch(url.toString(), {
       method,
@@ -223,34 +229,48 @@ export async function callHostatomApi(action: string, payload?: any, method: 'GE
     });
 
     clearTimeout(timeoutId);
-    if (res.ok) {
-      const json = await res.json();
-      return json.data || json;
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const text = await res.text();
+      if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        const json = JSON.parse(text);
+        return json.data || json;
+      }
     }
   } catch (directErr) {
-    console.warn(`Direct Hostatom call (${action}) notice, attempting proxy:`, directErr);
+    // Notice only, will try proxy or fallback smoothly
   }
 
   // 2. สำรอง: เรียกผ่าน Server Proxy ในกรณีที่เบราว์เซอร์ติดบล็อก CORS
   try {
     const proxyUrl = `/api/hostatom-proxy?url=${encodeURIComponent(url.toString())}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     const pRes = await fetch(proxyUrl, {
       method,
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
-      body: method === 'POST' && payload ? JSON.stringify(payload) : undefined
+      body: method === 'POST' && payload ? JSON.stringify(payload) : undefined,
+      signal: controller.signal
     });
-    if (pRes.ok) {
-      const json = await pRes.json();
-      return json.data || json;
+
+    clearTimeout(timeoutId);
+    const contentType = pRes.headers.get('content-type') || '';
+    if (pRes.ok && contentType.includes('application/json')) {
+      const text = await pRes.text();
+      if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        const json = JSON.parse(text);
+        return json.data || json;
+      }
     }
   } catch (pErr) {
-    console.error(`Hostatom proxy call failed for ${action}:`, pErr);
+    // Graceful notice without crashing
   }
 
-  throw new Error(`Failed to call Hostatom API action: ${action}`);
+  throw new Error(`Hostatom API unavailable for ${action}`);
 }
 
 export async function hostatomFetchSchools(): Promise<School[]> {

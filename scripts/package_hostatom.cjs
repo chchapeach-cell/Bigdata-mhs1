@@ -534,6 +534,11 @@ header('Content-Type: text/html; charset=utf-8');
 
   dbFolder.file('01_mhs1_schema_mysql.sql', mysqlSchemaSql);
   dbFolder.file('02_sync_supabase_to_hostatom.sql', syncSql);
+  
+  const updateCoordsPath = path.join(__dirname, '..', 'public', 'downloads', '03_update_coordinates.sql');
+  if (fs.existsSync(updateCoordsPath)) {
+    dbFolder.file('03_update_coordinates.sql', fs.readFileSync(updateCoordsPath, 'utf-8'));
+  }
 
   // 5. คู่มือติดตั้งแบบ Interactive HTML สวยงาม
   const manualHtml = `<!DOCTYPE html>

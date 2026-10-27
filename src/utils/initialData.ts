@@ -212,8 +212,18 @@ export function generateDefaultSchool(id: string, name: string): School {
     name,
     district: 'สพป.แม่ฮ่องสอน เขต 1',
     amphoe: 'ไม่ระบุอำเภอ',
-    network_group: 'กลุ่มทั่วไป',
-    staff_count: 0,
+    networkGroup: 'กลุ่มทั่วไป',
+    internetType: 'fiber',
+    electricity: 'has_electric',
+    staffCount: 0,
+    directorPhone: '',
+    schoolPhone: '',
+    imageUrl: '',
+    latitude: 19.3021,
+    longitude: 97.9654,
+    size: 'small',
+    isExpansion: false,
+    majorSubjects: [],
     classrooms: []
   };
 }

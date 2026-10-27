@@ -483,8 +483,8 @@ export default function SchoolComparisonPanel({
           {compareSchools.map((school, idx) => {
             const amp = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
             const net = school.networkGroup || getAmphoeAndNetwork(school.id, school.name).networkGroup;
-            const ratio = school.staffCount > 0 ? (school.studentCount / school.staffCount).toFixed(1) : '-';
-            const studentBarWidth = Math.min(100, Math.max(8, (school.studentCount / maxStudents) * 100));
+            const ratio = school.staffCount > 0 ? ((school.studentCount || 0) / school.staffCount).toFixed(1) : '-';
+            const studentBarWidth = Math.min(100, Math.max(8, ((school.studentCount || 0) / maxStudents) * 100));
 
             return (
               <div
@@ -741,7 +741,7 @@ export default function SchoolComparisonPanel({
 
                   {/* 1.4 อัตราส่วนครูต่อนักเรียน (Teacher-Student Ratio) */}
                   {(() => {
-                    const ratios = compareSchools.map(s => s.staffCount > 0 ? Number((s.studentCount / s.staffCount).toFixed(1)) : 0);
+                    const ratios = compareSchools.map(s => s.staffCount > 0 ? Number(((s.studentCount || 0) / s.staffCount).toFixed(1)) : 0);
                     const diff = isDiff(ratios);
                     return (
                       <tr className={getRowClass(diff)}>
@@ -754,8 +754,8 @@ export default function SchoolComparisonPanel({
                           </div>
                         </td>
                         {compareSchools.map(s => {
-                          const r = s.staffCount > 0 ? (s.studentCount / s.staffCount).toFixed(1) : '-';
-                          const rNum = s.staffCount > 0 ? s.studentCount / s.staffCount : 0;
+                          const r = s.staffCount > 0 ? ((s.studentCount || 0) / s.staffCount).toFixed(1) : '-';
+                          const rNum = s.staffCount > 0 ? (s.studentCount || 0) / s.staffCount : 0;
                           return (
                             <td key={s.id} className="p-3 text-center border-r border-[#33272A]/10 dark:border-slate-800 last:border-none">
                               <div className="text-sm font-black text-purple-700 dark:text-purple-300">

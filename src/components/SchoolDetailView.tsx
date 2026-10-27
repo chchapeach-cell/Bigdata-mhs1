@@ -2676,10 +2676,9 @@ export default function SchoolDetailView({
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -30, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="name" stroke={chartStroke} />
-                  <YAxis stroke={chartStroke} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                  <XAxis dataKey="name" stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
+                  <YAxis stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
@@ -2771,10 +2770,9 @@ export default function SchoolDetailView({
               {schoolTrendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={schoolTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                    <XAxis dataKey="year" stroke={chartStroke} />
-                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                    <XAxis dataKey="year" stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
+                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '16px',
@@ -2875,10 +2873,9 @@ export default function SchoolDetailView({
               {schoolGTrendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={schoolGTrendData} margin={{ top: 15, right: 20, left: -25, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                    <XAxis dataKey="year" stroke={chartStroke} />
-                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                    <XAxis dataKey="year" stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
+                    <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '16px',
@@ -2971,16 +2968,15 @@ export default function SchoolDetailView({
             {displayMajors.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={displayMajors} layout="vertical" margin={{ top: 10, right: 35, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                  <XAxis type="number" stroke={chartStroke} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
                     stroke={chartStroke} 
                     width={110} 
                     interval={0}
-                    tick={{ fontSize: 10, fontWeight: 700 }}
+                    tick={{ fill: chartStroke, fontSize: 10, fontWeight: 700 }}
                   />
                   <Tooltip
                     contentStyle={{
@@ -3505,10 +3501,9 @@ export default function SchoolDetailView({
             <div className="h-64 w-full text-[10px] font-bold">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={academicChartData} margin={{ top: 10, right: 20, left: -25, bottom: 25 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="name" stroke={chartStroke} angle={-15} textAnchor="end" height={40} />
-                  <YAxis stroke={chartStroke} domain={[0, 100]} unit="%" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                  <XAxis dataKey="name" stroke={chartStroke} angle={-15} textAnchor="end" height={40} tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
+                  <YAxis stroke={chartStroke} domain={[0, 100]} unit="%" tick={{ fill: chartStroke, fontSize: 10, fontWeight: 600 }} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',

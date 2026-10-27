@@ -497,6 +497,11 @@ export default function DashboardView({
     return result;
   }, [filteredStudents]);
 
+  // ค่าสูงสุดของจำนวนนักเรียนรายชั้นเพื่อจัดสเกลแกน Y ให้สวยงาม
+  const maxGradeVal = useMemo(() => {
+    return Math.max(...gradeChartData.map(g => Math.max(g.ชาย, g.หญิง)), 0);
+  }, [gradeChartData]);
+
   // สถิติแนวโน้มจำนวนนักเรียนรายปีการศึกษา
   const yearlyStudentsData = useMemo(() => {
     const yearTotals: Record<string, { male: number; female: number; total: number }> = {};
@@ -1001,17 +1006,40 @@ export default function DashboardView({
       {/* แผนภูมินักเรียนแยกชาย-หญิง ตามชั้นเรียน */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* แผนภูมิแท่งเปรียบเทียบ */}
-        <div className="lg:col-span-2 card p-4 md:p-6 min-w-0">
+        <div className="lg:col-span-2 card p-4 md:p-6 min-w-0 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-[4px_4px_0px_#FFD3B6] rounded-2xl">
           <h3 className="text-md font-bold text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5 mb-4">
             จำนวนนักเรียนชาย-หญิง แยกรายระดับชั้นเรียน (ไม่เกิน ม.3)
           </h3>
           <div className="h-80 w-full text-xs font-bold mb-6">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={gradeChartData} margin={{ top: 25, right: 10, left: 15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                <XAxis dataKey="name" stroke={chartStroke} />
-                <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+              <BarChart 
+                data={gradeChartData} 
+                margin={{ top: 25, right: 15, left: 10, bottom: 5 }}
+                barGap={4}
+              >
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} 
+                  vertical={true}
+                  horizontal={true}
+                />
+                <XAxis 
+                  dataKey="name" 
+                  stroke={chartStroke}
+                  axisLine={{ stroke: chartStroke, strokeWidth: 1.5 }}
+                  tickLine={{ stroke: chartStroke, strokeWidth: 1.5 }}
+                  tick={{ fill: chartStroke, fontSize: 12, fontWeight: 700 }}
+                />
+                <YAxis 
+                  stroke={chartStroke} 
+                  type="number" 
+                  domain={maxGradeVal <= 1000 ? [0, 1000] : [0, Math.ceil(maxGradeVal / 250) * 250]} 
+                  ticks={maxGradeVal <= 1000 && maxGradeVal > 50 ? [0, 250, 500, 750, 1000] : undefined}
+                  allowDecimals={false}
+                  axisLine={{ stroke: chartStroke, strokeWidth: 1.5 }}
+                  tickLine={{ stroke: chartStroke, strokeWidth: 1.5 }}
+                  tick={{ fill: chartStroke, fontSize: 12, fontWeight: 700 }}
+                />
                 <Tooltip
                   contentStyle={{
                     borderRadius: '16px',
@@ -1022,16 +1050,53 @@ export default function DashboardView({
                   }}
                   itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: tooltipText }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontWeight: 'bold' }} />
-                <Bar dataKey="ชาย" fill="#A0E7E5" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12}>
-                  <LabelList dataKey="ชาย" position="top" fill={chartStroke} fontSize={10} fontWeight="bold" />
+                <Legend 
+                  iconType="circle" 
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px', fontWeight: 'bold' }} 
+                  formatter={(value) => (
+                    <span className={value === 'ชาย' ? 'text-[#14b8a6] dark:text-[#A0E7E5] font-bold mx-1' : 'text-[#f43f5e] dark:text-[#FF8BA7] font-bold mx-1'}>
+                      {value}
+                    </span>
+                  )}
+                />
+                <Bar 
+                  dataKey="ชาย" 
+                  fill="#A0E7E5" 
+                  stroke={chartStroke} 
+                  strokeWidth={1.5} 
+                  radius={[4, 4, 0, 0]} 
+                  barSize={13}
+                >
+                  <LabelList 
+                    dataKey="ชาย" 
+                    position="top" 
+                    fill={chartStroke} 
+                    fontSize={10} 
+                    fontWeight="bold"
+                    formatter={(val: any) => (val && Number(val) > 0 ? val : '')}
+                  />
                 </Bar>
-                <Bar dataKey="หญิง" fill="#FF8BA7" stroke={chartStroke} strokeWidth={2} radius={[4, 4, 0, 0]} barSize={12}>
-                  <LabelList dataKey="หญิง" position="top" fill={chartStroke} fontSize={10} fontWeight="bold" />
+                <Bar 
+                  dataKey="หญิง" 
+                  fill="#FF8BA7" 
+                  stroke={chartStroke} 
+                  strokeWidth={1.5} 
+                  radius={[4, 4, 0, 0]} 
+                  barSize={13}
+                >
+                  <LabelList 
+                    dataKey="หญิง" 
+                    position="top" 
+                    fill={chartStroke} 
+                    fontSize={10} 
+                    fontWeight="bold"
+                    formatter={(val: any) => (val && Number(val) > 0 ? val : '')}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+
 
           {/* ตารางข้อมูลแสดงตัวเลขด้านล่างกราฟ */}
           <div className="overflow-x-auto">
@@ -1212,10 +1277,9 @@ export default function DashboardView({
             {yearlyStudentsData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={yearlyStudentsData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="year" stroke={chartStroke} />
-                  <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                  <XAxis dataKey="year" stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 11, fontWeight: 600 }} />
+                  <YAxis stroke={chartStroke} type="number" domain={[0, 'auto']} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 11, fontWeight: 600 }} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
@@ -1337,10 +1401,9 @@ export default function DashboardView({
             <div className="h-60 w-full text-xs font-bold">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={yearlyGStudentsData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                  <XAxis dataKey="yearLabel" stroke={chartStroke} />
-                  <YAxis stroke={chartStroke} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                  <XAxis dataKey="yearLabel" stroke={chartStroke} tick={{ fill: chartStroke, fontSize: 11, fontWeight: 600 }} />
+                  <YAxis stroke={chartStroke} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 11, fontWeight: 600 }} />
                   <Tooltip
                     contentStyle={{
                       borderRadius: '16px',
@@ -1411,16 +1474,15 @@ export default function DashboardView({
                     layout="vertical"
                     margin={{ top: 5, right: 45, left: 10, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e0d9d5" className="dark:hidden" />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#4a3e42" className="hidden dark:block" />
-                    <XAxis type="number" stroke={chartStroke} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#4a3e42" : "#e2e8f0"} />
+                    <XAxis type="number" stroke={chartStroke} allowDecimals={false} tick={{ fill: chartStroke, fontSize: 11, fontWeight: 600 }} />
                     <YAxis 
                       dataKey="name" 
                       type="category" 
                       stroke={chartStroke} 
                       width={125} 
                       interval={0}
-                      tick={{ fontSize: 11, fontWeight: 700 }}
+                      tick={{ fill: chartStroke, fontSize: 11, fontWeight: 700 }}
                     />
                     <Tooltip
                       contentStyle={{
@@ -1834,25 +1896,85 @@ export default function DashboardView({
               </div>
             </div>
 
-            {/* คำอธิบายสัญลักษณ์สี (Map Legend) */}
-            <div className="bg-white dark:bg-[#1e1518] border border-[#33272A]/20 p-3 rounded-2xl space-y-1.5 shadow-sm mt-2">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">สัญลักษณ์พินสถานศึกษาตามขนาด</span>
-              <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-[#33272A] dark:text-[#FFF9F5]">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFD3B6] border border-[#33272A]"></span>
-                  <span>ขนาดเล็ก</span>
+            {/* คำอธิบายสัญลักษณ์สีและหมุด (Map Legend) */}
+            <div className="bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 rounded-2xl space-y-2.5 shadow-sm mt-2 text-[#33272A] dark:text-[#FFF9F5]">
+              <div>
+                <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                  🎨 สีของอำเภอ (เน้นสีอำเภอเมือง)
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-md bg-[#0284c7] border border-[#33272A] shrink-0"></span>
+                    <span className="text-[#0284c7] dark:text-sky-400 font-black">อ.เมืองแม่ฮ่องสอน</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-md bg-[#f43f5e] border border-[#33272A] shrink-0"></span>
+                    <span>อ.ขุนยวม</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-md bg-[#f59e0b] border border-[#33272A] shrink-0"></span>
+                    <span>อ.ปาย</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-md bg-[#8b5cf6] border border-[#33272A] shrink-0"></span>
+                    <span>อ.ปางมะผ้า</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFAAA5] border border-[#33272A]"></span>
-                  <span>ขนาดกลาง</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#60A5FA] border border-[#33272A]"></span>
-                  <span>ขนาดใหญ่ / พิเศษ</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#FF8BA7] border border-[#33272A] animate-pulse"></span>
-                  <span className="text-[#FF8BA7]">โรงเรียนที่เลือก</span>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-2">
+                <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                  📍 รูปแบบหมุดแผนที่ (ไร้กรอบ)
+                </span>
+                <div className="space-y-1.5 text-[10px] font-bold">
+                  {/* รูปอาคารโรงเรียนใหม่ */}
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0 filter drop-shadow">
+                      <rect x="2" y="27" width="28" height="3" rx="1" fill="#475569" />
+                      <rect x="4" y="13" width="24" height="14" rx="1" fill="#0284c7" stroke="#1e293b" strokeWidth="1" />
+                      <polygon points="16,4 2,13 30,13" fill="#e11d48" stroke="#9f1239" strokeWidth="1" />
+                      <rect x="13.5" y="4" width="5" height="5" fill="#f8fafc" stroke="#1e293b" strokeWidth="0.8" />
+                      <circle cx="16" cy="6.5" r="1.6" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                      <rect x="6.5" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                      <rect x="22" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                      <rect x="13" y="18" width="6" height="9" rx="0.8" fill="#1e293b" />
+                    </svg>
+                    <span><strong>รูปโรงเรียน:</strong> โรงเรียนทั่วไป (สีตามอำเภอ)</span>
+                  </div>
+
+                  {/* รูปเสาธงชาติ */}
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0 filter drop-shadow">
+                      <ellipse cx="8" cy="29" rx="5" ry="2" fill="#334155" stroke="#0f172a" strokeWidth="0.8" />
+                      <line x1="8" y1="3" x2="8" y2="29" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+                      <line x1="7.5" y1="3" x2="7.5" y2="29" stroke="#ffffff" strokeWidth="0.8" strokeLinecap="round" />
+                      <circle cx="8" cy="3" r="1.8" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                      <g transform="translate(9, 4)">
+                        <path d="M 0 0 C 6 2, 12 -1, 19 1 L 19 13 C 12 11, 6 14, 0 12 Z" fill="#ED1C24" />
+                        <path d="M 0 2 C 6 4, 12 1, 19 3 L 19 11 C 12 9, 6 12, 0 10 Z" fill="#FFFFFF" />
+                        <path d="M 0 4 C 6 6, 12 3, 19 5 L 19 9 C 12 7, 6 10, 0 8 Z" fill="#241D4F" />
+                      </g>
+                    </svg>
+                    <span><strong>รูปเสาธง:</strong> มีคำว่า "สาขา"</span>
+                  </div>
+
+                  {/* รูปดาว */}
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0 filter drop-shadow">
+                      <polygon
+                        points="16,1 19.8,10.6 30.1,11.5 22.4,18.3 24.7,28.3 16,23.1 7.3,28.3 9.6,18.3 1.9,11.5 12.2,10.6"
+                        fill="#fbbf24"
+                        stroke="#b45309"
+                        strokeWidth="1.2"
+                        strokeLinejoin="round"
+                      />
+                      <polygon
+                        points="16,4 18.7,11.4 26,12.1 20.5,16.8 22.1,23.9 16,20.2 9.9,23.9 11.5,16.8 6,12.1 13.3,11.4"
+                        fill="#fef08a"
+                      />
+                    </svg>
+                    <span><strong>รูปดาว:</strong> มีคำว่า "เขตพื้นที่"</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1869,32 +1991,121 @@ export default function DashboardView({
                   setMapZoom(zoom);
                 }}
               >
-                {/* วาดหมุดของโรงเรียน (ตามตัวกรองโครงสร้างพื้นฐาน) */}
+                {/* วาดหมุดสถานศึกษาแบบไร้กรอบ (No Border Frame) */}
                 {filteredMapSchools.map(school => {
                   const lat = Number(school.latitude) || 19.3021;
                   const lng = Number(school.longitude) || 97.9654;
                   const isSelected = selectedMapSchoolId === school.id;
                   
-                  let markerColor = '#60A5FA'; // ขนาดใหญ่ / ขนาดพิเศษ (สีฟ้า)
-                  if (school.size === 'small') {
-                    markerColor = '#FFD3B6'; // ขนาดเล็ก (สีส้มพาสเทล)
-                  } else if (school.size === 'medium') {
-                    markerColor = '#FFAAA5'; // ขนาดกลาง (สีส้มแดงพาสเทล)
-                  }
+                  const ampName = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe || '';
                   
-                  if (isSelected) {
-                    markerColor = '#FF8BA7'; // หมุดที่เลือก (สีชมพูเด่น)
+                  // กำหนดสีตามอำเภอ โดยเฉพาะสีของอำเภอเมือง
+                  let pinColor = '#0284c7'; // สีฟ้าของอำเภอเมืองแม่ฮ่องสอน
+                  if (ampName.includes('เมือง')) {
+                    pinColor = '#0284c7'; // สีอำเภอเมืองแม่ฮ่องสอน (น้ำเงินฟ้าเด่นชัด)
+                  } else if (ampName.includes('ขุนยวม')) {
+                    pinColor = '#f43f5e'; // สีอำเภอขุนยวม (ชมพูแดง)
+                  } else if (ampName.includes('ปาย')) {
+                    pinColor = '#f59e0b'; // สีอำเภอปาย (ส้มอำพัน)
+                  } else if (ampName.includes('ปางมะผ้า')) {
+                    pinColor = '#8b5cf6'; // สีอำเภอปางมะผ้า (ม่วง)
                   }
 
-                  const MarkerComponent = PigeonMarker as any;
+                  const isKhet = school.name.includes('เขตพื้นที่');
+                  const isBranch = school.name.includes('สาขา') || (school as any).isRemoteBranch;
+
                   return (
-                    <MarkerComponent
+                    <PigeonOverlay
                       key={school.id}
-                      width={isSelected ? 38 : 24}
                       anchor={[lat, lng]}
-                      color={markerColor}
-                      onClick={() => handleMarkerClick(school)}
-                    />
+                      offset={[isSelected ? 16 : 14, isSelected ? 32 : 28]}
+                    >
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkerClick(school);
+                        }}
+                        className={`group cursor-pointer flex flex-col items-center select-none transition-transform duration-150 ${
+                          isSelected ? 'z-50 animate-bounce' : 'z-20 hover:scale-125 hover:z-40'
+                        }`}
+                        title={`${school.name} (อำเภอ${ampName})`}
+                      >
+                        {isKhet ? (
+                          // 1. โรงเรียนที่มีคำว่าเขตพื้นที่ ให้เป็นรูป ดาว (ไร้กรอบ)
+                          <svg
+                            viewBox="0 0 32 32"
+                            className={`w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-transform duration-150 ${
+                              isSelected ? 'scale-125' : 'group-hover:scale-115'
+                            }`}
+                          >
+                            <circle cx="16" cy="16" r="13" fill={pinColor} opacity="0.3" />
+                            <polygon
+                              points="16,1 19.8,10.6 30.1,11.5 22.4,18.3 24.7,28.3 16,23.1 7.3,28.3 9.6,18.3 1.9,11.5 12.2,10.6"
+                              fill="#fbbf24"
+                              stroke="#b45309"
+                              strokeWidth="1.2"
+                              strokeLinejoin="round"
+                            />
+                            <polygon
+                              points="16,4 18.7,11.4 26,12.1 20.5,16.8 22.1,23.9 16,20.2 9.9,23.9 11.5,16.8 6,12.1 13.3,11.4"
+                              fill="#fef08a"
+                            />
+                          </svg>
+                        ) : isBranch ? (
+                          // 2. โรงเรียนไหนที่มีคำว่าสาขา ให้เป็นรูป เสาธงชาติ (เสาธงไตรรงค์ ไร้กรอบ)
+                          <svg
+                            viewBox="0 0 32 32"
+                            className={`w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-transform duration-150 ${
+                              isSelected ? 'scale-125' : 'group-hover:scale-115'
+                            }`}
+                          >
+                            {/* ฐานเสาธง */}
+                            <ellipse cx="8" cy="29" rx="5" ry="2" fill="#334155" stroke="#0f172a" strokeWidth="0.8" />
+                            {/* เสาธงสเตนเลส */}
+                            <line x1="8" y1="3" x2="8" y2="29" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+                            <line x1="7.5" y1="3" x2="7.5" y2="29" stroke="#ffffff" strokeWidth="0.8" strokeLinecap="round" />
+                            {/* หัวเสาธงสีทอง */}
+                            <circle cx="8" cy="3" r="1.8" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                            {/* ผืนธงไตรรงค์ไทยโบกสะบัด */}
+                            <g transform="translate(9, 4)">
+                              <path d="M 0 0 C 6 2, 12 -1, 19 1 L 19 13 C 12 11, 6 14, 0 12 Z" fill="#ED1C24" />
+                              <path d="M 0 2 C 6 4, 12 1, 19 3 L 19 11 C 12 9, 6 12, 0 10 Z" fill="#FFFFFF" />
+                              <path d="M 0 4 C 6 6, 12 3, 19 5 L 19 9 C 12 7, 6 10, 0 8 Z" fill="#241D4F" />
+                            </g>
+                          </svg>
+                        ) : (
+                          // 3. หมุดโรงเรียนเปลี่ยนเป็นรูปใหม่ไม่เอารูปนี้ (อาคารโรงเรียนพร้อมหอนาฬิกา ไร้กรอบ สีตามอำเภอ)
+                          <svg
+                            viewBox="0 0 32 32"
+                            className={`w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] transition-transform duration-150 ${
+                              isSelected ? 'scale-125' : 'group-hover:scale-115'
+                            }`}
+                          >
+                            {/* ฐานอาคาร */}
+                            <rect x="2" y="27" width="28" height="3" rx="1" fill="#475569" />
+                            {/* ตัวอาคารโรงเรียนตามสีอำเภอ */}
+                            <rect x="4" y="13" width="24" height="14" rx="1" fill={pinColor} stroke="#1e293b" strokeWidth="1" />
+                            {/* หลังคาจั่วโรงเรียน */}
+                            <polygon points="16,4 2,13 30,13" fill="#e11d48" stroke="#9f1239" strokeWidth="1" />
+                            {/* หอนาฬิกา/ระฆังยอดโดม */}
+                            <rect x="13.5" y="4" width="5" height="5" fill="#f8fafc" stroke="#1e293b" strokeWidth="0.8" />
+                            <circle cx="16" cy="6.5" r="1.6" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                            {/* หน้าต่างห้องเรียน */}
+                            <rect x="6.5" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                            <rect x="22" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                            {/* ประตูทางเข้าอาคาร */}
+                            <rect x="13" y="18" width="6" height="9" rx="0.8" fill="#1e293b" />
+                            <circle cx="14.5" cy="23" r="0.6" fill="#fbbf24" />
+                            <circle cx="17.5" cy="23" r="0.6" fill="#fbbf24" />
+                          </svg>
+                        )}
+
+                        {/* แสงประกายไฮไลต์ใต้หมุดเมื่อเลือก */}
+                        {isSelected && (
+                          <div className="w-4 h-1.5 bg-[#FF8BA7] rounded-full blur-[1px] animate-ping -mt-0.5" />
+                        )}
+                      </div>
+                    </PigeonOverlay>
                   );
                 })}
 
@@ -1907,6 +2118,9 @@ export default function DashboardView({
                     <div className="bg-[#FFF9F5] border-2 border-[#33272A] px-2.5 py-1.5 rounded-xl text-[10px] font-black text-[#33272A] shadow-[2px_2px_0px_#33272A] dark:bg-[#1e1518] dark:text-[#FFF9F5] whitespace-nowrap z-50 flex flex-col gap-0.5">
                       <div className="flex items-center gap-1 text-slate-800 dark:text-slate-100">
                         <span>📍 {mapSchool.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">
+                          {mapSchool.amphoe || getAmphoeAndNetwork(mapSchool.id, mapSchool.name).amphoe}
+                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
                         <span>{mapSchool.electricity ? '⚡ มีไฟฟ้า' : '🔌 โซลาร์เซลล์'}</span>
@@ -1920,6 +2134,7 @@ export default function DashboardView({
                 )}
               </PigeonMap>
             </div>
+
 
             <div className="flex justify-between items-center mt-1.5 px-1">
               <span className="text-[10px] text-gray-400 font-bold">💡 ใช้ปุ่มกลิ้งเม้าส์เพื่อซูมแผนที่ และลากเมาส์เพื่อเลื่อนตำแหน่งดูภาพรวมเขต สพป.มส.1</span>

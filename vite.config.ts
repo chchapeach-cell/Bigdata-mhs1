@@ -35,6 +35,7 @@ export default defineConfig(() => {
                 const targetUrl = parsedUrl.searchParams.get('url');
                 if (!targetUrl) {
                   res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
                   res.end(JSON.stringify({ error: 'Missing target url parameter' }));
                   return;
                 }
@@ -43,9 +44,17 @@ export default defineConfig(() => {
                   headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
-                  }
+                  },
+                  signal: AbortSignal.timeout(5000)
                 });
                 const body = await fetchRes.text();
+                // Ensure target response is actually JSON before forwarding
+                if (!body.trim().startsWith('{') && !body.trim().startsWith('[')) {
+                  res.statusCode = 502;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({ status: 'error', message: 'Hostatom returned non-JSON response' }));
+                  return;
+                }
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 res.statusCode = fetchRes.status;
@@ -54,7 +63,7 @@ export default defineConfig(() => {
               } catch (err: any) {
                 res.statusCode = 502;
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ status: 'error', message: err.message }));
+                res.end(JSON.stringify({ status: 'error', message: err.message || 'Hostatom connection timeout' }));
                 return;
               }
             }

@@ -122,6 +122,8 @@ Update Timestamp (ISO): {iso_date}
             "database/01_mhs1_schema_mysql.sql": os.path.join(downloads_dir, "01_mhs1_schema_mysql.sql"),
             "database/02_mhs1_live_data_dump.sql": os.path.join(downloads_dir, "02_mhs1_live_data_dump.sql"),
             "database/03_sync_supabase_to_hostatom.sql": os.path.join(downloads_dir, "02_sync_supabase_to_hostatom.sql"),
+            "database/03_update_coordinates.sql": os.path.join(downloads_dir, "03_update_coordinates.sql"),
+            "database/04_update_coordinates_from_csv.sql": os.path.join(downloads_dir, "04_update_coordinates_from_csv.sql"),
         }
         for zip_entry, src_path in db_files.items():
             if os.path.exists(src_path):
