@@ -1,11 +1,254 @@
 import React, { useState, useMemo } from 'react';
 import { School, UserProfile, DownloadLog } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle, Clock, History } from 'lucide-react';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle, Clock, History, Map as MapIcon, Flame, Sun, Battery, Activity, Compass, Layers, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { getSchoolUpdateBadgeInfo } from '../utils/initialData';
+import { Map as PigeonMap, Overlay as PigeonOverlay } from 'pigeon-maps';
+import { getAmphoeAndNetwork } from '../utils/geoHelper';
+
+export type InfrastructureQualityLevel = 'optimal' | 'moderate' | 'low' | 'critical';
+export type ElectricityStabilityLevel = InfrastructureQualityLevel;
+export type HeatmapSystemType = 'electricity' | 'internet' | 'water';
+
+export interface InfrastructureQualityInfo {
+  level: InfrastructureQualityLevel;
+  score: number;
+  title: string;
+  shortLabel: string;
+  description: string;
+  color: string;
+  glowColor: string;
+  bgClass: string;
+  badgeClass: string;
+  icon: string;
+}
+
+export type ElectricityStabilityInfo = InfrastructureQualityInfo;
+
+export function getElectricityStability(school: School): InfrastructureQualityInfo {
+  const elecVal = String(school.electricity ?? '').toLowerCase();
+  const hasSolarBat = Boolean(school.hasSolarBattery);
+  const solarKw = parseFloat(school.solarKw || '0');
+
+  // 1. วิกฤต / ไม่มีไฟฟ้าถาวร
+  if (elecVal === 'none' || elecVal === 'false' || elecVal === '0' || elecVal.includes('ไม่มี') || elecVal.includes('ขาด')) {
+    return {
+      level: 'critical',
+      score: 15,
+      title: 'วิกฤต (ไม่มีระบบไฟฟ้า)',
+      shortLabel: 'วิกฤต/ไม่มีไฟ',
+      description: 'ไม่มีไฟฟ้าสายส่งและโซลาร์เซลล์ กระทบต่อการจัดการเรียนการสอนและเทคโนโลยี',
+      color: '#ef4444',
+      glowColor: 'rgba(239, 68, 68, 0.65)',
+      bgClass: 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200',
+      badgeClass: 'bg-rose-500 text-white',
+      icon: '❌'
+    };
+  }
+
+  // 2. โซลาร์เซลล์
+  if (elecVal === 'solar' || elecVal.includes('โซลาร์') || elecVal.includes('solar')) {
+    if (hasSolarBat) {
+      return {
+        level: 'moderate',
+        score: 65,
+        title: 'เสถียรปานกลาง (โซลาร์เซลล์ + แบตเตอรี่)',
+        shortLabel: 'ปานกลาง (โซลาร์+แบต)',
+        description: `ระบบโซลาร์เซลล์${solarKw ? ` ${solarKw} kW` : ''} พร้อมแบตเตอรี่สำรอง ใช้งานช่วงค่ำหรือฟ้าปิดได้ชั่วคราว`,
+        color: '#eab308',
+        glowColor: 'rgba(234, 179, 8, 0.65)',
+        bgClass: 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200',
+        badgeClass: 'bg-amber-500 text-slate-900',
+        icon: '☀️'
+      };
+    } else {
+      return {
+        level: 'low',
+        score: 40,
+        title: 'เสถียรต่ำ (โซลาร์เซลล์ไม่มีแบตเตอรี่สำรอง)',
+        shortLabel: 'เสถียรต่ำ (โซลาร์ไร้แบต)',
+        description: 'ใช้ไฟได้เฉพาะช่วงแดดออก ในฤดูฝนหรือหมอกหนาไฟฟ้าจะตกหรือดับทันที',
+        color: '#f97316',
+        glowColor: 'rgba(249, 115, 22, 0.65)',
+        bgClass: 'bg-orange-50 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200',
+        badgeClass: 'bg-orange-500 text-white',
+        icon: '⚠️'
+      };
+    }
+  }
+
+  // 3. ระบบไฮบริด (สายส่ง + โซลาร์สำรอง)
+  if (elecVal === 'hybrid' || elecVal.includes('ผสมผสาน') || elecVal.includes('hybrid')) {
+    return {
+      level: 'optimal',
+      score: 95,
+      title: 'เสถียรภาพสูงมาก (ระบบผสมผสาน Hybrid มีไฟสำรอง)',
+      shortLabel: 'เสถียรสูง (Hybrid สำรอง)',
+      description: 'เชื่อมโยงสายส่งร่วมกับโซลาร์เซลล์/แบตเตอรี่ มีความมั่นคงสูงสุด มีระบบสำรองฉุกเฉิน',
+      color: '#10b981',
+      glowColor: 'rgba(16, 185, 129, 0.65)',
+      bgClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200',
+      badgeClass: 'bg-emerald-600 text-white',
+      icon: '⚡'
+    };
+  }
+
+  // 4. ไฟฟ้าสายส่งถาวรจากการไฟฟ้าส่วนภูมิภาค (PEA)
+  return {
+    level: 'optimal',
+    score: 90,
+    title: 'เสถียรภาพสูง (ไฟฟ้าสายส่งถาวร PEA)',
+    shortLabel: 'เสถียรสูง (สายส่งถาวร)',
+    description: 'เชื่อมต่อโครงข่ายไฟฟ้าส่วนภูมิภาค สามารถใช้งานคอมพิวเตอร์และอุปกรณ์ไฟฟ้าได้สม่ำเสมอ',
+    color: '#059669',
+    glowColor: 'rgba(5, 150, 105, 0.65)',
+    bgClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200',
+    badgeClass: 'bg-emerald-600 text-white',
+    icon: '🔌'
+  };
+}
+
+export function getInternetQuality(school: School): InfrastructureQualityInfo {
+  const netVal = String(school.internet_type || school.internetType || '').toLowerCase().trim();
+
+  // 1. วิกฤต / ไม่มีอินเทอร์เน็ต
+  if (!netVal || netVal === 'none' || netVal === 'false' || netVal.includes('ไม่มี') || netVal.includes('ไม่ได้ใช้')) {
+    return {
+      level: 'critical',
+      score: 10,
+      title: 'วิกฤต (ไม่มีสัญญาณอินเทอร์เน็ต)',
+      shortLabel: 'วิกฤต/ไม่มีเน็ต',
+      description: 'ไม่มีการเชื่อมต่อเครือข่ายอินเทอร์เน็ต ขาดการเข้าถึงสื่อการเรียนรู้ดิจิทัลและระบบข้อมูลการศึกษา',
+      color: '#ef4444',
+      glowColor: 'rgba(239, 68, 68, 0.65)',
+      bgClass: 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200',
+      badgeClass: 'bg-rose-500 text-white',
+      icon: '❌'
+    };
+  }
+
+  // 2. ซิมมือถือ 4G/5G (ความเร็วและปริมาณจำกัด)
+  if (netVal === 'sim' || netVal.includes('sim') || netVal.includes('ซิม') || netVal.includes('cellular') || netVal.includes('4g') || netVal.includes('5g')) {
+    return {
+      level: 'low',
+      score: 45,
+      title: 'จำกัด/ความเร็วต่ำ (เครือข่าย Cellular SIM 4G/5G)',
+      shortLabel: 'จำกัด (ซิม 4G/5G)',
+      description: 'เชื่อมต่อผ่านเราเตอร์ใส่ซิมมือถือ ขอบข่ายสัญญาณไม่เสถียรตามภูมิประเทศภูเขาและมีข้อจำกัดด้านปริมาณเน็ต',
+      color: '#f97316',
+      glowColor: 'rgba(249, 115, 22, 0.65)',
+      bgClass: 'bg-orange-50 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200',
+      badgeClass: 'bg-orange-500 text-white',
+      icon: '📱'
+    };
+  }
+
+  // 3. ดาวเทียม Satellite / IPSTAR / Starlink
+  if (netVal === 'satellite' || netVal.includes('ดาวเทียม') || netVal.includes('sat') || netVal.includes('ipstar') || netVal.includes('starlink')) {
+    return {
+      level: 'moderate',
+      score: 65,
+      title: 'เสถียรปานกลาง (สัญญาณดาวเทียม Satellite/IPSTAR)',
+      shortLabel: 'ปานกลาง (ดาวเทียม)',
+      description: 'เชื่อมต่อผ่านจานรับสัญญาณดาวเทียม เข้าถึงยอดดอยได้ดี แต่อาจสะดุดช่วงฝนตกหนักหรือหมอกหนาทึบ',
+      color: '#eab308',
+      glowColor: 'rgba(234, 179, 8, 0.65)',
+      bgClass: 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200',
+      badgeClass: 'bg-amber-500 text-slate-900',
+      icon: '🛰️'
+    };
+  }
+
+  // 4. Fiber Optic
+  return {
+    level: 'optimal',
+    score: 95,
+    title: 'เสถียรภาพสูงมาก (สายใยแก้วนำแสง Fiber Optic)',
+    shortLabel: 'เสถียรสูง (Fiber Optic)',
+    description: 'เชื่อมโยงโครงข่ายสายใยแก้วนำแสงความเร็วสูง แบนด์วิดท์กว้าง เสถียร ไม่สะดุด รองรับการเรียนการสอน DLTV และ Big Data',
+    color: '#059669',
+    glowColor: 'rgba(5, 150, 105, 0.65)',
+    bgClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200',
+    badgeClass: 'bg-emerald-600 text-white',
+    icon: '🌐'
+  };
+}
+
+export function getWaterQuality(school: School): InfrastructureQualityInfo {
+  const waterVal = String(school.water_system || school.waterSystem || '').toLowerCase().trim();
+  const detail = school.water_system_detail || school.waterSystemDetail || '';
+
+  // 1. วิกฤต / ไม่มีน้ำประปา
+  if (!waterVal || waterVal === 'none' || waterVal === 'false' || waterVal.includes('ไม่มี') || waterVal.includes('ขาดแคลน')) {
+    return {
+      level: 'critical',
+      score: 15,
+      title: 'วิกฤต (ไม่มีแหล่งน้ำประปาประจำ)',
+      shortLabel: 'วิกฤต/ไม่มีน้ำใช้',
+      description: 'โรงเรียนไม่มีแหล่งน้ำประปาหรือระบบน้ำใช้ที่ถูกสุขอนามัย ต้องรองน้ำฝนหรือพึ่งพารถบรรทุกน้ำแจกจ่ายในฤดูแล้ง',
+      color: '#ef4444',
+      glowColor: 'rgba(239, 68, 68, 0.65)',
+      bgClass: 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200',
+      badgeClass: 'bg-rose-500 text-white',
+      icon: '❌'
+    };
+  }
+
+  // 2. แหล่งน้ำอื่น / บ่อบาดาล / น้ำฝน (เสี่ยงแห้งแล้ง)
+  if (waterVal === 'other' || waterVal.includes('อื่น') || waterVal.includes('บาดาล') || waterVal.includes('น้ำฝน')) {
+    return {
+      level: 'low',
+      score: 40,
+      title: 'เสี่ยงขาดแคลน (บ่อบาดาล / น้ำฝน / แหล่งน้ำอื่น)',
+      shortLabel: 'เสี่ยงขาดแคลน (บ่อ/น้ำฝน)',
+      description: detail ? `พึ่งพาแหล่งน้ำเฉพาะ: ${detail} เสี่ยงขาดแคลนช่วงหน้าแล้ง และต้องเฝ้าระวังคุณภาพตะกอนหินปูน` : 'พึ่งพาบ่อขุด บ่อบาดาล หรือการกักเก็บน้ำฝน มักขาดแคลนช่วงฤดูแล้ง',
+      color: '#f97316',
+      glowColor: 'rgba(249, 115, 22, 0.65)',
+      bgClass: 'bg-orange-50 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200',
+      badgeClass: 'bg-orange-500 text-white',
+      icon: '⚠️'
+    };
+  }
+
+  // 3. ประปาภูเขา / น้ำผุด
+  if (waterVal === 'mountain' || waterVal.includes('ภูเขา') || waterVal.includes('ผุด') || waterVal.includes('ลำห้วย')) {
+    return {
+      level: 'moderate',
+      score: 65,
+      title: 'เสถียรปานกลาง (ระบบประปาภูเขา / ตาน้ำธรรมชาติ)',
+      shortLabel: 'ปานกลาง (ประปาภูเขา)',
+      description: detail ? `ระบบประปาภูเขา: ${detail} ต่อน้ำจากลำห้วย/ตาน้ำบนดอย มีน้ำใช้ประจำปีแต่อาจขุ่นแดงช่วงฝนตกหนัก` : 'ต่อน้ำจากยอดดอย มีน้ำใช้ตามธรรมชาติ แต่อาจขุ่นแดงช่วงฤดูมรสุมและต้องบำรุงรักษาท่อส่งสม่ำเสมอ',
+      color: '#06b6d4',
+      glowColor: 'rgba(6, 182, 212, 0.65)',
+      bgClass: 'bg-cyan-50 text-cyan-900 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-200',
+      badgeClass: 'bg-cyan-600 text-white',
+      icon: '🏔️'
+    };
+  }
+
+  // 4. ประปาภาครัฐ / กปภ. / เทศบาล
+  return {
+    level: 'optimal',
+    score: 90,
+    title: 'คุณภาพสูง (ประปาภาครัฐ / กปภ. / ท้องถิ่น)',
+    shortLabel: 'คุณภาพสูง (ประปาภาครัฐ)',
+    description: 'เชื่อมต่อโครงข่ายประปาส่วนภูมิภาคหรือประปาเทศบาล/อบต. มีระบบกรองฆ่าเชื้อมาตรฐาน น้ำไหลสม่ำเสมอและถูกสุขอนามัย',
+    color: '#0284c7',
+    glowColor: 'rgba(2, 132, 199, 0.65)',
+    bgClass: 'bg-sky-50 text-sky-900 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200',
+    badgeClass: 'bg-sky-600 text-white',
+    icon: '🚰'
+  };
+}
+
+export function getInfrastructureQuality(school: School, system: HeatmapSystemType): InfrastructureQualityInfo {
+  if (system === 'internet') return getInternetQuality(school);
+  if (system === 'water') return getWaterQuality(school);
+  return getElectricityStability(school);
+}
 
 interface InfrastructureViewProps {
   schools: School[];
@@ -29,6 +272,15 @@ export default function InfrastructureView({
 }: InfrastructureViewProps) {
   // เมนูย่อยในหน้าโครงสร้างพื้นฐาน
   const [showCharts, setShowCharts] = useState<boolean>(true);
+
+  // สถานะแผนที่และระบบ Heatmap ความเสถียรไฟฟ้า/อินเทอร์เน็ต/น้ำประปา
+  const [showMap, setShowMap] = useState<boolean>(true); // ปุ่มเปิด/ปิดการแสดงผลส่วนแผนที่
+  const [isHeatmapActive, setIsHeatmapActive] = useState<boolean>(true); // ปุ่มเปิด/ปิดระบบ Heatmap Color-Coding
+  const [heatmapSystem, setHeatmapSystem] = useState<HeatmapSystemType>('electricity'); // สลับระบบ: ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา
+  const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string | null>(null);
+  const [stabilityFilter, setStabilityFilter] = useState<'all' | InfrastructureQualityLevel>('all');
+  const [mapCenter, setMapCenter] = useState<[number, number]>([19.3021, 97.9654]);
+  const [mapZoom, setMapZoom] = useState<number>(9);
 
   // รายการตัวเลือกไฟฟ้า อินเทอร์เน็ต และระบบประปา dynamic จาก systemConfig
   const electricityTypeList = useMemo(() => {
@@ -226,9 +478,12 @@ export default function InfrastructureView({
         if (!matchesName && !matchesId) return false;
       }
 
-      // 2. อำเภอ
-      if (amphoeFilter !== 'all' && school.amphoe !== amphoeFilter) {
-        return false;
+      // 2. อำเภอ (รองรับทั้ง 'เมือง' และ 'เมืองแม่ฮ่องสอน')
+      if (amphoeFilter !== 'all') {
+        const schAmp = school.amphoe || '';
+        const isMatch = schAmp === amphoeFilter ||
+          ((amphoeFilter === 'เมือง' || amphoeFilter === 'เมืองแม่ฮ่องสอน') && (schAmp === 'เมือง' || schAmp === 'เมืองแม่ฮ่องสอน' || schAmp.includes('เมือง')));
+        if (!isMatch) return false;
       }
 
       // 3. ขนาดโรงเรียน
@@ -313,6 +568,50 @@ export default function InfrastructureView({
       return true;
     });
   }, [schools, searchTerm, amphoeFilter, sizeFilter, electricMode, electricSelected, internetMode, internetSelected, waterMode, waterSelected, selectedMajor, majorMode]);
+
+  // สถิติคุณภาพระบบสำหรับระบบ GIS Heatmap Visualization (ไฟฟ้า / อินเทอร์เน็ต / น้ำประปา)
+  const stabilityStats = useMemo(() => {
+    let optimal = 0;
+    let moderate = 0;
+    let low = 0;
+    let critical = 0;
+
+    schools.forEach(s => {
+      const info = getInfrastructureQuality(s, heatmapSystem);
+      if (info.level === 'optimal') optimal++;
+      else if (info.level === 'moderate') moderate++;
+      else if (info.level === 'low') low++;
+      else if (info.level === 'critical') critical++;
+    });
+
+    const total = schools.length || 1;
+    return {
+      total: schools.length,
+      optimal,
+      moderate,
+      low,
+      critical,
+      optimalPercent: ((optimal / total) * 100).toFixed(1),
+      moderatePercent: ((moderate / total) * 100).toFixed(1),
+      lowPercent: ((low / total) * 100).toFixed(1),
+      criticalPercent: ((critical / total) * 100).toFixed(1),
+    };
+  }, [schools, heatmapSystem]);
+
+  // กรองโรงเรียนที่จะแสดงบนแผนที่ตามสถานะคุณภาพระบบที่เลือกและตัวกรองทั่วไป
+  const mapSchools = useMemo(() => {
+    return filteredSchools.filter(school => {
+      if (stabilityFilter === 'all') return true;
+      const info = getInfrastructureQuality(school, heatmapSystem);
+      return info.level === stabilityFilter;
+    });
+  }, [filteredSchools, stabilityFilter, heatmapSystem]);
+
+  // โรงเรียนที่ถูกคลิกเลือกในแผนที่
+  const selectedMapSchool = useMemo(() => {
+    if (!selectedMapSchoolId) return null;
+    return schools.find(s => s.id === selectedMapSchoolId) || null;
+  }, [schools, selectedMapSchoolId]);
 
   // คำนวณสถิติสำหรับสร้างกราฟ visualizer ตามข้อมูลที่กรองแล้ว
   const chartData = useMemo(() => {
@@ -704,6 +1003,21 @@ export default function InfrastructureView({
               <PieChartIcon className="h-4 w-4 shrink-0" />
               <span>{showCharts ? '📊 ซ่อนกราฟภาพรวม' : '📊 แสดงกราฟภาพรวม'}</span>
             </button>
+
+            {/* Toggle Heatmap Map Section */}
+            <button
+              type="button"
+              onClick={() => setShowMap(!showMap)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${
+                showMap
+                  ? 'bg-amber-300 text-amber-950 ring-1 ring-amber-400'
+                  : 'bg-white dark:bg-[#150e10] text-slate-700 dark:text-slate-200'
+              }`}
+              title="เปิด/ปิด การแสดงผลแผนที่ฮีตแมปความเสถียรไฟฟ้า"
+            >
+              <Flame className={`h-4 w-4 shrink-0 ${showMap ? 'text-orange-600 animate-pulse' : 'text-slate-400'}`} />
+              <span>{showMap ? '🗺️ ซ่อนแผนที่ฮีตแมป' : '🗺️ แผนที่ฮีตแมปไฟฟ้า'}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -990,6 +1304,693 @@ export default function InfrastructureView({
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗺️ ส่วนแผนที่ฮีตแมปเสถียรภาพระบบไฟฟ้า (Electricity Stability Heatmap Visualization) */}
+      {showMap && (
+        <div className="card p-4 sm:p-6 space-y-4 bg-gradient-to-br from-white via-amber-50/20 to-orange-50/30 dark:from-[#1e1518] dark:via-[#261c1f] dark:to-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-none animate-fade-in">
+          {/* Header แผนที่และปุ่มสลับโหมดฮีตแมป */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-950 border border-amber-400 shadow-xs">
+                  <Flame className="h-3 w-3 text-orange-600 animate-pulse" />
+                  <span>GIS Heatmap Visualization</span>
+                </span>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  สพป.แม่ฮ่องสอน เขต 1
+                </span>
+              </div>
+              <h2 className="text-base sm:text-xl font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">
+                {heatmapSystem === 'electricity' && <Zap className="h-5 w-5 text-amber-500 fill-amber-400" />}
+                {heatmapSystem === 'internet' && <Globe className="h-5 w-5 text-emerald-500" />}
+                {heatmapSystem === 'water' && <Droplets className="h-5 w-5 text-sky-500" />}
+                <span>
+                  {heatmapSystem === 'electricity' && 'แผนที่เสถียรภาพระบบไฟฟ้า (Electricity Stability Heatmap)'}
+                  {heatmapSystem === 'internet' && 'แผนที่คุณภาพเครือข่ายอินเทอร์เน็ต (Internet Quality Heatmap)'}
+                  {heatmapSystem === 'water' && 'แผนที่ความมั่นคงระบบน้ำประปา (Water Supply Heatmap)'}
+                </span>
+              </h2>
+              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">
+                {heatmapSystem === 'electricity' && 'วิเคราะห์ความมั่นคงของโครงข่ายพลังงานไฟฟ้าสถานศึกษาและห้องเรียนสาขาแบบ Color-Coding แสดงจุดเสี่ยงและพื้นที่เฝ้าระวัง'}
+                {heatmapSystem === 'internet' && 'วิเคราะห์ความเร็วและความเสถียรของระบบอินเทอร์เน็ต Fiber, ดาวเทียม Satellite และ Cellular SIM 4G/5G'}
+                {heatmapSystem === 'water' && 'วิเคราะห์ความสะอาดและความมั่นคงของแหล่งน้ำอุปโภคบริโภค ประปาภาครัฐ ประปาภูเขา และจุดเสี่ยงขาดแคลน'}
+              </p>
+            </div>
+
+            {/* ปุ่มเปิด-ปิดระบบ Heatmap และปุ่มลัดพิกัดอำเภอ */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* แถบสลับระบบ Heatmap (ไฟฟ้า / อินเทอร์เน็ต / น้ำประปา) */}
+              <div className="inline-flex p-1 rounded-xl bg-white dark:bg-slate-900 border-2 border-[#33272A] dark:border-[#FFD3B6]/30 shadow-[2px_2px_0px_#33272A] gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setHeatmapSystem('electricity'); setStabilityFilter('all'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
+                    heatmapSystem === 'electricity'
+                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
+                      : 'text-slate-600 hover:text-slate-950 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="สลับดูฮีตแมปเสถียรภาพระบบไฟฟ้า"
+                >
+                  <Zap className="h-3.5 w-3.5 fill-current" />
+                  <span>⚡ ไฟฟ้า</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setHeatmapSystem('internet'); setStabilityFilter('all'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
+                    heatmapSystem === 'internet'
+                      ? 'bg-emerald-500 text-white shadow-xs ring-1 ring-emerald-600'
+                      : 'text-slate-600 hover:text-slate-950 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="สลับดูฮีตแมปคุณภาพอินเทอร์เน็ต"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>🌐 อินเทอร์เน็ต</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setHeatmapSystem('water'); setStabilityFilter('all'); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
+                    heatmapSystem === 'water'
+                      ? 'bg-sky-500 text-white shadow-xs ring-1 ring-sky-600'
+                      : 'text-slate-600 hover:text-slate-950 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="สลับดูฮีตแมประบบน้ำประปา"
+                >
+                  <Droplets className="h-3.5 w-3.5 fill-current" />
+                  <span>🚰 น้ำประปา</span>
+                </button>
+              </div>
+
+              {/* ปุ่มเปิด/ปิด โหมด Heatmap Color-Coding (ตามคำขอ) */}
+              <button
+                type="button"
+                onClick={() => setIsHeatmapActive(!isHeatmapActive)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 cursor-pointer transition-all border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${
+                  isHeatmapActive
+                    ? 'bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400 text-slate-950 ring-2 ring-amber-300'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200'
+                }`}
+                title="คลิกเพื่อเปิดหรือปิดระบบสี Heatmap ความเสถียรไฟฟ้าบนหมุดแผนที่"
+              >
+                <Flame className={`h-4 w-4 shrink-0 ${isHeatmapActive ? 'text-rose-950 animate-bounce' : 'text-slate-400'}`} />
+                <span>{isHeatmapActive ? '🔥 ระบบ Heatmap: เปิดอยู่' : '📍 ระบบ Heatmap: ปิด (สีอำเภอ)'}</span>
+              </button>
+
+              {/* ปุ่มลัดซูมพิกัดตามอำเภอ */}
+              <div className="flex items-center gap-1 bg-[#FFF9F5] dark:bg-[#251b1e] p-1 rounded-xl border border-[#33272A]/20 dark:border-[#FFD3B6]/20 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapCenter([19.3021, 97.9654]);
+                    setMapZoom(9);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                  title="ภาพรวมทั้งเขต"
+                >
+                  🗺️ ทั้งเขต
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapCenter([19.3021, 97.9654]);
+                    setMapZoom(11);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  อ.เมือง
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapCenter([18.8400, 97.9400]);
+                    setMapZoom(11);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  อ.ขุนยวม
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapCenter([19.3600, 98.4400]);
+                    setMapZoom(11);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  อ.ปาย
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapCenter([19.5200, 98.2400]);
+                    setMapZoom(11);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  อ.ปางมะผ้า
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* การ์ดสถิติความเสถียรไฟฟ้า 4 ระดับ (คลิกที่การ์ดเพื่อกรองหมุดบนแผนที่ได้ทันที) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* ระดับ 1: เสถียรสูงมาก */}
+            <div
+              onClick={() => setStabilityFilter(stabilityFilter === 'optimal' ? 'all' : 'optimal')}
+              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                stabilityFilter === 'optimal'
+                  ? 'bg-emerald-100 border-emerald-600 ring-2 ring-emerald-500 shadow-md dark:bg-emerald-950/60'
+                  : 'bg-emerald-50/80 hover:bg-emerald-100/70 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  เสถียรภาพสูง
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-white dark:bg-emerald-900 px-1.5 py-0.5 rounded-md">
+                  {stabilityStats.optimalPercent}%
+                </span>
+              </div>
+              <div className="mt-2">
+                <div className="text-xl sm:text-2xl font-black text-emerald-950 dark:text-emerald-100">
+                  {stabilityStats.optimal} <span className="text-xs font-bold">แห่ง</span>
+                </div>
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium truncate mt-0.5">
+                  {heatmapSystem === 'electricity' && 'สายส่ง PEA / Hybrid มีสำรอง'}
+                  {heatmapSystem === 'internet' && 'สายใยแก้ว Fiber Optic เสถียรสูง'}
+                  {heatmapSystem === 'water' && 'ประปาภาครัฐ / กปภ. / ท้องถิ่น'}
+                </p>
+              </div>
+            </div>
+
+            {/* ระดับ 2: เสถียรปานกลาง */}
+            <div
+              onClick={() => setStabilityFilter(stabilityFilter === 'moderate' ? 'all' : 'moderate')}
+              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                stabilityFilter === 'moderate'
+                  ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-500 shadow-md dark:bg-amber-950/60'
+                  : 'bg-amber-50/80 hover:bg-amber-100/70 border-amber-300 dark:bg-amber-950/30 dark:border-amber-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  เสถียรปานกลาง
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 bg-white dark:bg-amber-900 px-1.5 py-0.5 rounded-md">
+                  {stabilityStats.moderatePercent}%
+                </span>
+              </div>
+              <div className="mt-2">
+                <div className="text-xl sm:text-2xl font-black text-amber-950 dark:text-amber-100">
+                  {stabilityStats.moderate} <span className="text-xs font-bold">แห่ง</span>
+                </div>
+                <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium truncate mt-0.5">
+                  {heatmapSystem === 'electricity' && 'โซลาร์เซลล์ + แบตเตอรี่สำรอง'}
+                  {heatmapSystem === 'internet' && 'ดาวเทียม Satellite / IPSTAR'}
+                  {heatmapSystem === 'water' && 'ระบบประปาภูเขา / ตาน้ำธรรมชาติ'}
+                </p>
+              </div>
+            </div>
+
+            {/* ระดับ 3: เสถียรต่ำ (เฝ้าระวัง) */}
+            <div
+              onClick={() => setStabilityFilter(stabilityFilter === 'low' ? 'all' : 'low')}
+              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                stabilityFilter === 'low'
+                  ? 'bg-orange-100 border-orange-600 ring-2 ring-orange-500 shadow-md dark:bg-orange-950/60'
+                  : 'bg-orange-50/80 hover:bg-orange-100/70 border-orange-300 dark:bg-orange-950/30 dark:border-orange-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-orange-800 dark:text-orange-300 flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                  เสถียรต่ำ
+                </span>
+                <span className="text-[10px] font-bold text-orange-700 bg-white dark:bg-orange-900 px-1.5 py-0.5 rounded-md">
+                  {stabilityStats.lowPercent}%
+                </span>
+              </div>
+              <div className="mt-2">
+                <div className="text-xl sm:text-2xl font-black text-orange-950 dark:text-orange-100">
+                  {stabilityStats.low} <span className="text-xs font-bold">แห่ง</span>
+                </div>
+                <p className="text-[10px] text-orange-700 dark:text-orange-300 font-medium truncate mt-0.5">
+                  {heatmapSystem === 'electricity' && 'โซลาร์เซลล์ไม่มีแบตเตอรี่สำรอง'}
+                  {heatmapSystem === 'internet' && 'เครือข่าย Cellular SIM 4G/5G'}
+                  {heatmapSystem === 'water' && 'บ่อบาดาล / น้ำฝน / อื่นๆ เสี่ยงแล้ง'}
+                </p>
+              </div>
+            </div>
+
+            {/* ระดับ 4: วิกฤต / ไม่มีไฟฟ้า */}
+            <div
+              onClick={() => setStabilityFilter(stabilityFilter === 'critical' ? 'all' : 'critical')}
+              className={`p-3 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                stabilityFilter === 'critical'
+                  ? 'bg-rose-100 border-rose-600 ring-2 ring-rose-500 shadow-md dark:bg-rose-950/60'
+                  : 'bg-rose-50/80 hover:bg-rose-100/70 border-rose-300 dark:bg-rose-950/30 dark:border-rose-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-rose-800 dark:text-rose-300 flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                  วิกฤต/ไม่มีไฟ
+                </span>
+                <span className="text-[10px] font-bold text-rose-700 bg-white dark:bg-rose-900 px-1.5 py-0.5 rounded-md">
+                  {stabilityStats.criticalPercent}%
+                </span>
+              </div>
+              <div className="mt-2">
+                <div className="text-xl sm:text-2xl font-black text-rose-950 dark:text-rose-100">
+                  {stabilityStats.critical} <span className="text-xs font-bold">แห่ง</span>
+                </div>
+                <p className="text-[10px] text-rose-700 dark:text-rose-300 font-medium truncate mt-0.5">
+                  {heatmapSystem === 'electricity' && 'ไม่มีระบบไฟฟ้าถาวร'}
+                  {heatmapSystem === 'internet' && 'ไม่มีสัญญาณอินเทอร์เน็ต'}
+                  {heatmapSystem === 'water' && 'ไม่มีแหล่งน้ำประปาประจำ'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ผังการทำงานหลัก: ฝั่งซ้าย Legend & Insights / ฝั่งขวา แผนที่ PigeonMap */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            {/* ซีกซ้าย: แถบอธิบายสัญลักษณ์ Heatmap & ตัวกรองความเสถียร & รายละเอียดโรงเรียนที่เลือก */}
+            <div className="space-y-3.5">
+              {/* แผงคำอธิบายสี Heatmap Color-Coding */}
+              <div className="p-3.5 rounded-2xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A]/20 dark:border-[#FFD3B6]/20 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
+                    <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+                    <span>
+                    {heatmapSystem === 'electricity' && 'เกณฑ์สี Heatmap เสถียรภาพไฟฟ้า'}
+                    {heatmapSystem === 'internet' && 'เกณฑ์สี Heatmap คุณภาพเน็ต'}
+                    {heatmapSystem === 'water' && 'เกณฑ์สี Heatmap ระบบน้ำประปา'}
+                  </span>
+                  </span>
+                  {stabilityFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setStabilityFilter('all')}
+                      className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  {/* เขียว: เสถียรสูง */}
+                  <div
+                    onClick={() => setStabilityFilter(stabilityFilter === 'optimal' ? 'all' : 'optimal')}
+                    className={`p-2 rounded-xl border transition cursor-pointer flex items-start gap-2.5 ${
+                      stabilityFilter === 'optimal' ? 'bg-emerald-100 border-emerald-500 font-black' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#059669] text-white flex items-center justify-center shrink-0 shadow-xs text-[11px]">
+                      ⚡
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-900 dark:text-emerald-200">🟢 สีเขียว: เสถียรภาพสูงมาก</span>
+                        <span className="text-[10px] font-bold text-slate-500">90-100%</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        {heatmapSystem === 'electricity' && 'ไฟฟ้าสายส่งถาวร (PEA) หรือระบบ Hybrid มีไฟสำรองฉุกเฉิน'}
+                        {heatmapSystem === 'internet' && 'สายใยแก้วนำแสง Fiber Optic ความเร็วสูง เสถียร ไม่สะดุด'}
+                        {heatmapSystem === 'water' && 'ประปาภาครัฐ / กปภ. / ท้องถิ่น มีการบำบัดน้ำได้มาตรฐาน'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* เหลือง: ปานกลาง */}
+                  <div
+                    onClick={() => setStabilityFilter(stabilityFilter === 'moderate' ? 'all' : 'moderate')}
+                    className={`p-2 rounded-xl border transition cursor-pointer flex items-start gap-2.5 ${
+                      stabilityFilter === 'moderate' ? 'bg-amber-100 border-amber-500 font-black' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#eab308] text-slate-950 flex items-center justify-center shrink-0 shadow-xs text-[11px]">
+                      ☀️
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-900 dark:text-amber-200">🟡 สีเหลือง: เสถียรปานกลาง</span>
+                        <span className="text-[10px] font-bold text-slate-500">65%</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        {heatmapSystem === 'electricity' && 'ระบบโซลาร์เซลล์พร้อมแบตเตอรี่สะสมพลังงาน ใช้งานกลางคืนได้'}
+                        {heatmapSystem === 'internet' && 'สัญญาณจานดาวเทียม Satellite/IPSTAR เข้าถึงยอดดอยได้'}
+                        {heatmapSystem === 'water' && 'ระบบประปาภูเขา / ตาน้ำธรรมชาติ มีน้ำใช้ตามฤดูกาล'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ส้ม: เสถียรต่ำ */}
+                  <div
+                    onClick={() => setStabilityFilter(stabilityFilter === 'low' ? 'all' : 'low')}
+                    className={`p-2 rounded-xl border transition cursor-pointer flex items-start gap-2.5 ${
+                      stabilityFilter === 'low' ? 'bg-orange-100 border-orange-500 font-black' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#f97316] text-white flex items-center justify-center shrink-0 shadow-xs text-[11px]">
+                      ⚠️
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-orange-900 dark:text-orange-200">🟠 สีส้ม: เสถียรต่ำ (เฝ้าระวัง)</span>
+                        <span className="text-[10px] font-bold text-slate-500">40%</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        {heatmapSystem === 'electricity' && 'โซลาร์เซลล์ไม่มีแบตเตอรี่สำรอง ไฟดับช่วงฟ้าปิดหรือหมอกหนา'}
+                        {heatmapSystem === 'internet' && 'เครือข่ายมือถือ Cellular SIM 4G/5G ขอบสัญญาณจำกัด'}
+                        {heatmapSystem === 'water' && 'บ่อขุด / บ่อบาดาล / น้ำฝน เสี่ยงขาดแคลนช่วงหน้าแล้ง'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* แดง: วิกฤต */}
+                  <div
+                    onClick={() => setStabilityFilter(stabilityFilter === 'critical' ? 'all' : 'critical')}
+                    className={`p-2 rounded-xl border transition cursor-pointer flex items-start gap-2.5 ${
+                      stabilityFilter === 'critical' ? 'bg-rose-100 border-rose-500 font-black' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-[#ef4444] text-white flex items-center justify-center shrink-0 shadow-xs text-[11px]">
+                      ❌
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-rose-900 dark:text-rose-200">🔴 สีแดง: วิกฤต / ไม่มีไฟฟ้า</span>
+                        <span className="text-[10px] font-bold text-slate-500">15%</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        {heatmapSystem === 'electricity' && 'ไม่มีระบบไฟฟ้าถาวร ต้องการการสนับสนุนแผงโซลาร์เร่งด่วน'}
+                        {heatmapSystem === 'internet' && 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ขาดแคลนสื่อการเรียนรู้'}
+                        {heatmapSystem === 'water' && 'ไม่มีระบบน้ำประปาประจำ ต้องพึ่งพาน้ำแจกจ่าย'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* การ์ดแสดงข้อมูลโรงเรียนที่ถูกคลิกเลือกในแผนที่ (Selected School Details) */}
+              {selectedMapSchool ? (
+                (() => {
+                  const sInfo = getInfrastructureQuality(selectedMapSchool, heatmapSystem);
+                  const elecInfo = getElectricityStability(selectedMapSchool);
+                  const netInfo = getInternetQuality(selectedMapSchool);
+                  const waterInfo = getWaterQuality(selectedMapSchool);
+                  const ampName = selectedMapSchool.amphoe || getAmphoeAndNetwork(selectedMapSchool.id, selectedMapSchool.name).amphoe;
+                  return (
+                    <div className="p-4 rounded-2xl bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[3px_3px_0px_#33272A] space-y-3 animate-fade-in">
+                      <div className="flex items-start justify-between gap-2 border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-500">รหัส {selectedMapSchool.id}</span>
+                          <h3 className="text-sm font-black text-[#33272A] dark:text-[#FFF9F5] leading-tight">
+                            {selectedMapSchool.name}
+                          </h3>
+                          <span className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
+                            อำเภอ{ampName}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMapSchoolId(null)}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* สถานะระบบตาม Layer ที่เลือก */}
+                      <div className={`p-2.5 rounded-xl border ${sInfo.bgClass} space-y-1`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black flex items-center gap-1.5">
+                            <span className="text-sm">{sInfo.icon}</span>
+                            <span>{sInfo.title}</span>
+                          </span>
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-white/70 dark:bg-black/30">
+                            คะแนน {sInfo.score}%
+                          </span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed">
+                          {sInfo.description}
+                        </p>
+                      </div>
+
+                      {/* สรุปย่อ 3 โครงสร้างพื้นฐานหลัก */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-wide">ภาพรวมสาธารณูปโภค 3 ระบบ:</div>
+                        <div className="grid grid-cols-1 gap-1 text-[11px]">
+                          <div className={`px-2 py-1 rounded-lg flex items-center justify-between border ${elecInfo.bgClass}`}>
+                            <span className="font-bold flex items-center gap-1">⚡ ไฟฟ้า:</span>
+                            <span className="font-black">{elecInfo.shortLabel}</span>
+                          </div>
+                          <div className={`px-2 py-1 rounded-lg flex items-center justify-between border ${netInfo.bgClass}`}>
+                            <span className="font-bold flex items-center gap-1">🌐 เน็ต:</span>
+                            <span className="font-black">{netInfo.shortLabel}</span>
+                          </div>
+                          <div className={`px-2 py-1 rounded-lg flex items-center justify-between border ${waterInfo.bgClass}`}>
+                            <span className="font-bold flex items-center gap-1">🚰 น้ำประปา:</span>
+                            <span className="font-black">{waterInfo.shortLabel}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ข้อมูลสเปกไฟฟ้าและสาธารณูปโภค */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 block">⚡ แหล่งจ่ายไฟ</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {selectedMapSchool.electricity === 'solar' ? 'โซลาร์เซลล์' : selectedMapSchool.electricity === 'hybrid' ? 'ระบบผสมผสาน' : selectedMapSchool.electricity === 'none' ? 'ไม่มีไฟฟ้า' : 'สายส่งถาวร (PEA)'}
+                          </span>
+                        </div>
+
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 block">🔋 แบตเตอรี่สำรอง</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {selectedMapSchool.hasSolarBattery ? '✅ มีแบตเตอรี่' : '❌ ไม่มีแบตสำรอง'}
+                          </span>
+                        </div>
+
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 block">🌐 อินเทอร์เน็ต</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {selectedMapSchool.internetType === 'fiber' ? 'ไฟเบอร์ออปติก' : selectedMapSchool.internetType === 'satellite' ? 'ดาวเทียม' : selectedMapSchool.internetType === 'sim' ? 'ซิม 4G' : 'ไม่มีเน็ต'}
+                          </span>
+                        </div>
+
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 block">🚰 ระบบน้ำประปา</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {selectedMapSchool.waterSystem === 'mountain' ? 'ประปาภูเขา' : selectedMapSchool.waterSystem === 'none' ? 'ไม่มีน้ำ' : selectedMapSchool.waterSystem === 'other' ? 'อื่นๆ' : 'ประปาภาครัฐ'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* ปุ่มไปที่รายละเอียดโรงเรียน */}
+                      <button
+                        type="button"
+                        onClick={() => onSelectSchool(selectedMapSchool.id)}
+                        className="w-full py-2 bg-[#FF8BA7] hover:bg-rose-300 text-[#33272A] font-black text-xs rounded-xl border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>ดูข้อมูลโรงเรียนนี้ฉบับเต็ม</span>
+                      </button>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-[#FFF9F5]/70 dark:bg-[#1e1518]/70 border-2 border-dashed border-[#33272A]/20 dark:border-[#FFD3B6]/20 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                  <MapPin className="h-5 w-5 mx-auto text-amber-500 mb-1" />
+                  <p className="font-bold text-[#33272A] dark:text-[#FFF9F5]">คลิกที่หมุดใดๆ ในแผนที่</p>
+                  <p className="text-[11px]">เพื่อดูสเปกความเสถียรไฟฟ้า แหล่งจ่าย และรายละเอียดโครงสร้างพื้นฐาน</p>
+                </div>
+              )}
+            </div>
+
+            {/* ซีกขวา: แผนที่ PigeonMap แสดงหมุดแบบ Heatmap Color-Coding */}
+            <div className="lg:col-span-2 min-w-0">
+              <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-slate-100 dark:bg-[#150e10] shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[420px] sm:h-[480px]">
+                <PigeonMap
+                  center={mapCenter}
+                  zoom={mapZoom}
+                  onBoundsChanged={({ center, zoom }) => {
+                    setMapCenter(center);
+                    setMapZoom(zoom);
+                  }}
+                >
+                  {/* วาดหมุดสถานศึกษาตามโหมด Heatmap หรือ โหมดปกติ */}
+                  {mapSchools.map(school => {
+                    const lat = Number(school.latitude) || 19.3021;
+                    const lng = Number(school.longitude) || 97.9654;
+                    const isSelected = selectedMapSchoolId === school.id;
+                    const stabInfo = getInfrastructureQuality(school, heatmapSystem);
+
+                    const ampName = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe || '';
+                    let standardPinColor = '#0284c7';
+                    if (ampName.includes('เมือง')) standardPinColor = '#0284c7';
+                    else if (ampName.includes('ขุนยวม')) standardPinColor = '#f43f5e';
+                    else if (ampName.includes('ปาย')) standardPinColor = '#f59e0b';
+                    else if (ampName.includes('ปางมะผ้า')) standardPinColor = '#8b5cf6';
+
+                    const isKhet = school.name.includes('เขตพื้นที่');
+                    const isBranch = school.name.includes('สาขา') || (school as any).isRemoteBranch;
+
+                    return (
+                      <PigeonOverlay
+                        key={school.id}
+                        anchor={[lat, lng]}
+                        offset={[isSelected ? 16 : 14, isSelected ? 32 : 28]}
+                      >
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMapSchoolId(school.id);
+                          }}
+                          className={`relative cursor-pointer flex flex-col items-center select-none transition-transform duration-150 ${
+                            isSelected ? 'z-50 scale-125' : 'z-20 hover:scale-125 hover:z-40'
+                          }`}
+                          title={`${school.name}: ${stabInfo.title} (อำเภอ${ampName})`}
+                        >
+                          {isHeatmapActive ? (
+                            /* โหมด Heatmap Color-Coding: หมุดสีตามความเสถียรไฟฟ้าพร้อมรัศมีออร่าความร้อน */
+                            <div className="relative flex flex-col items-center">
+                              {/* Heatmap Radiating Aura Halo */}
+                              <div
+                                className={`absolute rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 ${
+                                  stabInfo.level === 'critical' || stabInfo.level === 'low'
+                                    ? 'animate-pulse'
+                                    : ''
+                                }`}
+                                style={{
+                                  width: isSelected ? '56px' : '40px',
+                                  height: isSelected ? '56px' : '40px',
+                                  left: '50%',
+                                  top: '40%',
+                                  background: `radial-gradient(circle, ${stabInfo.glowColor} 0%, ${stabInfo.glowColor.replace('0.65', '0.15')} 55%, transparent 75%)`,
+                                  filter: 'blur(2px)',
+                                }}
+                              />
+
+                              {/* Borderless Heatmap Pin Body */}
+                              <div
+                                className="relative flex items-center justify-center rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all"
+                                style={{
+                                  width: isSelected ? '28px' : '23px',
+                                  height: isSelected ? '28px' : '23px',
+                                  backgroundColor: stabInfo.color,
+                                  border: isSelected ? '2px solid #ffffff' : '1.5px solid rgba(255,255,255,0.7)',
+                                }}
+                              >
+                                <span className="text-[11px] leading-none select-none text-white font-black drop-shadow-sm">
+                                  {stabInfo.icon}
+                                </span>
+                              </div>
+
+                              {/* Heatmap Pin Pointer Tip */}
+                              <div
+                                className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] -mt-[1px]"
+                                style={{ borderTopColor: stabInfo.color }}
+                              />
+
+                              {/* Selected ping ring */}
+                              {isSelected && (
+                                <div className="w-3.5 h-1 bg-[#FF8BA7] rounded-full blur-[1px] animate-ping -mt-0.5" />
+                              )}
+                            </div>
+                          ) : (
+                            /* โหมดปกติ: หมุดตามอำเภอและสัญลักษณ์สถานศึกษาแบบไร้กรอบ */
+                            isKhet ? (
+                              <svg
+                                viewBox="0 0 32 32"
+                                className="w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+                              >
+                                <polygon
+                                  points="16,1 19.8,10.6 30.1,11.5 22.4,18.3 24.7,28.3 16,23.1 7.3,28.3 9.6,18.3 1.9,11.5 12.2,10.6"
+                                  fill="#fbbf24"
+                                  stroke="#b45309"
+                                  strokeWidth="1.2"
+                                />
+                                <polygon
+                                  points="16,4 18.7,11.4 26,12.1 20.5,16.8 22.1,23.9 16,20.2 9.9,23.9 11.5,16.8 6,12.1 13.3,11.4"
+                                  fill="#fef08a"
+                                />
+                              </svg>
+                            ) : isBranch ? (
+                              <svg
+                                viewBox="0 0 32 32"
+                                className="w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+                              >
+                                <ellipse cx="8" cy="29" rx="5" ry="2" fill="#334155" stroke="#0f172a" strokeWidth="0.8" />
+                                <line x1="8" y1="3" x2="8" y2="29" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+                                <line x1="7.5" y1="3" x2="7.5" y2="29" stroke="#ffffff" strokeWidth="0.8" strokeLinecap="round" />
+                                <circle cx="8" cy="3" r="1.8" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                                <g transform="translate(9, 4)">
+                                  <path d="M 0 0 C 6 2, 12 -1, 19 1 L 19 13 C 12 11, 6 14, 0 12 Z" fill="#ED1C24" />
+                                  <path d="M 0 2 C 6 4, 12 1, 19 3 L 19 11 C 12 9, 6 12, 0 10 Z" fill="#FFFFFF" />
+                                  <path d="M 0 4 C 6 6, 12 3, 19 5 L 19 9 C 12 7, 6 10, 0 8 Z" fill="#241D4F" />
+                                </g>
+                              </svg>
+                            ) : (
+                              <svg
+                                viewBox="0 0 32 32"
+                                className="w-7 h-7 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+                              >
+                                <rect x="2" y="27" width="28" height="3" rx="1" fill="#475569" />
+                                <rect x="4" y="13" width="24" height="14" rx="1" fill={standardPinColor} stroke="#1e293b" strokeWidth="1" />
+                                <polygon points="16,4 2,13 30,13" fill="#e11d48" stroke="#9f1239" strokeWidth="1" />
+                                <rect x="13.5" y="4" width="5" height="5" fill="#f8fafc" stroke="#1e293b" strokeWidth="0.8" />
+                                <circle cx="16" cy="6.5" r="1.6" fill="#fbbf24" stroke="#d97706" strokeWidth="0.6" />
+                                <rect x="6.5" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                                <rect x="22" y="16" width="3.5" height="4" rx="0.5" fill="#ffffff" stroke="#1e293b" strokeWidth="0.6" />
+                                <rect x="13" y="18" width="6" height="9" rx="0.8" fill="#1e293b" />
+                              </svg>
+                            )
+                          )}
+                        </div>
+                      </PigeonOverlay>
+                    );
+                  })}
+
+                  {/* ป้ายชื่อและสถานะลอยบนหัวหมุดที่ถูกเลือก */}
+                  {selectedMapSchool && (
+                    <PigeonOverlay
+                      anchor={[Number(selectedMapSchool.latitude) || 19.3021, Number(selectedMapSchool.longitude) || 97.9654]}
+                      offset={[0, -38]}
+                    >
+                      <div className="bg-[#FFF9F5] border-2 border-[#33272A] px-2.5 py-1.5 rounded-xl text-[10px] font-black text-[#33272A] shadow-[2px_2px_0px_#33272A] dark:bg-[#1e1518] dark:text-[#FFF9F5] whitespace-nowrap z-50 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span>📍 {selectedMapSchool.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${getInfrastructureQuality(selectedMapSchool, heatmapSystem).badgeClass}`}>
+                            {getInfrastructureQuality(selectedMapSchool, heatmapSystem).shortLabel}
+                          </span>
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                          อำเภอ{selectedMapSchool.amphoe || getAmphoeAndNetwork(selectedMapSchool.id, selectedMapSchool.name).amphoe} • คลิกดูข้อมูลด้านซ้าย
+                        </div>
+                      </div>
+                    </PigeonOverlay>
+                  )}
+                </PigeonMap>
+
+                {/* แถบคำแนะนำการใช้งานแผนที่ */}
+                <div className="absolute bottom-2 left-2 right-2 bg-white/90 dark:bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 flex items-center justify-between pointer-events-none">
+                  <span>💡 ใช้ลูกกลิ้งเมาส์เพื่อซูมเข้า-ออก หรือลากแผนที่เพื่อเลื่อนดูตำแหน่งสถานศึกษา</span>
+                  <span className="text-amber-700 dark:text-amber-300">
+                    แสดงหมุด {mapSchools.length} แห่ง
+                  </span>
+                </div>
               </div>
             </div>
           </div>

@@ -340,7 +340,11 @@ export default function SchoolListView({
       }
       
       const schoolAmphoe = school.amphoe || getAmphoeAndNetwork(school.id, school.name).amphoe;
-      const matchesAmphoe = amphoeFilter === 'all' || schoolAmphoe === amphoeFilter;
+      const matchesAmphoe = amphoeFilter === 'all' || 
+        schoolAmphoe === amphoeFilter || 
+        (amphoeFilter.includes('เมือง') && schoolAmphoe.includes('เมือง')) ||
+        schoolAmphoe.includes(amphoeFilter) || 
+        amphoeFilter.includes(schoolAmphoe);
 
       const validGroupNames = new Set(SCHOOL_GROUPS_LIST.map(g => g.name));
       let schoolNetwork = school.networkGroup;

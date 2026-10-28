@@ -124,6 +124,7 @@ Update Timestamp (ISO): {iso_date}
             "database/03_sync_supabase_to_hostatom.sql": os.path.join(downloads_dir, "02_sync_supabase_to_hostatom.sql"),
             "database/03_update_coordinates.sql": os.path.join(downloads_dir, "03_update_coordinates.sql"),
             "database/04_update_coordinates_from_csv.sql": os.path.join(downloads_dir, "04_update_coordinates_from_csv.sql"),
+            "database/05_update_amphoe.sql": os.path.join(downloads_dir, "05_update_amphoe.sql"),
         }
         for zip_entry, src_path in db_files.items():
             if os.path.exists(src_path):
