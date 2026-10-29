@@ -473,9 +473,9 @@ export default function InfrastructureView({
     return schools.filter(school => {
       // 1. ค้นหาด้วยชื่อหรือรหัส
       if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        const matchesName = school.name.toLowerCase().includes(term);
-        const matchesId = school.id.includes(term);
+        const term = (searchTerm || '').toLowerCase();
+        const matchesName = (school.name || '').toLowerCase().includes(term);
+        const matchesId = (school.id || '').includes(term);
         if (!matchesName && !matchesId) return false;
       }
 

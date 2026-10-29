@@ -283,19 +283,20 @@ export default function SchoolListView({
   // คัดกรองข้อมูลโรงเรียน
   const filteredSchools = useMemo(() => {
     return schoolsWithCounts.filter(school => {
-      const q = searchTerm.toLowerCase();
+      const q = (searchTerm || '').toLowerCase();
       const matchesClassroom = school.classrooms && school.classrooms.some(c => 
-        c.name.toLowerCase().includes(q) ||
-        (c.teacherName && c.teacherName.toLowerCase().includes(q)) ||
-        (c.gradeLevel && c.gradeLevel.toLowerCase().includes(q))
+        (c?.name && String(c.name).toLowerCase().includes(q)) ||
+        ((c as any)?.grade && String((c as any).grade).toLowerCase().includes(q)) ||
+        (c?.teacherName && String(c.teacherName).toLowerCase().includes(q)) ||
+        (c?.gradeLevel && String(c.gradeLevel).toLowerCase().includes(q))
       );
-      const matchesMajorQuery = (school.majorSubjects && school.majorSubjects.some(m => m.toLowerCase().includes(q))) ||
-                                (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.some(ms => ms.name.toLowerCase().includes(q)));
+      const matchesMajorQuery = (school.majorSubjects && school.majorSubjects.some(m => m && String(m).toLowerCase().includes(q))) ||
+                                (school.majorSubjectsWithStaff && school.majorSubjectsWithStaff.some(ms => ms?.name && String(ms.name).toLowerCase().includes(q)));
 
-      const matchesSearch = school.name.toLowerCase().includes(q) ||
-                            school.id.includes(searchTerm) ||
-                            matchesClassroom ||
-                            matchesMajorQuery;
+      const matchesSearch = (school.name && String(school.name).toLowerCase().includes(q)) ||
+                            (school.id && String(school.id).includes(searchTerm)) ||
+                            Boolean(matchesClassroom) ||
+                            Boolean(matchesMajorQuery);
       const matchesSize = sizeFilter === 'all' || school.size === sizeFilter;
       const matchesType = typeFilter === 'all' || 
                           (typeFilter === 'expansion' && school.isExpansion) ||

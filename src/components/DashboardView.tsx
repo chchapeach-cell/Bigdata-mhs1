@@ -866,9 +866,9 @@ export default function DashboardView({
       if (!gSchoolSearchQuery) return true;
       const q = gSchoolSearchQuery.toLowerCase();
       return (
-        item.schoolName.toLowerCase().includes(q) ||
-        item.amphoe.toLowerCase().includes(q) ||
-        item.network.toLowerCase().includes(q)
+        (item.schoolName || '').toLowerCase().includes(q) ||
+        (item.amphoe || '').toLowerCase().includes(q) ||
+        (item.network || '').toLowerCase().includes(q)
       );
     });
 
@@ -1555,7 +1555,7 @@ export default function DashboardView({
               <div className="bg-[#FFF9F5] dark:bg-slate-900 border-2 border-[#33272A] dark:border-slate-800 rounded-2xl p-4 shadow-md h-[180px] overflow-y-auto space-y-2 custom-scrollbar">
                 {(() => {
                   const filtered = aggregatedMajors.filter(m => 
-                    m.name.toLowerCase().includes(majorSearchQuery.toLowerCase())
+                    (m.name || '').toLowerCase().includes((majorSearchQuery || '').toLowerCase())
                   );
 
                   if (filtered.length === 0) {
