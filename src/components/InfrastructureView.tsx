@@ -276,6 +276,7 @@ export default function InfrastructureView({
   // สถานะแผนที่และระบบ Heatmap ความเสถียรไฟฟ้า/อินเทอร์เน็ต/น้ำประปา
   const [showMap, setShowMap] = useState<boolean>(true); // ปุ่มเปิด/ปิดการแสดงผลส่วนแผนที่
   const [isHeatmapActive, setIsHeatmapActive] = useState<boolean>(true); // ปุ่มเปิด/ปิดระบบ Heatmap Color-Coding
+  const [isMobileMapInteractive, setIsMobileMapInteractive] = useState<boolean>(false); // ป้องกัน Map Scroll Trap บนมือถือ
   const [heatmapSystem, setHeatmapSystem] = useState<HeatmapSystemType>('electricity'); // สลับระบบ: ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา
   const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string | null>(null);
   const [stabilityFilter, setStabilityFilter] = useState<'all' | InfrastructureQualityLevel>('all');
@@ -1822,6 +1823,43 @@ export default function InfrastructureView({
             {/* ซีกขวา: แผนที่ PigeonMap แสดงหมุดแบบ Heatmap Color-Coding */}
             <div className="lg:col-span-2 min-w-0">
               <div className="relative overflow-hidden rounded-2xl border-2 border-[#33272A] bg-slate-100 dark:bg-[#150e10] shadow-[4px_4px_0px_#33272A] dark:border-[#FFD3B6] dark:shadow-none h-[420px] sm:h-[480px]">
+                {/* ปุ่มควบคุมการซูมแบบแตะครั้งเดียว (Single-tap Zoom Controls) */}
+                <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 shadow-md">
+                  <button
+                    type="button"
+                    onClick={() => setMapZoom(prev => Math.min(prev + 1, 18))}
+                    className="w-8 h-8 rounded-lg bg-white/95 dark:bg-slate-800/95 border-2 border-[#33272A] dark:border-[#FFD3B6] text-slate-800 dark:text-slate-100 font-black text-base flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+                    title="ซูมเข้า (+)"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapZoom(prev => Math.max(prev - 1, 6))}
+                    className="w-8 h-8 rounded-lg bg-white/95 dark:bg-slate-800/95 border-2 border-[#33272A] dark:border-[#FFD3B6] text-slate-800 dark:text-slate-100 font-black text-base flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+                    title="ซูมออก (-)"
+                  >
+                    -
+                  </button>
+                </div>
+
+                {/* แถบปลดล็อกแผนที่บนมือถือ ป้องกันปัญหานิ้วติดแผนที่เลื่อนหน้าจอไม่ได้ */}
+                <div className="sm:hidden absolute top-3 left-3 z-30">
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMapInteractive(!isMobileMapInteractive)}
+                    className={`px-2.5 py-1.5 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] text-[10px] font-black shadow-xs flex items-center gap-1.5 transition-all ${
+                      isMobileMapInteractive
+                        ? 'bg-rose-500 text-white animate-pulse'
+                        : 'bg-white/95 dark:bg-slate-800/95 text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    {isMobileMapInteractive ? '🔒 ล็อก (เพื่อเลื่อนหน้าจอต่อ)' : '👆 แตะเพื่อเลื่อนแผนที่'}
+                  </button>
+                </div>
+
+                {/* Container for PigeonMap with mobile touch protection */}
+                <div className={`w-full h-full ${!isMobileMapInteractive ? 'sm:pointer-events-auto pointer-events-none' : ''}`}>
                 <PigeonMap
                   center={mapCenter}
                   zoom={mapZoom}
@@ -1983,6 +2021,7 @@ export default function InfrastructureView({
                     </PigeonOverlay>
                   )}
                 </PigeonMap>
+                </div>
 
                 {/* แถบคำแนะนำการใช้งานแผนที่ */}
                 <div className="absolute bottom-2 left-2 right-2 bg-white/90 dark:bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 flex items-center justify-between pointer-events-none">

@@ -54,10 +54,11 @@ try {
         $pdo->exec("ALTER TABLE `schools` MODIFY `director_image_url` LONGTEXT DEFAULT NULL");
     } catch (Exception $e) {}
 } catch (PDOException $e) {
+    error_log('Database connection error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'status' => 'error', 
-        'message' => 'ไม่สามารถเชื่อมต่อฐานข้อมูล MySQL ได้: ' . $e->getMessage(),
+        'message' => 'ไม่สามารถเชื่อมต่อฐานข้อมูล MySQL ได้ กรุณาตรวจสอบการตั้งค่าใน api/config.php',
         'tip' => 'กรุณาตรวจสอบชื่อฐานข้อมูล ชื่อผู้ใช้ และรหัสผ่านในไฟล์ api/config.php'
     ]);
     exit;
