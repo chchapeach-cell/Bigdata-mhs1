@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <!-- Retro Pastel Rounded Card Container -->
+  <rect x="3" y="3" width="94" height="94" rx="22" fill="#FFF9F5" stroke="#33272A" stroke-width="4" />
+  
+  <!-- TOP TOASTED BUN -->
+  <path d="M 18 43 C 18 20, 82 20, 82 43 Z" fill="#F59E0B" stroke="#33272A" stroke-width="4" stroke-linejoin="round" />
+  <!-- Top Bun Highlight Arc -->
+  <path d="M 27 36 C 33 25, 67 25, 73 36" fill="none" stroke="#FDE68A" stroke-width="3" stroke-linecap="round" />
+
+  <!-- SESAME SEEDS -->
+  <ellipse cx="34" cy="28" rx="2.4" ry="1.4" transform="rotate(-15 34 28)" fill="#FEF3C7" stroke="#33272A" stroke-width="1.2" />
+  <ellipse cx="50" cy="24" rx="2.4" ry="1.4" fill="#FEF3C7" stroke="#33272A" stroke-width="1.2" />
+  <ellipse cx="66" cy="29" rx="2.4" ry="1.4" transform="rotate(20 66 29)" fill="#FEF3C7" stroke="#33272A" stroke-width="1.2" />
+  <ellipse cx="42" cy="35" rx="2.4" ry="1.4" transform="rotate(10 42 35)" fill="#FEF3C7" stroke="#33272A" stroke-width="1.2" />
+  <ellipse cx="58" cy="35" rx="2.4" ry="1.4" transform="rotate(-10 58 35)" fill="#FEF3C7" stroke="#33272A" stroke-width="1.2" />
+
+  <!-- JUICY RED TOMATO SLICE -->
+  <rect x="17" y="43" width="66" height="7" rx="3.5" fill="#EF4444" stroke="#33272A" stroke-width="3.5" />
+  <line x1="28" y1="46.5" x2="42" y2="46.5" stroke="#FCA5A5" stroke-width="2" stroke-linecap="round" />
+  <line x1="58" y1="46.5" x2="72" y2="46.5" stroke="#FCA5A5" stroke-width="2" stroke-linecap="round" />
+
+  <!-- MELTED CHEDDAR CHEESE (Dripping Corners) -->
+  <polygon points="15,50 85,50 81,57 66,57 60,65 53,57 37,57 31,66 24,57 15,57" fill="#FBBF24" stroke="#33272A" stroke-width="3.5" stroke-linejoin="round" />
+
+  <!-- SAVORY BURGER PATTY -->
+  <rect x="17" y="57" width="66" height="11" rx="5.5" fill="#78350F" stroke="#33272A" stroke-width="3.5" />
+  <line x1="26" y1="62.5" x2="42" y2="62.5" stroke="#92400E" stroke-width="2" stroke-linecap="round" />
+  <line x1="56" y1="62.5" x2="74" y2="62.5" stroke="#92400E" stroke-width="2" stroke-linecap="round" />
+
+  <!-- FRESH GREEN WAVY LETTUCE -->
+  <path d="M 15 67 C 19 63, 23 71, 27 67 C 31 63, 35 71, 39 67 C 43 63, 47 71, 51 67 C 55 63, 59 71, 63 67 C 67 63, 71 71, 75 67 C 79 63, 83 71, 85 67" fill="#22C55E" stroke="#33272A" stroke-width="3.5" stroke-linejoin="round" />
+
+  <!-- BOTTOM TOASTED BUN -->
+  <path d="M 19 70 L 81 70 C 81 83, 19 83, 19 70 Z" fill="#F59E0B" stroke="#33272A" stroke-width="4" stroke-linejoin="round" />
+  <path d="M 28 77 C 40 80, 60 80, 72 77" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" />
+</svg>

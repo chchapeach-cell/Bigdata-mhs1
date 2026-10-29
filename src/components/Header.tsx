@@ -88,9 +88,15 @@ export default function Header({
         >
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#FFF9F5] dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_0px_#33272A] dark:shadow-[2px_2px_0px_0px_#FFD3B6] overflow-hidden transition-transform duration-200 group-hover:scale-105 shrink-0 p-0.5">
             <img 
-              src="/assets/aistudio/image_bec6272a.png" 
-              alt="MHS1 BigData Icon" 
+              src="/hamburger.png" 
+              alt="MHS1 BigData Hamburger Icon" 
               className="h-full w-full object-contain"
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (target.src !== window.location.origin + '/hamburger.svg') {
+                  target.src = '/hamburger.svg';
+                }
+              }}
             />
           </div>
           <div className="min-w-0">
@@ -277,9 +283,15 @@ export default function Header({
           <div className="flex items-center justify-between border-b border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-2">
             <div className="flex items-center gap-2">
               <img 
-                src="/assets/aistudio/image_bec6272a.png" 
-                alt="Icon" 
+                src="/hamburger.png" 
+                alt="Hamburger Icon" 
                 className="h-6 w-6 object-contain"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  if (target.src !== window.location.origin + '/hamburger.svg') {
+                    target.src = '/hamburger.svg';
+                  }
+                }}
               />
               <span className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">เมนูหลัก BigData MHS1</span>
             </div>

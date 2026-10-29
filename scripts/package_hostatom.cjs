@@ -128,6 +128,11 @@ require_once __DIR__ . '/config.php';
 
 // ตั้งค่า CORS เพื่อความปลอดภัยและรองรับการเรียกจากแอพ
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: geolocation=(self), camera=(), microphone=()');
+header("Content-Security-Policy: default-src 'self' 'unsafe-inline' https: data: blob:;");
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key');

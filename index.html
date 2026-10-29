@@ -2,8 +2,10 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/assets/aistudio/image_bec6272a.png" />
-    <link rel="apple-touch-icon" href="/assets/aistudio/image_bec6272a.png" />
+    <link rel="icon" type="image/png" href="/hamburger.png" />
+    <link rel="apple-touch-icon" href="/hamburger.png" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MHS1 Big Data - ระบบข้อมูลสารสนเทศทางการศึกษา สพป.แม่ฮ่องสอน เขต 1</title>
     <meta name="description" content="ระบบฐานข้อมูลและสารสนเทศทางการศึกษา สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1 (สพป.มส.1)" />
@@ -14,7 +16,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body class="bg-slate-50 font-['Sarabun',sans-serif] text-slate-800 antialiased">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #FFF9F5; font-family: 'Sarabun', sans-serif;">
+        <style>
+          @keyframes mhs1Spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+        <div style="position: relative; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; width: 78px; height: 78px; border-radius: 50%; border: 3.5px solid transparent; border-top-color: #FF8BA7; border-right-color: #A0E7E5; border-bottom-color: #FFD3B6; animation: mhs1Spin 1.4s linear infinite;"></div>
+          <img src="/hamburger.png" alt="MHS1 Hamburger Icon" style="width: 50px; height: 50px; object-fit: contain; animation: mhs1Spin 3s ease-in-out infinite;" />
+        </div>
+        <p style="margin-top: 18px; font-weight: 800; font-size: 14px; color: #33272A; letter-spacing: 0.3px;">กำลังโหลดระบบ MHS1 BigData...</p>
+        <p style="margin-top: 4px; font-size: 11px; font-weight: 600; color: #71717a;">สำนักงานเขตพื้นที่การศึกษาประถมศึกษาแม่ฮ่องสอน เขต 1</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

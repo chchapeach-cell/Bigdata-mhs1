@@ -85,7 +85,7 @@ Update Timestamp (ISO): {iso_date}
         zf.writestr("README_HOSTATOM.txt", readme_content.encode("utf-8"))
 
         # 2. Add Frontend root files from dist/
-        root_files = ["index.html", "manifest.json", "sw.js", "icon-192.png", "icon-512.png", "icon.svg"]
+        root_files = ["index.html", "manifest.json", "sw.js", "hamburger.png", "hamburger.svg", "icon.png", "favicon.png", "icon-192.png", "icon-512.png", "icon.svg"]
         for rf in root_files:
             fp = os.path.join(dist_dir, rf)
             if os.path.exists(fp):
@@ -103,9 +103,16 @@ Update Timestamp (ISO): {iso_date}
         # 4. Add .htaccess
         htaccess_src = os.path.join(downloads_dir, ".htaccess")
         if not os.path.exists(htaccess_src):
+            htaccess_src = os.path.join(public_dir, ".htaccess")
+        if not os.path.exists(htaccess_src):
             htaccess_src = os.path.join(base_dir, ".htaccess")
         if os.path.exists(htaccess_src):
             zf.write(htaccess_src, ".htaccess")
+            try:
+                import shutil
+                shutil.copyfile(htaccess_src, os.path.join(dist_dir, ".htaccess"))
+            except Exception as e:
+                print(f"Notice copying .htaccess to dist: {e}")
 
         # 5. Add api/ folder
         api_files = {

@@ -1,39 +1,53 @@
-# ==============================================================================
-# MHS1 BIGDATA - Apache Configuration (.htaccess) สำหรับ Hostatom
-# รองรับ React Single Page Application (SPA), REST API, และความปลอดภัย
-# ==============================================================================
+# ============================================================================
+# MHS1 BIGDATA - APACHE SECURITY HEADERS & URL REWRITING CONFIGURATION
+# สำหรับการ Deploy บน Hostatom / cPanel / DirectAdmin / Apache 2.4+
+# ============================================================================
 
-Options -Indexes
-RewriteEngine On
-
-# 1. อนุญาตให้โฟลเดอร์ api และไฟล์จริงทำงานได้ปกติ
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-# 2. ส่ง Request อื่นๆ ทั้งหมดไปยัง index.html เพื่อรองรับ SPA Client Routing
-RewriteRule ^ index.html [L]
-
-# 3. เปิดใช้งาน GZIP Compression เพื่อลดขนาดและเพิ่มความเร็วในการโหลด
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json application/xml image/svg+xml
-</IfModule>
-
-# 4. แคชไฟล์ Assets (JS/CSS/รูปภาพ) 1 เดือน เพื่อประหยัด Bandwidth
-<IfModule mod_expires.c>
-    ExpiresActive On
-    ExpiresDefault "access plus 1 day"
-    ExpiresByType text/html "access plus 0 seconds"
-    ExpiresByType text/css "access plus 1 month"
-    ExpiresByType application/javascript "access plus 1 month"
-    ExpiresByType image/png "access plus 1 month"
-    ExpiresByType image/jpeg "access plus 1 month"
-    ExpiresByType image/svg+xml "access plus 1 month"
-</IfModule>
-
-# 5. ความปลอดภัย HTTP Headers
+# 1. SECURITY HEADERS (ป้องกันช่องโหว่ความปลอดภัยระดับสูงสุด)
 <IfModule mod_headers.c>
-    Header set X-Content-Type-Options "nosniff"
-    Header set X-XSS-Protection "1; mode=block"
-    Header set X-Frame-Options "SAMEORIGIN"
+  # ป้องกัน Clickjacking / Framing Protection
+  Header set X-Frame-Options "SAMEORIGIN"
+
+  # ป้องกัน MIME-type Sniffing
+  Header set X-Content-Type-Options "nosniff"
+
+  # ควบคุมการส่งต่อข้อมูล Referrer
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # กำหนดสิทธิ์การเข้าถึงอุปกรณ์ (อนุญาต GPS สำหรับดึงพิกัดโรงเรียน)
+  Header set Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+
+  # กำหนด Content Security Policy (CSP) รองรับ React SPA, Google Fonts, Maps Iframe และ REST APIs
+  Header set Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; img-src 'self' https: data: blob:; font-src 'self' https: data:; connect-src 'self' https: wss:; frame-src 'self' https://www.google.com https://maps.google.com;"
+
+  # ลบข้อมูลระบุเวอร์ชันเซิร์ฟเวอร์
+  Header unset X-Powered-By
+</IfModule>
+
+# 2. URL REWRITING (สำหรับ React Single Page Application)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# 3. GZIP COMPRESSION (เพิ่มความเร็วการโหลดเว็บสูงสุด 5-10 เท่า)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# 4. BROWSER CACHING (แคชไฟล์คงที่เพื่อลดภาระเซิร์ฟเวอร์)
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access plus 1 month"
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/gif "access plus 1 month"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/webp "access plus 1 month"
+  ExpiresByType text/css "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 week"
 </IfModule>
