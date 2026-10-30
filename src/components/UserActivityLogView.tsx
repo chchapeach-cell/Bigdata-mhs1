@@ -3,7 +3,7 @@ import {
   History, Search, Filter, RefreshCw, Download, Trash2, User, School as SchoolIcon, 
   Calendar, CheckCircle, AlertCircle, FileText, ShieldAlert, Sparkles, Database, Layers,
   ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Clock, Zap, Wifi, Droplets,
-  GraduationCap, Eye, X, BookOpen, ShieldCheck, FileSpreadsheet, Server
+  GraduationCap, Eye, X, BookOpen, ShieldCheck, FileSpreadsheet, Server, LogIn
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { UserActivityLog, School, UserProfile } from '../types';
@@ -28,7 +28,7 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>(
     isSuperAdmin ? 'all' : (currentUser?.schoolId || 'all')
   );
-  const [selectedActionCategory, setSelectedActionCategory] = useState<'all' | 'students' | 'infrastructure' | 'school_profile' | 'import' | 'users'>('all');
+  const [selectedActionCategory, setSelectedActionCategory] = useState<'all' | 'students' | 'infrastructure' | 'school_profile' | 'import' | 'users' | 'auth'>('all');
   const [selectedActionType, setSelectedActionType] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | '7days' | '30days'>('all');
   const [limitCount, setLimitCount] = useState<number>(50);
@@ -159,6 +159,31 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
           dot: 'bg-blue-500',
           icon: BookOpen
         };
+      case 'login':
+      case 'login_success':
+        return {
+          category: 'auth',
+          label: 'เข้าสู่ระบบสำเร็จ',
+          badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700',
+          dot: 'bg-emerald-500',
+          icon: LogIn
+        };
+      case 'login_failed':
+        return {
+          category: 'auth',
+          label: 'เข้าสู่ระบบไม่สำเร็จ (Failed)',
+          badgeColor: 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700',
+          dot: 'bg-rose-500',
+          icon: AlertCircle
+        };
+      case 'logout':
+        return {
+          category: 'auth',
+          label: 'ออกจากระบบ',
+          badgeColor: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+          dot: 'bg-slate-500',
+          icon: Clock
+        };
       default:
         return {
           category: 'other',
@@ -278,12 +303,14 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
     let studentUpdates = 0;
     let infraUpdates = 0;
     let schoolUpdates = 0;
+    let authLogs = 0;
 
     logs.forEach(l => {
       const badge = getActionBadge(l.actionType, l.actionTitle, l.details);
       if (badge.category === 'students') studentUpdates++;
       else if (badge.category === 'infrastructure') infraUpdates++;
       else if (badge.category === 'school_profile') schoolUpdates++;
+      else if (badge.category === 'auth') authLogs++;
     });
 
     const uniqueUsers = new Set(logs.map(l => l.userEmail).filter(Boolean)).size;
@@ -296,7 +323,8 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
       activeSchools: uniqueSchools,
       studentUpdates,
       infraUpdates,
-      schoolUpdates
+      schoolUpdates,
+      authLogs
     };
   }, [logs]);
 
@@ -580,6 +608,19 @@ export const UserActivityLogView: React.FC<ActivityLogProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>นำเข้าไฟล์ BigData</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedActionCategory(selectedActionCategory === 'auth' ? 'all' : 'auth')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              selectedActionCategory === 'auth'
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>🔐 ประวัติเข้าสู่ระบบ (Login Audit) ({stats.authLogs || 0})</span>
           </button>
         </div>
 

@@ -21,9 +21,9 @@ export default function InactivityLogoutHandler({
   const lastActivityRef = useRef<number>(Date.now());
   const warningModalOpenRef = useRef<boolean>(false);
 
-  // ระยะเวลา 30 นาที = 1800 วินาที
-  const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 นาที
-  const WARNING_THRESHOLD_MS = 28 * 60 * 1000;  // เตือนที่นาทีที่ 28 (เหลือ 2 นาที)
+  // ระยะเวลาจำกัดความปลอดภัยหากไม่มีการใช้งาน: 15 นาที (900 วินาที)
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 นาที
+  const WARNING_THRESHOLD_MS = 13 * 60 * 1000;  // เตือนที่นาทีที่ 13 (เหลือ 2 นาที = 120 วินาที)
 
   // ฟังก์ชันอัปเดตเวลาการเคลื่อนไหวล่าสุด
   const handleUserActivity = () => {
@@ -100,7 +100,7 @@ export default function InactivityLogoutHandler({
       const now = Date.now();
       const elapsed = now - lastActivityRef.current;
 
-      // 1. ครบ 30 นาที (1,800,000 ms) -> Logout อัตโนมัติทันที
+      // 1. ครบ 15 นาที (900,000 ms) -> Logout อัตโนมัติทันที
       if (elapsed >= INACTIVITY_TIMEOUT_MS) {
         setShowWarningModal(false);
         warningModalOpenRef.current = false;
@@ -115,7 +115,7 @@ export default function InactivityLogoutHandler({
           console.error('Auto logout error:', err);
         });
       }
-      // 2. ครบ 28 นาที -> แสดงแจ้งเตือนนับถอยหลัง
+      // 2. ครบ 13 นาที -> แสดงแจ้งเตือนนับถอยหลัง 2 นาทีสุดท้าย
       else if (elapsed >= WARNING_THRESHOLD_MS) {
         const leftSecs = Math.max(0, Math.ceil((INACTIVITY_TIMEOUT_MS - elapsed) / 1000));
         setRemainingSeconds(leftSecs);
@@ -156,7 +156,7 @@ export default function InactivityLogoutHandler({
                   แจ้งเตือนความปลอดภัยเซสชัน
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">
-                  ระบบไม่พบการใช้งานของคุณเป็นเวลา 28 นาที
+                  ระบบไม่พบการใช้งานของคุณเป็นเวลา 13 นาที
                 </p>
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function InactivityLogoutHandler({
         </div>
       )}
 
-      {/* 2. Modal แจ้งเตือนเมื่อถูกออกจากระบบอัตโนมัติครบ 30 นาทีเรียบร้อยแล้ว */}
+      {/* 2. Modal แจ้งเตือนเมื่อถูกออกจากระบบอัตโนมัติครบ 15 นาทีเรียบร้อยแล้ว */}
       {showLoggedOutNoticeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-[#1e1518] border-4 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6] space-y-4 text-center">
@@ -206,7 +206,7 @@ export default function InactivityLogoutHandler({
                 🔒 ออกจากระบบอัตโนมัติแล้ว
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 font-bold leading-relaxed">
-                คุณถูกออกจากระบบอัตโนมัติเนื่องจากไม่มีการเคลื่อนไหวบนระบบเป็นเวลา <span className="text-rose-600 dark:text-rose-400 font-black">30 นาที</span> ตามมาตรฐานมาตรการความปลอดภัย
+                คุณถูกออกจากระบบอัตโนมัติเนื่องจากไม่มีการเคลื่อนไหวบนระบบเป็นเวลา <span className="text-rose-600 dark:text-rose-400 font-black">15 นาที</span> ตามมาตรฐานมาตรการความปลอดภัย
               </p>
             </div>
 

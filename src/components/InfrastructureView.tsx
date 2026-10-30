@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { School, UserProfile, DownloadLog } from '../types';
-import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle, Clock, History, Map as MapIcon, Flame, Sun, Battery, Activity, Compass, Layers, Info } from 'lucide-react';
+import { Zap, Globe, GraduationCap, Building2, MapPin, Search, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Sparkles, Filter, Users, Eye, Download, FileSpreadsheet, FileText, XCircle, CheckSquare, Square, PieChart as PieChartIcon, BarChart3, RotateCcw, Lock, Droplets, AlertTriangle, Clock, History, Map as MapIcon, Flame, Sun, Battery, Activity, Compass, Layers, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generatePdfReport } from '../utils/exportPdf';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { getSchoolUpdateBadgeInfo } from '../utils/initialData';
-import { Map as PigeonMap, Overlay as PigeonOverlay } from 'pigeon-maps';
 import { 
   ColorfulDocumentAuditIcon,
   ColorfulElecGridIcon,
@@ -282,16 +281,7 @@ export default function InfrastructureView({
 }: InfrastructureViewProps) {
   // เมนูย่อยในหน้าโครงสร้างพื้นฐาน
   const [showCharts, setShowCharts] = useState<boolean>(true);
-
-  // สถานะแผนที่และระบบ Heatmap ความเสถียรไฟฟ้า/อินเทอร์เน็ต/น้ำประปา
-  const [showMap, setShowMap] = useState<boolean>(true); // ปุ่มเปิด/ปิดการแสดงผลส่วนแผนที่
-  const [isHeatmapActive, setIsHeatmapActive] = useState<boolean>(true); // ปุ่มเปิด/ปิดระบบ Heatmap Color-Coding
-  const [isMobileMapInteractive, setIsMobileMapInteractive] = useState<boolean>(false); // ป้องกัน Map Scroll Trap บนมือถือ
-  const [heatmapSystem, setHeatmapSystem] = useState<HeatmapSystemType>('electricity'); // สลับระบบ: ไฟฟ้า, อินเทอร์เน็ต, น้ำประปา
-  const [selectedMapSchoolId, setSelectedMapSchoolId] = useState<string | null>(null);
-  const [stabilityFilter, setStabilityFilter] = useState<'all' | InfrastructureQualityLevel>('all');
-  const [mapCenter, setMapCenter] = useState<[number, number]>([19.3021, 97.9654]);
-  const [mapZoom, setMapZoom] = useState<number>(9);
+  const [showFilters, setShowFilters] = useState<boolean>(true); // ปุ่มเปิด/ปิดซ่อนแผงตัวกรองเงื่อนไข
 
   // รายการตัวเลือกไฟฟ้า อินเทอร์เน็ต และระบบประปา dynamic จาก systemConfig
   const electricityTypeList = useMemo(() => {
@@ -580,49 +570,6 @@ export default function InfrastructureView({
     });
   }, [schools, searchTerm, amphoeFilter, sizeFilter, electricMode, electricSelected, internetMode, internetSelected, waterMode, waterSelected, selectedMajor, majorMode]);
 
-  // สถิติคุณภาพระบบสำหรับระบบ GIS Heatmap Visualization (ไฟฟ้า / อินเทอร์เน็ต / น้ำประปา)
-  const stabilityStats = useMemo(() => {
-    let optimal = 0;
-    let moderate = 0;
-    let low = 0;
-    let critical = 0;
-
-    schools.forEach(s => {
-      const info = getInfrastructureQuality(s, heatmapSystem);
-      if (info.level === 'optimal') optimal++;
-      else if (info.level === 'moderate') moderate++;
-      else if (info.level === 'low') low++;
-      else if (info.level === 'critical') critical++;
-    });
-
-    const total = schools.length || 1;
-    return {
-      total: schools.length,
-      optimal,
-      moderate,
-      low,
-      critical,
-      optimalPercent: ((optimal / total) * 100).toFixed(1),
-      moderatePercent: ((moderate / total) * 100).toFixed(1),
-      lowPercent: ((low / total) * 100).toFixed(1),
-      criticalPercent: ((critical / total) * 100).toFixed(1),
-    };
-  }, [schools, heatmapSystem]);
-
-  // กรองโรงเรียนที่จะแสดงบนแผนที่ตามสถานะคุณภาพระบบที่เลือกและตัวกรองทั่วไป
-  const mapSchools = useMemo(() => {
-    return filteredSchools.filter(school => {
-      if (stabilityFilter === 'all') return true;
-      const info = getInfrastructureQuality(school, heatmapSystem);
-      return info.level === stabilityFilter;
-    });
-  }, [filteredSchools, stabilityFilter, heatmapSystem]);
-
-  // โรงเรียนที่ถูกคลิกเลือกในแผนที่
-  const selectedMapSchool = useMemo(() => {
-    if (!selectedMapSchoolId) return null;
-    return schools.find(s => s.id === selectedMapSchoolId) || null;
-  }, [schools, selectedMapSchoolId]);
 
   // คำนวณสถิติสำหรับสร้างกราฟ visualizer ตามข้อมูลที่กรองแล้ว
   const chartData = useMemo(() => {
@@ -1015,19 +962,19 @@ export default function InfrastructureView({
               <span>{showCharts ? '📊 ซ่อนกราฟภาพรวม' : '📊 แสดงกราฟภาพรวม'}</span>
             </button>
 
-            {/* Toggle Heatmap Map Section */}
+            {/* Toggle Filters Section */}
             <button
               type="button"
-              onClick={() => setShowMap(!showMap)}
+              onClick={() => setShowFilters(!showFilters)}
               className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all border-2 border-[#33272A] shadow-[2px_2px_0px_#33272A] ${
-                showMap
-                  ? 'bg-amber-300 text-amber-950 ring-1 ring-amber-400'
+                showFilters
+                  ? 'bg-[#FFD3B6] text-[#33272A]'
                   : 'bg-white dark:bg-[#150e10] text-slate-700 dark:text-slate-200'
               }`}
-              title="เปิด/ปิด การแสดงผลแผนที่ฮีตแมปความเสถียรไฟฟ้า"
+              title="เปิด/ปิด แผงกำหนดเงื่อนไขตัวกรอง"
             >
-              <Flame className={`h-4 w-4 shrink-0 ${showMap ? 'text-orange-600 animate-pulse' : 'text-slate-400'}`} />
-              <span>{showMap ? '🗺️ ซ่อนแผนที่ฮีตแมป' : '🗺️ แผนที่ฮีตแมปไฟฟ้า'}</span>
+              <Filter className="h-4 w-4 shrink-0 text-[#33272A] dark:text-[#FFD3B6]" />
+              <span>{showFilters ? '🎯 ซ่อนตัวกรอง' : '🎯 แสดงตัวกรอง'}</span>
             </button>
           </div>
         </div>
@@ -1321,29 +1268,16 @@ export default function InfrastructureView({
         </div>
       )}
 
-      {/* 💡 แบนเนอร์แจ้งการรวมแผนที่ GIS Heatmap Visualization ไว้ที่หน้าภาพรวมระบบ */}
-      <div className="card p-4 sm:p-5 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 dark:from-[#251a1d] dark:via-[#1e1518] dark:to-[#251a1d] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[4px_4px_0px_#33272A] dark:shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center border-2 border-[#33272A] shadow-xs shrink-0 text-lg">
-            🗺️
-          </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-1.5">
-              <span>แผนที่สารสนเทศ GIS Heatmap Visualization รวมอยู่ในหน้า "ภาพรวมระบบ" แล้ว</span>
-            </h3>
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">
-              สามารถเปิดดูการกระจายตัวของสถานศึกษา สลับดูฮีตแมป ⚡ ไฟฟ้า, 🌐 อินเทอร์เน็ต, 🚰 น้ำประปา ได้ครบวงจรในหน้าแรก
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Control Filter Bar (กรองเอาข้อมูลไหน หรือ ไม่เอาข้อมูลไหน) */}
-      <div className="card p-4 sm:p-5 space-y-4 border-l-8 border-l-[#FF8BA7] bg-white dark:bg-[#1e1518]">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-[#FF8BA7] shrink-0" />
-            <h2 className="text-xs sm:text-sm font-black text-[#33272A] dark:text-[#FFF9F5]">
+      <div className={`card p-4 sm:p-5 ${showFilters ? 'space-y-4' : ''} border-l-8 border-l-[#FF8BA7] bg-white dark:bg-[#1e1518] transition-all`}>
+        <div className={`flex flex-wrap items-center justify-between gap-2 ${showFilters ? 'border-b-2 border-[#33272A]/10 dark:border-[#FFD3B6]/20 pb-3' : ''}`}>
+          <div 
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 cursor-pointer select-none group"
+            title="คลิกเพื่อซ่อนหรือแสดงตัวกรอง"
+          >
+            <Filter className="h-4 w-4 text-[#FF8BA7] shrink-0 group-hover:scale-110 transition-transform" />
+            <h2 className="text-xs sm:text-sm font-black text-[#33272A] dark:text-[#FFF9F5] group-hover:text-[#FF8BA7] transition-colors">
               🎯 กำหนดเงื่อนไขตัวกรอง (เลือกประเภทข้อมูลที่จะเอา / ไม่เอา)
             </h2>
             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#A0E7E5] text-[#33272A] border border-[#33272A]">
@@ -1351,15 +1285,42 @@ export default function InfrastructureView({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            className="text-xs font-black text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl border border-rose-300 dark:border-rose-800"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>ล้างเงื่อนไขทั้งหมด</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* ปุ่มซ่อน/แสดงตัวกรอง */}
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className="text-xs font-black text-[#33272A] dark:text-[#FFF9F5] hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 cursor-pointer bg-white dark:bg-[#150e10] px-3 py-1 rounded-xl border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A] transition-all"
+              title={showFilters ? 'ซ่อนแผงตัวกรองเพื่อเพิ่มพื้นที่ดูข้อมูล' : 'แสดงแผงตัวกรองเพื่อปรับเปลี่ยนเงื่อนไข'}
+            >
+              {showFilters ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  <span>ซ่อนตัวกรอง</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  <span>แสดงตัวกรอง</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs font-black text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl border border-rose-300 dark:border-rose-800"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">ล้างเงื่อนไขทั้งหมด</span>
+              <span className="sm:hidden">ล้าง</span>
+            </button>
+          </div>
         </div>
+
+        {/* Grid Filters (พับซ่อนได้) */}
+        {showFilters && (
+          <div className="space-y-4 animate-fade-in">
 
         {/* Grid Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1712,6 +1673,8 @@ export default function InfrastructureView({
             </div>
           </div>
         </div>
+        </div>
+        )}
       </div>
 
       {/* รายการผลลัพธ์โรงเรียน */}

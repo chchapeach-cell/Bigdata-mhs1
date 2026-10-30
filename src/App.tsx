@@ -132,10 +132,18 @@ export function App() {
   const [academicYear, setAcademicYear] = useState<string>(() => getCurrentBEYear());
   const [availableYears, setAvailableYears] = useState<string[]>(() => getDefaultAvailableYears());
   
-  // จัดการผู้ใช้งาน (โหลดค่าเริ่มต้นจาก localStorage เพื่อป้องกัน session หลุดเวลากด F5 / Refresh)
+  // จัดการผู้ใช้งาน (รองรับ Remember Me: หากเลือกจำสถานะจะเก็บใน localStorage หากไม่เลือกจะเก็บใน sessionStorage)
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
     try {
+      const isRemembered = localStorage.getItem('mhs1_remember_me') !== 'false';
+      if (!isRemembered) {
+        // หากผู้ใช้ไม่ได้เลือก Remember Me ให้ดึงจาก sessionStorage เท่านั้น (เมื่อปิดแท็บ/บราวเซอร์จะหลุดทันที)
+        const sessionSaved = sessionStorage.getItem('mhs1_session_profile');
+        if (sessionSaved) return JSON.parse(sessionSaved);
+        localStorage.removeItem('mhs1_persisted_profile');
+        return null;
+      }
       const saved = localStorage.getItem('mhs1_persisted_profile');
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -143,13 +151,21 @@ export function App() {
     }
   });
 
-  // บันทึกโปรไฟล์ผู้ใช้ลง localStorage เสมอเมื่อมีการเปลี่ยนแปลง
+  // บันทึกโปรไฟล์ผู้ใช้ตามสถานะ Remember Me
   useEffect(() => {
     try {
       if (userProfile) {
-        localStorage.setItem('mhs1_persisted_profile', JSON.stringify(userProfile));
+        const isRemembered = localStorage.getItem('mhs1_remember_me') !== 'false';
+        if (isRemembered) {
+          localStorage.setItem('mhs1_persisted_profile', JSON.stringify(userProfile));
+          sessionStorage.removeItem('mhs1_session_profile');
+        } else {
+          sessionStorage.setItem('mhs1_session_profile', JSON.stringify(userProfile));
+          localStorage.removeItem('mhs1_persisted_profile');
+        }
       } else {
         localStorage.removeItem('mhs1_persisted_profile');
+        sessionStorage.removeItem('mhs1_session_profile');
       }
     } catch (e) {
       console.warn('Persist user profile error:', e);

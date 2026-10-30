@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { auth } from '../firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { dbFetchUserProfile, dbSaveUser } from '../lib/dbAdapter';
+import { dbFetchUserProfile, dbSaveUser, dbLogUserActivity } from '../lib/dbAdapter';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -54,6 +54,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
+  // 1. ตัวเลือกจดจำการเข้าสู่ระบบ (Remember Me)
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('mhs1_remember_me') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  // 2. ระบบป้องกันการสุ่มรหัสผ่าน (Brute Force Protection / Rate Limiting)
+  const [failedAttempts, setFailedAttempts] = useState<number>(() => {
+    try {
+      return parseInt(localStorage.getItem('mhs1_login_attempts') || '0', 10);
+    } catch {
+      return 0;
+    }
+  });
+  const [lockoutUntil, setLockoutUntil] = useState<number>(() => {
+    try {
+      return parseInt(localStorage.getItem('mhs1_lockout_until') || '0', 10);
+    } catch {
+      return 0;
+    }
+  });
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
+
+  // ตรวจสอบและนับเวลาถอยหลังการระงับการเข้าสู่ระบบชั่วคราว
+  React.useEffect(() => {
+    const checkLockout = () => {
+      const now = Date.now();
+      if (lockoutUntil > now) {
+        setLockoutSecondsLeft(Math.ceil((lockoutUntil - now) / 1000));
+      } else {
+        setLockoutSecondsLeft(0);
+        if (lockoutUntil > 0) {
+          setLockoutUntil(0);
+          setFailedAttempts(0);
+          try {
+            localStorage.removeItem('mhs1_lockout_until');
+            localStorage.removeItem('mhs1_login_attempts');
+          } catch {}
+        }
+      }
+    };
+
+    checkLockout();
+    const timer = setInterval(checkLockout, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutUntil]);
+
   // Eliminate duplicate school IDs and ensure sorted list
   const uniqueSchools = useMemo(() => {
     const map = new Map<string, School>();
@@ -81,10 +131,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   if (!isOpen) return null;
 
   const finishLogin = (profile: UserProfile) => {
+    // รีเซ็ตการนับความพยายามเข้าสู่ระบบเมื่อสำเร็จ
     try {
-      localStorage.setItem('mhs1_persisted_profile', JSON.stringify(profile));
+      localStorage.removeItem('mhs1_login_attempts');
+      localStorage.removeItem('mhs1_lockout_until');
+      setFailedAttempts(0);
+      setLockoutUntil(0);
+
+      // จัดการ Remember Me
+      localStorage.setItem('mhs1_remember_me', rememberMe ? 'true' : 'false');
+      if (rememberMe) {
+        localStorage.setItem('mhs1_persisted_profile', JSON.stringify(profile));
+        sessionStorage.removeItem('mhs1_session_profile');
+      } else {
+        sessionStorage.setItem('mhs1_session_profile', JSON.stringify(profile));
+        localStorage.removeItem('mhs1_persisted_profile');
+      }
     } catch (e) {
       console.warn('Storage save notice:', e);
+    }
+
+    // บันทึก Login Audit Trail ลงฐานข้อมูล (ให้ Super Admin ดูได้เท่านั้น)
+    try {
+      const cleanEmail = (profile.email || email).trim().toLowerCase();
+      dbLogUserActivity({
+        userId: profile.uid,
+        userName: `${profile.firstName} ${profile.lastName}`.trim(),
+        userEmail: profile.email || cleanEmail,
+        userRole: profile.role,
+        schoolId: profile.schoolId,
+        schoolName: profile.schoolName,
+        actionType: 'login' as any,
+        actionTitle: 'เข้าสู่ระบบสำเร็จ (Login Success)',
+        details: `เข้าสู่ระบบสำเร็จ [${cleanEmail}] • สิทธิ์: ${profile.role === 'super_admin' ? 'Super Admin (สพป.แม่ฮ่องสอน เขต 1)' : 'School Admin (' + profile.schoolName + ')'} • จำสถานะในเครื่อง: ${rememberMe ? 'เปิด (Remember Me)' : 'ปิด (Session Only)'}`,
+        targetName: profile.schoolName
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Audit log notice:', e);
     }
 
     setMessage({
@@ -103,6 +186,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
+
+    // ตรวจสอบสถานะการระงับชั่วคราว (Lockout)
+    if (lockoutUntil > Date.now()) {
+      const remainingSecs = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      const mins = Math.floor(remainingSecs / 60);
+      const secs = remainingSecs % 60;
+      setMessage({
+        type: 'error',
+        text: `⚠️ บัญชีถูกระงับชั่วคราวเนื่องจากกรอกรหัสผ่านผิดเกิน 5 ครั้ง กรุณารออีก ${mins} นาที ${secs} วินาที ก่อนลองใหม่อีกครั้ง`
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     const cleanEmail = email.trim().toLowerCase();
@@ -117,6 +213,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setIsLoading(false);
       return;
     }
+
+    // Helper เมื่อพยายามล็อกอินไม่สำเร็จ (นับ Failed Attempts + บันทึก Audit Log)
+    const onFailedLoginAttempt = (reason: string) => {
+      const nextAttempts = failedAttempts + 1;
+      setFailedAttempts(nextAttempts);
+      try {
+        localStorage.setItem('mhs1_login_attempts', nextAttempts.toString());
+      } catch {}
+
+      // บันทึกประวัติความพยายามเข้าสู่ระบบไม่สำเร็จ (Login Failed Audit Trail)
+      dbLogUserActivity({
+        userId: 'unauthenticated',
+        userName: 'ผู้พยายามเข้าสู่ระบบ',
+        userEmail: cleanEmail,
+        userRole: 'guest' as any,
+        schoolId: 'unknown',
+        schoolName: 'สพป.แม่ฮ่องสอน เขต 1',
+        actionType: 'login_failed' as any,
+        actionTitle: 'พยายามเข้าสู่ระบบไม่สำเร็จ (Login Failed)',
+        details: `พยายามเข้าสู่ระบบไม่สำเร็จด้วยบัญชี [${cleanEmail}] (ครั้งที่ ${nextAttempts}/5) - สาเหตุ: ${reason}`,
+        targetName: cleanEmail
+      }).catch(() => {});
+
+      if (nextAttempts >= 5) {
+        const lockTime = Date.now() + 15 * 60 * 1000; // ล็อค 15 นาที
+        setLockoutUntil(lockTime);
+        setLockoutSecondsLeft(15 * 60);
+        try {
+          localStorage.setItem('mhs1_lockout_until', lockTime.toString());
+        } catch {}
+        setMessage({
+          type: 'error',
+          text: `⚠️ คุณกรอกข้อมูลผิดเกินกำหนด (5 ครั้ง) เพื่อความปลอดภัยตามมาตรการป้องกัน Brute Force ระบบได้ระงับการเข้าสู่ระบบชั่วคราวเป็นเวลา 15 นาที`
+        });
+      } else {
+        setMessage({
+          type: 'error',
+          text: `${reason} (พยายามแล้ว ${nextAttempts}/5 ครั้ง - หากผิดครบ 5 ครั้งระบบจะระงับการเข้าสู่ระบบ 15 นาที)`
+        });
+      }
+      setIsLoading(false);
+    };
 
     // 1. ตรวจสอบบัญชี Super Admin ของเขตพื้นที่ สพป.แม่ฮ่องสอน เขต 1
     const isSuperAdminEmail = cleanEmail === 'ch.chapeach@gmail.com' || 
@@ -187,12 +325,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // 4. กรณีไม่พบบัญชีผู้ใช้ในระบบ
-    setMessage({
-      type: 'error',
-      text: `ไม่พบบัญชีผู้ใช้ "${cleanEmail}" ในระบบ กรุณาตรวจสอบอีเมลและรหัสผ่าน หรือกดแท็บ "ขอสิทธิ์ใช้งาน" เพื่อลงทะเบียนใหม่`
-    });
-    setIsLoading(false);
+    // 4. กรณีไม่พบบัญชีผู้ใช้ในระบบ -> นับ Failed attempt และแจ้งเตือน
+    onFailedLoginAttempt(`ไม่พบบัญชีผู้ใช้ "${cleanEmail}" หรือรหัสผ่านไม่ถูกต้อง`);
   };
 
   // เข้าสู่ระบบด้วย Google Account
@@ -488,16 +622,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 </div>
 
+                {/* Remember Me Checkbox */}
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-black text-[#33272A] dark:text-[#FFF9F5]">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded text-[#FF8BA7] focus:ring-0 border-2 border-[#33272A] cursor-pointer"
+                    />
+                    <span>จดจำการเข้าสู่ระบบ (Remember Me)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    {rememberMe ? '💾 จำสถานะในเครื่องนี้' : '🔒 ล้างข้อมูลเมื่อปิดเบราว์เซอร์'}
+                  </span>
+                </div>
+
+                {/* Brute Force Lockout Warning Banner */}
+                {lockoutSecondsLeft > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-400 text-rose-900 dark:text-rose-200 text-xs font-bold space-y-1.5 animate-pulse">
+                    <div className="flex items-center gap-2 font-black text-rose-700 dark:text-rose-300">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>ระงับการเข้าสู่ระบบชั่วคราว (Brute Force Protection)</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed font-bold">
+                      เนื่องจากมีความพยายามกรอกรหัสผ่านผิดเกิน 5 ครั้ง ระบบได้ระงับการเข้าสู่ระบบชั่วคราว กรุณารออีก{' '}
+                      <span className="font-mono font-black text-sm text-rose-600 dark:text-rose-400 bg-white dark:bg-black/40 px-2 py-0.5 rounded-lg border border-rose-300">
+                        {Math.floor(lockoutSecondsLeft / 60)}:{(lockoutSecondsLeft % 60).toString().padStart(2, '0')} นาที
+                      </span>{' '}
+                      ก่อนลองใหม่อีกครั้ง
+                    </p>
+                  </div>
+                )}
+
                 {/* Curved Action Button */}
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-[#FF8BA7] via-[#ff94ae] to-[#FFAAA5] hover:brightness-105 text-[#33272A] rounded-full font-black text-xs sm:text-sm border-2 border-[#33272A] shadow-[3px_3px_0px_#33272A] hover:shadow-[1px_1px_0px_#33272A] hover:translate-x-0.5 hover:translate-y-0.5 cursor-pointer flex items-center justify-center gap-2 transition-all mt-2"
+                  disabled={isLoading || lockoutSecondsLeft > 0}
+                  className="w-full py-3 px-6 bg-gradient-to-r from-[#FF8BA7] via-[#ff94ae] to-[#FFAAA5] hover:brightness-105 text-[#33272A] rounded-full font-black text-xs sm:text-sm border-2 border-[#33272A] shadow-[3px_3px_0px_#33272A] hover:shadow-[1px_1px_0px_#33272A] hover:translate-x-0.5 hover:translate-y-0.5 cursor-pointer flex items-center justify-center gap-2 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-[#33272A]" />
                       <span>กำลังเข้าสู่ระบบ...</span>
+                    </>
+                  ) : lockoutSecondsLeft > 0 ? (
+                    <>
+                      <Lock className="w-4 h-4 text-[#33272A]" />
+                      <span>ระงับชั่วคราว ({Math.floor(lockoutSecondsLeft / 60)}:{(lockoutSecondsLeft % 60).toString().padStart(2, '0')} นาที)</span>
                     </>
                   ) : (
                     <>
