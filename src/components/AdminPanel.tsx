@@ -21,6 +21,7 @@ import { SchoolSummaryDashboard } from './SchoolSummaryDashboard';
 import { dbSaveStudent, dbSaveStudentG, dbSaveSchool, dbDeleteSchool, dbDeleteStudent, dbDeleteStudentG, dbDeleteStudentsByYear, dbDeleteStudentsGByYear, dbCleanCorruptStudentsG, dbSaveSystemConfig, dbFetchSystemConfig, dbUpdateUserStatus, dbDeleteUser, dbSaveUser, dbFetchUsersByStatus, dbFetchDownloadLogs, dbLogUserActivity, normalizeUserSchoolInfo, dbSyncAndFixAllUsers, dbRestoreKpyUser, clearAppCache } from '../lib/dbAdapter';
 import { generateHostatomMySQLDump, generateFullJsonArchive, getHostatomConfig, HOSTATOM_PHP_CONNECTOR_CODE, downloadAsFile } from '../lib/hostatom';
 import { compressImage, compressSchoolCover, compressSchoolLogo, compressDirectorImage } from '../utils/imageCompressor';
+import { ColorfulAdminShieldIcon } from './ColorfulKpiIcons';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -2534,8 +2535,8 @@ export default function AdminPanel({
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] p-3 text-[#33272A] dark:border-[#FFD3B6]">
-            <Shield className="h-6 w-6" />
+          <div className="rounded-2xl bg-gradient-to-br from-rose-100 to-[#FF8BA7] border-2 border-[#33272A] p-2.5 dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A]">
+            <ColorfulAdminShieldIcon className="h-7 w-7" />
           </div>
           <div>
             <h2 className="text-xl font-black text-[#33272A] dark:text-[#FFF9F5]">

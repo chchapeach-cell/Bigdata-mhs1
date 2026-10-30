@@ -8,6 +8,7 @@ import { generatePdfReport } from '../utils/exportPdf';
 import { getSchoolSize, getSchoolSizeLabel, SCHOOL_GROUPS_LIST, getCurrentBEYear, getDefaultAvailableYears, getSchoolUpdateBadgeInfo } from '../utils/initialData';
 import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { determineQualityLevel } from '../utils/academicData';
+import { ColorfulDocumentAuditIcon } from './ColorfulKpiIcons';
 
 interface SchoolListViewProps {
   schools: School[];
@@ -1635,8 +1636,8 @@ export default function SchoolListView({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#33272A]/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md card p-6 animate-zoom-in">
             <div className="flex items-center gap-3 text-[#33272A] dark:text-[#FFF9F5] mb-4">
-              <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 text-[#33272A]">
-                <FileText className="h-6 w-6" />
+              <div className="rounded-2xl bg-gradient-to-br from-teal-100 to-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 shadow-[2px_2px_0px_#33272A]">
+                <ColorfulDocumentAuditIcon className="h-7 w-7" />
               </div>
               <div>
                 <h3 className="text-base font-black">บันทึกวัตถุประสงค์การเข้าถึงข้อมูล</h3>

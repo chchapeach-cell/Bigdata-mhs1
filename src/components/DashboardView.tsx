@@ -13,6 +13,26 @@ import { Users, GraduationCap, Building2, Eye, Award, CheckCircle, Info, Sparkle
 import { getSchoolSize, SCHOOL_GROUPS_LIST, getSchoolUpdateBadgeInfo } from '../utils/initialData';
 import { getAmphoeAndNetwork } from '../utils/geoHelper';
 import { Map as PigeonMap, Marker as PigeonMarker, Overlay as PigeonOverlay } from 'pigeon-maps';
+import { 
+  ColorfulSchoolIcon, 
+  ColorfulStudentsIcon, 
+  ColorfulTeacherIcon, 
+  ColorfulOpportunityIcon, 
+  ColorfulGStudentBadgeIcon, 
+  ColorfulGenderRatioIcon,
+  ColorfulElecGridIcon,
+  ColorfulElecSolarIcon,
+  ColorfulElecHybridIcon,
+  ColorfulElecNoneIcon,
+  ColorfulNetFiberIcon,
+  ColorfulNetSatelliteIcon,
+  ColorfulNetSimIcon,
+  ColorfulNetNoneIcon,
+  ColorfulWaterGovIcon,
+  ColorfulWaterMountainIcon,
+  ColorfulWaterWellIcon,
+  ColorfulWaterNoneIcon
+} from './ColorfulKpiIcons';
 
 interface DashboardViewProps {
   schools: School[];
@@ -983,8 +1003,8 @@ export default function DashboardView({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">สถานศึกษาทั้งหมด</span>
-            <div className="rounded-2xl bg-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
-              <Building2 className="h-6 w-6" />
+            <div className="rounded-2xl bg-gradient-to-br from-rose-100 to-[#FF8BA7] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] group-hover:scale-110 group-hover:rotate-3 transition-transform">
+              <ColorfulSchoolIcon className="h-7 w-7" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
@@ -1006,8 +1026,8 @@ export default function DashboardView({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">นักเรียนทั้งหมด</span>
-            <div className="rounded-2xl bg-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
-              <Users className="h-6 w-6" />
+            <div className="rounded-2xl bg-gradient-to-br from-amber-100 to-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
+              <ColorfulStudentsIcon className="h-7 w-7" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
@@ -1029,8 +1049,8 @@ export default function DashboardView({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ครูและบุคลากร</span>
-            <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FFD3B6] transition-colors">
-              <GraduationCap className="h-6 w-6" />
+            <div className="rounded-2xl bg-gradient-to-br from-teal-100 to-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] group-hover:scale-110 group-hover:rotate-3 transition-transform">
+              <ColorfulTeacherIcon className="h-7 w-7" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
@@ -1052,8 +1072,8 @@ export default function DashboardView({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#33272A]/70 dark:text-[#FFF9F5]/70 uppercase tracking-wider">ขยายโอกาส (ม.1-ม.3)</span>
-            <div className="rounded-2xl bg-[#FFD3B6]/80 border-2 border-[#33272A] dark:border-[#FFD3B6] p-3 text-[#33272A] group-hover:bg-[#FF8BA7] transition-colors">
-              <Award className="h-6 w-6" />
+            <div className="rounded-2xl bg-gradient-to-br from-amber-100 to-[#FFD3B6] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 shadow-[2px_2px_0px_#33272A] dark:shadow-[2px_2px_0px_#FFD3B6] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
+              <ColorfulOpportunityIcon className="h-7 w-7" />
             </div>
           </div>
           <div className="mt-4 flex justify-between items-end">
@@ -1419,8 +1439,8 @@ export default function DashboardView({
                   {(currentYearGStats?.total || 0).toLocaleString()} <span className="text-xs font-normal">คน</span>
                 </div>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 flex items-center justify-center font-bold">
-                G
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-950 dark:to-indigo-950 border border-blue-300 dark:border-blue-700 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulGStudentBadgeIcon className="h-9 w-9" />
               </div>
             </div>
 
@@ -1432,8 +1452,8 @@ export default function DashboardView({
                   <span className="text-pink-600 dark:text-pink-400">หญิง: {(currentYearGStats?.female || 0).toLocaleString()}</span>
                 </div>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300 flex items-center justify-center font-bold">
-                ⚤
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-950 dark:to-pink-950 border border-purple-300 dark:border-purple-700 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulGenderRatioIcon className="h-9 w-9" />
               </div>
             </div>
 
@@ -1453,8 +1473,8 @@ export default function DashboardView({
                   👉 คลิกเพื่อเปิดดูรายชื่อ (เรียงตามจำนวน)
                 </span>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 flex items-center justify-center font-bold group-hover:bg-amber-500 group-hover:text-white transition-colors shadow-sm">
-                <Building2 className="h-5 w-5" />
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-950 dark:to-orange-950 border border-amber-300 dark:border-amber-700 p-1.5 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-110 transition-transform">
+                <ColorfulSchoolIcon className="h-8 w-8" />
               </div>
             </div>
           </div>
@@ -2456,8 +2476,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-amber-900 dark:text-amber-200">ไฟฟ้าถาวร/ไฟฟ้าภาครัฐ</span>
-              <div className="h-8 w-8 rounded-xl bg-amber-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Zap className="h-4 w-4 text-[#33272A] fill-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-amber-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulElecGridIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2477,8 +2497,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-yellow-900 dark:text-yellow-200">ใช้ระบบโซลาร์เซลล์</span>
-              <div className="h-8 w-8 rounded-xl bg-yellow-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Sun className="h-4 w-4 text-[#33272A] fill-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-yellow-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulElecSolarIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2498,8 +2518,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-teal-900 dark:text-teal-200">ไฟฟ้าภาครัฐ & โซลาร์เซลล์</span>
-              <div className="h-8 w-8 rounded-xl bg-teal-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Zap className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-teal-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulElecHybridIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2519,8 +2539,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-rose-900 dark:text-rose-200">ไม่มีไฟฟ้าใช้งาน</span>
-              <div className="h-8 w-8 rounded-xl bg-rose-300 dark:bg-rose-800 border border-[#33272A] flex items-center justify-center shrink-0">
-                <ZapOff className="h-4 w-4 text-rose-900 dark:text-rose-100" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-rose-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulElecNoneIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2540,8 +2560,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-emerald-900 dark:text-emerald-200">เน็ตไฟเบอร์ (Fiber)</span>
-              <div className="h-8 w-8 rounded-xl bg-emerald-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Globe className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-emerald-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulNetFiberIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2561,8 +2581,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-sky-900 dark:text-sky-200">ดาวเทียม (Satellite)</span>
-              <div className="h-8 w-8 rounded-xl bg-sky-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Radio className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-sky-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulNetSatelliteIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2582,8 +2602,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-orange-900 dark:text-orange-200">ซิมมือถือ (4G/5G)</span>
-              <div className="h-8 w-8 rounded-xl bg-orange-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Smartphone className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-orange-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulNetSimIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2603,8 +2623,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-slate-900 dark:text-slate-200">ไม่มีอินเทอร์เน็ต</span>
-              <div className="h-8 w-8 rounded-xl bg-slate-300 dark:bg-slate-700 border border-[#33272A] flex items-center justify-center shrink-0">
-                <WifiOff className="h-4 w-4 text-[#33272A] dark:text-slate-200" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-slate-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulNetNoneIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2624,8 +2644,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-blue-900 dark:text-blue-200">ประปาภาครัฐ</span>
-              <div className="h-8 w-8 rounded-xl bg-blue-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Droplets className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-blue-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulWaterGovIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2645,8 +2665,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-cyan-900 dark:text-cyan-200">น้ำประปาภูเขา</span>
-              <div className="h-8 w-8 rounded-xl bg-cyan-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Droplets className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-cyan-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulWaterMountainIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2666,8 +2686,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-purple-900 dark:text-purple-200">ประปาอื่นๆ / บ่อบาดาล</span>
-              <div className="h-8 w-8 rounded-xl bg-purple-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Droplets className="h-4 w-4 text-[#33272A]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-purple-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulWaterWellIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2687,8 +2707,8 @@ export default function DashboardView({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-rose-900 dark:text-rose-200">ไม่มีน้ำประปา/ขาดแคลน</span>
-              <div className="h-8 w-8 rounded-xl bg-rose-400 border border-[#33272A] flex items-center justify-center shrink-0">
-                <Droplets className="h-4 w-4 text-white" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-rose-400/50 flex items-center justify-center shrink-0 shadow-xs p-1">
+                <ColorfulWaterNoneIcon className="h-7 w-7" />
               </div>
             </div>
             <div>
@@ -2982,8 +3002,8 @@ export default function DashboardView({
             {/* Modal Header */}
             <div className="p-5 border-b-2 border-[#33272A] dark:border-[#FFD3B6] bg-amber-50 dark:bg-slate-900 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl border-2 border-[#33272A] bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  <Building2 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                <div className="p-2 rounded-2xl border-2 border-[#33272A] bg-amber-100 shadow-[2px_2px_0px_#33272A]">
+                  <ColorfulSchoolIcon className="h-7 w-7" />
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-black text-[#33272A] dark:text-[#FFF9F5] flex items-center gap-2">

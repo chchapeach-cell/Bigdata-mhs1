@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { School, UserProfile } from '../types';
+import { ColorfulSchoolIcon } from './ColorfulKpiIcons';
 
 interface SchoolSummaryDashboardProps {
   schools: School[];
@@ -492,7 +493,7 @@ export const SchoolSummaryDashboard: React.FC<SchoolSummaryDashboardProps> = ({
         >
           <div className="flex items-center justify-between text-[11px] font-black text-[#33272A]/70 dark:text-[#FFF9F5]/70">
             <span>สถานศึกษาทั้งหมด</span>
-            <Building className="h-4 w-4 text-slate-500" />
+            <ColorfulSchoolIcon className="h-5 w-5" />
           </div>
           <div className="text-xl sm:text-2xl font-black text-[#33272A] dark:text-[#FFF9F5] mt-1.5">
             {stats.total} <span className="text-xs font-bold text-slate-500">แห่ง</span>

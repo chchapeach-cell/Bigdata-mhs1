@@ -7,7 +7,17 @@ import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, 
 import { dbAddDownloadLog } from '../lib/dbAdapter';
 import { getSchoolUpdateBadgeInfo } from '../utils/initialData';
 import { Map as PigeonMap, Overlay as PigeonOverlay } from 'pigeon-maps';
-import { getAmphoeAndNetwork } from '../utils/geoHelper';
+import { 
+  ColorfulDocumentAuditIcon,
+  ColorfulElecGridIcon,
+  ColorfulElecSolarIcon,
+  ColorfulNetFiberIcon,
+  ColorfulNetSatelliteIcon,
+  ColorfulWaterGovIcon,
+  ColorfulWaterMountainIcon,
+  ColorfulWaterWellIcon,
+  ColorfulWaterNoneIcon
+} from './ColorfulKpiIcons';
 
 export type InfrastructureQualityLevel = 'optimal' | 'moderate' | 'low' | 'critical';
 export type ElectricityStabilityLevel = InfrastructureQualityLevel;
@@ -1039,8 +1049,8 @@ export default function InfrastructureView({
                   {((chartData.elecHas / (chartData.total || 1)) * 100).toFixed(1)}% ของทั้งหมด
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-amber-100 text-amber-600 border border-amber-300 shrink-0">
-                <Zap className="h-4 w-4 fill-amber-400" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-amber-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulElecGridIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1055,8 +1065,8 @@ export default function InfrastructureView({
                   {(((chartData.elecSolar + chartData.elecHybrid) / (chartData.total || 1)) * 100).toFixed(1)}% Off-Grid
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600 border border-emerald-300 shrink-0">
-                <Sparkles className="h-4 w-4" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-yellow-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulElecSolarIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1071,8 +1081,8 @@ export default function InfrastructureView({
                   {((chartData.netFiber / (chartData.total || 1)) * 100).toFixed(1)}% ความเร็วสูง
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-sky-100 text-sky-600 border border-sky-300 shrink-0">
-                <Globe className="h-4 w-4" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-sky-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulNetFiberIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1087,8 +1097,8 @@ export default function InfrastructureView({
                   {(((chartData.netSat + chartData.netSim) / (chartData.total || 1)) * 100).toFixed(1)}% พื้นที่ห่างไกล
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-purple-100 text-purple-600 border border-purple-300 shrink-0">
-                <Users className="h-4 w-4" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-purple-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulNetSatelliteIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1103,8 +1113,8 @@ export default function InfrastructureView({
                   {((chartData.waterGov / (chartData.total || 1)) * 100).toFixed(1)}% ภูมิภาค/ท้องถิ่น
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-blue-100 text-blue-600 border border-blue-300 shrink-0">
-                <Droplets className="h-4 w-4 text-blue-600" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-blue-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulWaterGovIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1119,8 +1129,8 @@ export default function InfrastructureView({
                   {((chartData.waterMountain / (chartData.total || 1)) * 100).toFixed(1)}% ประปาภูเขา
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-cyan-100 text-cyan-600 border border-cyan-300 shrink-0">
-                <Droplets className="h-4 w-4 text-cyan-600" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-cyan-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulWaterMountainIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1135,8 +1145,8 @@ export default function InfrastructureView({
                   {((chartData.waterOther / (chartData.total || 1)) * 100).toFixed(1)}% บ่อบาดาล/อื่นๆ
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-indigo-100 text-indigo-600 border border-indigo-300 shrink-0">
-                <Droplets className="h-4 w-4 text-indigo-600" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-purple-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulWaterWellIcon className="h-6 w-6" />
               </div>
             </div>
 
@@ -1151,8 +1161,8 @@ export default function InfrastructureView({
                   {((chartData.waterNone / (chartData.total || 1)) * 100).toFixed(1)}% ขาดแคลนน้ำใช้
                 </span>
               </div>
-              <div className="p-2 rounded-xl bg-rose-100 text-rose-600 border border-rose-300 shrink-0">
-                <Droplets className="h-4 w-4 text-rose-600" />
+              <div className="p-1 rounded-xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-rose-400/50 flex items-center justify-center shrink-0 shadow-xs">
+                <ColorfulWaterNoneIcon className="h-6 w-6" />
               </div>
             </div>
           </div>
@@ -1977,8 +1987,8 @@ export default function InfrastructureView({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md card p-6 bg-white dark:bg-[#1e1518] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[6px_6px_0px_#33272A] dark:shadow-[6px_6px_0px_#FFD3B6] animate-zoom-in">
             <div className="flex items-center gap-3 text-[#33272A] dark:text-[#FFF9F5] mb-4">
-              <div className="rounded-2xl bg-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2.5 text-[#33272A]">
-                <FileText className="h-6 w-6" />
+              <div className="rounded-2xl bg-gradient-to-br from-teal-100 to-[#A0E7E5] border-2 border-[#33272A] dark:border-[#FFD3B6] p-2 shadow-[2px_2px_0px_#33272A]">
+                <ColorfulDocumentAuditIcon className="h-7 w-7" />
               </div>
               <div>
                 <h3 className="text-base font-black">บันทึกวัตถุประสงค์การเข้าถึงข้อมูล</h3>

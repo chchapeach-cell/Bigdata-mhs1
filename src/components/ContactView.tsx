@@ -7,6 +7,15 @@ import {
   Phone, Mail, MessageCircle, Globe, MapPin, QrCode, Share2, Plus, Trash2, Edit3, 
   Eye, EyeOff, Save, CheckCircle2, Upload, AlertCircle, ExternalLink, X, Shield, Video, Sparkles
 } from 'lucide-react';
+import { 
+  ColorfulPhoneCallIcon, 
+  ColorfulEmailIcon, 
+  ColorfulLineAppIcon, 
+  ColorfulFacebookIcon, 
+  ColorfulTikTokIcon, 
+  ColorfulOfficeMapPinIcon, 
+  ColorfulQrCodeIcon 
+} from './ColorfulKpiIcons';
 
 interface ContactViewProps {
   systemConfig?: SystemConfig;
@@ -248,21 +257,21 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
   const renderIcon = (type: ContactChannel['type']) => {
     switch (type) {
       case 'phone':
-        return <Phone className="h-6 w-6 text-emerald-500" />;
+        return <ColorfulPhoneCallIcon className="h-7 w-7" />;
       case 'email':
-        return <Mail className="h-6 w-6 text-sky-500" />;
+        return <ColorfulEmailIcon className="h-7 w-7" />;
       case 'line':
-        return <MessageCircle className="h-6 w-6 text-emerald-600" />;
+        return <ColorfulLineAppIcon className="h-7 w-7" />;
       case 'facebook':
-        return <Globe className="h-6 w-6 text-blue-600" />;
+        return <ColorfulFacebookIcon className="h-7 w-7" />;
       case 'tiktok':
-        return <Video className="h-6 w-6 text-pink-500" />;
+        return <ColorfulTikTokIcon className="h-7 w-7" />;
       case 'address':
-        return <MapPin className="h-6 w-6 text-rose-500" />;
+        return <ColorfulOfficeMapPinIcon className="h-7 w-7" />;
       case 'qr_code':
-        return <QrCode className="h-6 w-6 text-purple-600" />;
+        return <ColorfulQrCodeIcon className="h-7 w-7" />;
       default:
-        return <Share2 className="h-6 w-6 text-amber-500" />;
+        return <Share2 className="h-7 w-7 text-amber-500" />;
     }
   };
 
@@ -616,7 +625,7 @@ export default function ContactView({ systemConfig, userProfile, onRefreshData }
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-[#FFF9F5] dark:bg-[#2e1d23] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A] shrink-0">
+                    <div className="p-2 rounded-2xl bg-white dark:bg-[#150e10] border-2 border-[#33272A] dark:border-[#FFD3B6] shadow-[2px_2px_0px_#33272A] shrink-0 flex items-center justify-center">
                       {renderIcon(channel.type)}
                     </div>
                     <div>
